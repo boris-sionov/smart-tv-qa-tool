@@ -1,0 +1,41 @@
+<div class="selector-page">
+  <div class="selector-header">
+    <h1 class="selector-title">FreeTV QA Tool</h1>
+    <p class="selector-subtitle">Select a platform to manage</p>
+  </div>
+
+  <div class="platform-grid">
+    <button class="platform-card" (click)="openLg()">
+      <div class="platform-icon lg-icon">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" rx="20" fill="#A50034"/>
+          <text x="50" y="68" text-anchor="middle" font-size="48" font-weight="bold" fill="white" font-family="sans-serif">LG</text>
+        </svg>
+      </div>
+      <div class="platform-name">LG WebOS</div>
+      <div class="platform-desc">Manage apps on LG Smart TVs</div>
+      <div class="platform-status ready">Ready</div>
+    </button>
+
+    <button class="platform-card" (click)="openAndroid()">
+      <div class="platform-icon android-icon">
+        <i class="bi bi-android2"></i>
+      </div>
+      <div class="platform-name">Android TV</div>
+      <div class="platform-desc">Manage apps via ADB</div>
+      <div class="platform-status ready">Ready</div>
+    </button>
+
+    <button class="platform-card disabled" disabled>
+      <div class="platform-icon tizen-icon">
+        <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" rx="20" fill="#1428A0"/>
+          <text x="50" y="62" text-anchor="middle" font-size="22" font-weight="bold" fill="white" font-family="sans-serif">Samsung</text>
+        </svg>
+      </div>
+      <div class="platform-name">Samsung Tizen</div>
+      <div class="platform-desc">Manage apps on Samsung TVs</div>
+      <div class="platform-status in-progress">In Progress</div>
+    </button>
+  </div>
+</div>

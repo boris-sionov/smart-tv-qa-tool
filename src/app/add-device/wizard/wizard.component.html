@@ -1,0 +1,83 @@
+<div class="wizard-modal">
+  <!--suppress JSUnusedGlobalSymbols -->
+  <ul ngbNav #nav="ngbNav" class="nav-pills d-none" orientation="horizontal" [activeId]="activateId">
+    <li ngbNavItem="mode-select">
+      <a ngbNavLink>Connection Mode</a>
+      <ng-template ngbNavContent>
+        <div class="step-content">
+          <app-wizard-mode-select [(mode)]="connectionMode" (proceed)="finishConnectionModeSelection()">
+          </app-wizard-mode-select>
+        </div>
+        <ng-template appWizardFooterTemplate>
+          @if (cancellable) {
+            <button class="wizard-btn secondary" (click)="modal.dismiss()" aria-label="Cancel">
+              <i class="bi bi-x-lg"></i>
+              <span>Cancel</span>
+            </button>
+          }
+          <button class="wizard-btn primary ms-auto" [disabled]="!connectionMode" [ngSwitch]="connectionMode"
+                  (click)="finishConnectionModeSelection()" aria-label="Next">
+            <span>Next</span>
+            <i class="bi bi-arrow-right"></i>
+          </button>
+        </ng-template>
+      </ng-template>
+    </li>
+    @if (connectionMode === 'devMode') {
+      <li ngbNavItem="devmode-setup">
+        <a ngbNavLink>Setup Developer Mode</a>
+        <ng-template ngbNavContent>
+          <div class="step-content">
+            <app-wizard-devmode-setup #devModeSetup></app-wizard-devmode-setup>
+          </div>
+          <ng-template appWizardFooterTemplate>
+            <button class="wizard-btn secondary" (click)="prevStep()" aria-label="Back">
+              <i class="bi bi-arrow-left"></i>
+              <span>Back</span>
+            </button>
+            <button class="wizard-btn primary ms-auto" (click)="editDevice()"
+                    [attr.aria-label]="devModeSetup.allDone ? 'Next' : 'Skip'">
+              <span>{{ devModeSetup.allDone ? 'Next' : 'Skip' }}</span>
+              <i class="bi bi-arrow-right"></i>
+            </button>
+          </ng-template>
+        </ng-template>
+      </li>
+    }
+    <li ngbNavItem="device-info">
+      <a ngbNavLink>Setup Device</a>
+      <ng-template ngbNavContent>
+        <div class="step-content">
+          <app-wizard-add-device [mode]="connectionMode" (deviceAdded)="deviceAdded($event)" #addDevice>
+          </app-wizard-add-device>
+        </div>
+        <ng-template appWizardFooterTemplate>
+          <button class="wizard-btn secondary" (click)="prevStep()" aria-label="Back">
+            <i class="bi bi-arrow-left"></i>
+            <span>Back</span>
+          </button>
+          <button class="wizard-btn primary ms-auto" (click)="addDevice.submit()" [disabled]="!addDevice.valid"
+                  aria-label="Finish">
+            <i class="bi bi-check-lg"></i>
+            <span>Finish</span>
+          </button>
+        </ng-template>
+      </ng-template>
+    </li>
+  </ul>
+
+  <div class="wizard-header">
+    <h5 class="wizard-title">{{ navTitle }}</h5>
+    @if (cancellable) {
+      <button class="close-btn" (click)="modal.dismiss()" aria-label="Close">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    }
+  </div>
+
+  <div class="wizard-body" [ngbNavOutlet]="nav"></div>
+
+  <div class="wizard-footer">
+    <ng-container *ngTemplateOutlet="footerTemplate"></ng-container>
+  </div>
+</div>

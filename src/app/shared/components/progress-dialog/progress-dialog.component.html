@@ -1,0 +1,21 @@
+<div class="progress-dialog">
+  <div class="progress-icon">
+    <div class="spinner"></div>
+  </div>
+  <div class="progress-content">
+    <div class="progress-message">
+      @if (message) {
+        {{ message }}
+      } @else {
+        Please wait...
+      }
+    </div>
+    <ngb-progressbar type="info" [value]="progress ?? 100" [max]="100" [striped]="progress === undefined"
+                     [animated]="progress === undefined || progress > 0" class="modern-progress mt-2"></ngb-progressbar>
+    @if (secondaryProgress !== undefined) {
+      <ngb-progressbar type="info" [value]="secondaryProgress" [max]="100" [striped]="isNaN(secondaryProgress)"
+                       [animated]="secondaryProgress > 0" class="modern-progress mt-2">
+      </ngb-progressbar>
+    }
+  </div>
+</div>

@@ -1,0 +1,13 @@
+<div class="card m-2">
+  <div class="card-body">
+    @if (title) {
+      <h5 class="card-title">{{ title }}</h5>
+    }
+    <p class="card-text">{{ error.message }}</p>
+    @let details = $any(error).details;
+    @if (details) {
+      <pre class="card-text">{{ details }}</pre>
+    }
+    <button class="btn btn-primary" (click)="retry.emit()">Retry</button>
+  </div>
+</div>

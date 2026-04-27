@@ -1,0 +1,14 @@
+.address-input {
+  .host {
+  }
+
+  .port {
+    max-width: 6em;
+  }
+}
+
+.auth-input {
+  select {
+    max-width: 10em;
+  }
+}

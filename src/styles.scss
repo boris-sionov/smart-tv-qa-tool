@@ -1,0 +1,69 @@
+@use 'bootstrap' as bs;
+@use 'bootstrap-icons';
+@use '@xterm/xterm';
+
+@import './styles/no-select';
+@import './styles/app-item';
+@import './styles/overflow';
+@import './styles/terminal';
+@import './styles/shared';
+
+
+@import 'highlight.js/scss/github.scss' screen and (prefers-color-scheme: light);
+@import 'highlight.js/scss/github-dark.scss' screen and (prefers-color-scheme: dark);
+
+/*
+ * Content
+ */
+
+html, body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.bg-panel {
+  @extend .bg-dark-subtle;
+}
+
+// Modern modal styling for wizard
+.modal-content {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5) !important;
+}
+
+// Override default modal sizes - keep popups compact
+.modal-sm {
+  max-width: 400px !important;
+}
+
+.modal-dialog.modal-sm {
+  max-width: 400px !important;
+}
+
+// Global hand cursor for all interactive elements
+button:not(:disabled),
+.btn:not(:disabled),
+a[href],
+a[routerLink],
+[role="button"],
+select:not(:disabled),
+[ngbDropdownToggle]:not(:disabled),
+[ngbDropdownItem],
+.nav-link,
+.dropdown-item,
+.dropdown-toggle,
+[type="button"]:not(:disabled),
+[type="submit"]:not(:disabled),
+input[type="checkbox"],
+input[type="radio"],
+label[for] {
+  cursor: pointer !important;
+}
+
+button:disabled,
+.btn:disabled,
+[disabled] {
+  cursor: not-allowed !important;
+}

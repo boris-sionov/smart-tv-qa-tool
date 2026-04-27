@@ -1,0 +1,5 @@
+@if (environment) {
+  <div [class]="'env-ribbon env-' + environment.toLowerCase()">
+    {{ environment }}
+  </div>
+}

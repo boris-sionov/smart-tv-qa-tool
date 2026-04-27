@@ -1,0 +1,95 @@
+<div class="devices-page">
+  @let devices = devices$ | async;
+
+  <!-- Hero Header -->
+  <div class="devices-hero">
+    <div class="hero-content">
+      <div class="hero-avatar">
+        <i class="bi bi-hdd-network-fill"></i>
+      </div>
+      <div class="hero-text">
+        <h1 class="hero-title">Manage Devices</h1>
+        <p class="hero-subtitle">
+          {{ devices?.length || 0 }} {{ (devices?.length || 0) === 1 ? 'device' : 'devices' }} saved
+        </p>
+      </div>
+      <button class="add-device-btn" (click)="addDevice()">
+        <i class="bi bi-plus-circle-fill"></i>
+        <span>Add Device</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Saved Devices Section -->
+  <div class="devices-section">
+    <h5 class="section-title">
+      <i class="bi bi-collection-fill"></i>
+      Saved Devices
+    </h5>
+
+    @if (!devices || devices.length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon">
+          <i class="bi bi-inbox"></i>
+        </div>
+        <h4>No Devices Yet</h4>
+        <p>Click "Add Device" above to add your first webOS device.</p>
+      </div>
+    } @else {
+      <div class="devices-grid">
+        @for (device of devices; track device.name) {
+          <div class="device-card" [class.editing]="editingDevice === device">
+            <div class="device-card-header">
+              <div class="device-icon">
+                <i class="bi bi-tv"></i>
+              </div>
+              @if (device.default) {
+                <span class="status-badge default">
+                  <i class="bi bi-star-fill"></i>
+                  Default
+                </span>
+              }
+            </div>
+            <div class="device-card-body">
+              <h4 class="device-name">{{ device.name }}</h4>
+              <div class="device-info">
+                <i class="bi bi-router"></i>
+                <span>{{ device.host }}:{{ device.port }}</span>
+              </div>
+              @if (device.username) {
+                <div class="device-info">
+                  <i class="bi bi-person-fill"></i>
+                  <span>{{ device.username }}</span>
+                </div>
+              }
+            </div>
+            <div class="device-card-actions">
+              @if (editingDevice !== device) {
+                <button class="device-btn primary" (click)="editingDevice = device">
+                  <i class="bi bi-pencil-fill"></i>
+                  Edit
+                </button>
+              } @else {
+                <button class="device-btn secondary" (click)="editingDevice = undefined">
+                  <i class="bi bi-x-lg"></i>
+                  Cancel
+                </button>
+              }
+              <button class="device-btn danger" (click)="deleteDevice(device)" ngbTooltip="Remove device" placement="top">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+
+            <!-- Inline editor -->
+            <div class="device-card-editor" [ngbCollapse]="editingDevice !== device">
+              @defer {
+                <app-device-inline-editor [device]="device" (closed)="editingDevice = undefined"
+                                          (remove)="deleteDevice($event)" (save)="saveDevice($event)"/>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

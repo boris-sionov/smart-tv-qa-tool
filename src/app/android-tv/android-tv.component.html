@@ -1,0 +1,38 @@
+<div class="modern-layout">
+  <!-- Modern Top Navigation Bar -->
+  <nav class="modern-navbar">
+    <div class="navbar-container">
+      <div class="navbar-start">
+        <button class="nav-btn back-btn" (click)="goBack()" title="Change Platform">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <span class="platform-label">Android TV</span>
+      </div>
+
+      <div class="navbar-center">
+        <!-- Navigation Links -->
+        <div class="nav-pills-horizontal">
+          <a class="nav-link-modern" routerLink="apps" routerLinkActive="active" replaceUrl title="Apps">
+            <i class="bi bi-grid"></i>
+            <span>Apps</span>
+          </a>
+          <a class="nav-link-modern" routerLink="info" routerLinkActive="active" replaceUrl title="Device Info">
+            <i class="bi bi-info-circle"></i>
+            <span>Info</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="navbar-end">
+        <button class="nav-btn devices-btn" routerLink="devices" routerLinkActive="active" replaceUrl ngbTooltip="Manage Devices" placement="bottom">
+          <i class="bi bi-hdd-rack"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main role="main" class="modern-main">
+    <router-outlet (activate)="onDevicesChanged()"></router-outlet>
+  </main>
+</div>

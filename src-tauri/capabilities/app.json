@@ -1,0 +1,39 @@
+{
+  "$schema": "../gen/schemas/capabilities.json",
+  "identifier": "app-caps",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:event:default",
+    "core:webview:default",
+    "core:path:default",
+    "core:path:allow-resolve-directory",
+    "fs:default",
+    "fs:write-all",
+    "shell:allow-open",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [{"name": "zsh", "cmd": "/bin/zsh", "args": true}]
+    },
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "upload:allow-download",
+    "device-manager:default",
+    "remote-command:default",
+    "remote-shell:default",
+    "remote-file:default",
+    "dev-mode:default",
+    "local-file:default",
+    "log:default",
+    "os:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://*"
+        }
+      ]
+    }
+  ]
+}

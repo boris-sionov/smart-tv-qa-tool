@@ -1,0 +1,328 @@
+:host {
+  display: flex;
+  height: 100%;
+  width: 100%;
+}
+
+// Modern Design System
+$bg-dark: #0F172B;
+$bg-light: #1a2744;
+$primary-blue: #5B9FF5;
+$accent-red: #FF6B6B;
+$text-primary: #FFFFFF;
+$text-secondary: #A8B8CC;
+$border-color: rgba(91, 159, 245, 0.2);
+
+// Global hand cursor for all interactive elements
+:host {
+  button:not(:disabled),
+  .btn:not(:disabled),
+  a,
+  [role="button"],
+  select,
+  .nav-link,
+  .nav-link-modern,
+  .nav-btn {
+    cursor: pointer !important;
+  }
+
+  button:disabled,
+  .btn:disabled {
+    cursor: not-allowed !important;
+  }
+}
+
+.modern-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(135deg, #0F172B 0%, #1a2744 100%);
+}
+
+// Modern Navbar
+.modern-navbar {
+  background: rgba(15, 23, 43, 0.85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid $border-color;
+  padding: 0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+
+  .navbar-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 100%;
+    height: 70px;
+    padding: 0 24px;
+    gap: 24px;
+  }
+
+  .navbar-start,
+  .navbar-center,
+  .navbar-end {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .navbar-start {
+    min-width: 150px;
+  }
+
+  .navbar-center {
+    flex: 1;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .navbar-end {
+    min-width: 150px;
+    justify-content: flex-end;
+  }
+
+  .platform-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: $primary-blue;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+}
+
+// Device Selector Bar
+.device-selector-bar {
+  background: rgba(15, 23, 43, 0.6);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid $border-color;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+// Device Selector
+.device-selector-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid $border-color;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  i.bi {
+    font-size: 16px;
+    color: $primary-blue;
+    flex-shrink: 0;
+  }
+
+  &:hover {
+    background: rgba(91, 159, 245, 0.15);
+    border-color: $primary-blue;
+  }
+
+  &:focus-within {
+    background: rgba(91, 159, 245, 0.15);
+    border-color: $primary-blue;
+  }
+}
+
+.device-selector {
+  background: transparent;
+  border: none;
+  color: $text-primary;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 0;
+  min-width: 150px;
+  cursor: pointer;
+  font-family: 'Segoe UI', 'San Francisco', -apple-system, sans-serif;
+
+  &:focus {
+    outline: none;
+  }
+
+  option {
+    background: $bg-dark;
+    color: $text-primary;
+    padding: 8px;
+  }
+}
+
+// Navigation Pills (Horizontal)
+.nav-pills-horizontal {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.nav-link-modern {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  color: $text-secondary;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  white-space: nowrap;
+
+  i.bi {
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+  }
+
+  span {
+    display: none;
+
+    @media (min-width: 768px) {
+      display: inline;
+    }
+  }
+
+  &:hover {
+    background: rgba(91, 159, 245, 0.15);
+    color: $primary-blue;
+    border-color: $border-color;
+    transform: translateY(-2px);
+  }
+
+  &.active {
+    background: rgba(91, 159, 245, 0.25);
+    color: $primary-blue;
+    border-color: $primary-blue;
+  }
+}
+
+// Navigation Buttons
+.nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.08);
+  color: $text-secondary;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Segoe UI', 'San Francisco', -apple-system, sans-serif;
+
+  &:hover {
+    background: rgba(91, 159, 245, 0.2);
+    color: $primary-blue;
+    border-color: $primary-blue;
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  i.bi {
+    display: flex;
+    align-items: center;
+  }
+
+  &.router-link-active {
+    background: rgba(91, 159, 245, 0.25);
+    color: $primary-blue;
+    border-color: $primary-blue;
+  }
+}
+
+.back-btn,
+.devices-btn {
+  &:hover {
+    background: rgba(91, 159, 245, 0.2);
+    color: $primary-blue;
+  }
+}
+
+// Main Content Area
+.modern-main {
+  flex: 1;
+  overflow: auto;
+  padding: 0;
+  background: linear-gradient(135deg, rgba(15, 23, 43, 0.5) 0%, rgba(26, 39, 68, 0.5) 100%);
+
+  // Custom scrollbar
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(91, 159, 245, 0.3);
+    border-radius: 4px;
+
+    &:hover {
+      background: rgba(91, 159, 245, 0.5);
+    }
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .modern-navbar {
+    .navbar-container {
+      height: 60px;
+      padding: 0 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .navbar-center {
+      order: 3;
+      flex-basis: 100%;
+      width: 100%;
+      justify-content: flex-start;
+      margin-top: 8px;
+    }
+
+    .platform-label {
+      font-size: 12px;
+    }
+  }
+
+  .device-selector-wrapper {
+    padding: 6px 10px;
+  }
+
+  .device-selector {
+    min-width: 120px;
+    font-size: 12px;
+  }
+
+  .nav-link-modern {
+    padding: 8px 12px;
+    font-size: 12px;
+
+    i.bi {
+      font-size: 16px;
+    }
+  }
+
+  .nav-btn {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+}

@@ -1,0 +1,8 @@
+[default]
+description = "Default permissions for the plugin"
+permissions = [
+  "allow-checksum",
+  "allow-remove",
+  "allow-copy",
+  "allow-temp-path",
+]

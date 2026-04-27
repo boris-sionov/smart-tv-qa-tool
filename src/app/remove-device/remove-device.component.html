@@ -1,0 +1,25 @@
+<div class="modern-dialog">
+  <div class="dialog-header">
+    <div class="header-icon danger">
+      <i class="bi bi-trash-fill"></i>
+    </div>
+    <h5 class="dialog-title">Remove Device</h5>
+  </div>
+  <div class="dialog-body">
+    <p class="dialog-message">Delete <strong>"{{ device.name }}"</strong>?</p>
+    @if (canDeleteSshKey) {
+      <label class="modern-checkbox">
+        <input type="checkbox" [(ngModel)]="deleteSshKey">
+        <span class="checkbox-box"></span>
+        <span class="checkbox-label">Delete SSH private key</span>
+      </label>
+    }
+  </div>
+  <div class="dialog-footer">
+    <button type="button" class="dialog-btn negative" (click)="modal.close(null)">Cancel</button>
+    <button type="button" class="dialog-btn positive-danger" (click)="confirmDeletion()" autofocus>
+      <i class="bi bi-trash"></i>
+      Delete
+    </button>
+  </div>
+</div>

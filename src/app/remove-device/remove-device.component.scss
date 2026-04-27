@@ -1,0 +1,202 @@
+// Design tokens
+$bg-dark: #0F172B;
+$bg-light: #1a2744;
+$primary-blue: #5B9FF5;
+$accent-purple: #8B7FF5;
+$accent-red: #FF6B6B;
+$text-primary: #FFFFFF;
+$text-secondary: #A8B8CC;
+$text-muted: #7E92B0;
+$border-color: rgba(91, 159, 245, 0.2);
+
+:host {
+  button:not(:disabled),
+  .btn:not(:disabled),
+  label[for],
+  input[type="checkbox"] {
+    cursor: pointer !important;
+  }
+}
+
+.modern-dialog {
+  background: linear-gradient(135deg, $bg-light 0%, $bg-dark 100%);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+// Header
+.dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px 12px 20px;
+  border-bottom: 1px solid $border-color;
+  background: rgba(91, 159, 245, 0.04);
+}
+
+.header-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, $primary-blue 0%, $accent-purple 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(91, 159, 245, 0.3);
+
+  i.bi {
+    font-size: 18px;
+    color: white;
+  }
+
+  &.danger {
+    background: linear-gradient(135deg, $accent-red 0%, #FF5252 100%);
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  }
+}
+
+.dialog-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: $text-primary;
+  letter-spacing: -0.2px;
+  flex: 1;
+}
+
+// Body
+.dialog-body {
+  padding: 16px 20px;
+  color: $text-primary;
+}
+
+.dialog-message {
+  color: $text-primary;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 12px 0;
+
+  strong {
+    color: $primary-blue;
+    font-weight: 700;
+  }
+}
+
+// Modern Checkbox
+.modern-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid $border-color;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  user-select: none;
+
+  &:hover {
+    background: rgba(91, 159, 245, 0.08);
+    border-color: rgba(91, 159, 245, 0.3);
+  }
+
+  input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    cursor: pointer;
+
+    &:checked + .checkbox-box {
+      background: linear-gradient(135deg, $primary-blue 0%, $accent-purple 100%);
+      border-color: transparent;
+
+      &::after {
+        content: '✓';
+        color: white;
+        font-size: 13px;
+        font-weight: 700;
+      }
+    }
+  }
+}
+
+.checkbox-box {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(15, 23, 43, 0.5);
+  border: 1.5px solid $border-color;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.checkbox-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: $text-secondary;
+  flex: 1;
+}
+
+// Footer
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid $border-color;
+  background: rgba(15, 23, 43, 0.5);
+}
+
+.dialog-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-family: 'Segoe UI', 'San Francisco', -apple-system, sans-serif;
+  white-space: nowrap;
+  min-width: 70px;
+
+  i.bi {
+    font-size: 14px;
+  }
+
+  &.positive-danger {
+    background: linear-gradient(135deg, $accent-red 0%, #FF5252 100%);
+    color: white;
+    box-shadow: 0 4px 14px rgba(255, 107, 107, 0.25);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+    }
+  }
+
+  &.negative {
+    background: rgba(255, 255, 255, 0.06);
+    color: $text-secondary;
+    border-color: rgba(255, 255, 255, 0.1);
+
+    &:hover {
+      background: rgba(91, 159, 245, 0.12);
+      color: $primary-blue;
+      border-color: rgba(91, 159, 245, 0.3);
+      transform: translateY(-2px);
+    }
+  }
+}

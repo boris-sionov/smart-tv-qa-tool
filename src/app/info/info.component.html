@@ -1,0 +1,222 @@
+<div class="info-page">
+  <!-- Device Selector Toolbar -->
+  <div class="manager-toolbar bg-panel border-bottom">
+    <div class="device-selector-container" ngbDropdown>
+      <button class="device-dropdown-btn" ngbDropdownToggle>
+        <i class="bi bi-tv"></i>
+        <span class="device-name">{{ device ? device.name : 'No device selected' }}</span>
+        <i class="bi bi-chevron-down chevron"></i>
+      </button>
+      <div ngbDropdownMenu class="device-dropdown-menu">
+        @let devices = deviceManager.devices$ | async;
+        @if ((devices)?.length === 0) {
+          <span class="device-dropdown-empty">No devices saved</span>
+        }
+        @for (item of devices; track item.name) {
+          <button ngbDropdownItem class="device-dropdown-item"
+                  [class.active]="item.name === device?.name"
+                  (click)="deviceManager.setDefault(item.name)">
+            <i class="bi bi-check2 check-icon" [class.invisible]="item.name !== device?.name"></i>
+            <span>{{ item.name }}</span>
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="info-content">
+    @if (!device) {
+      <div class="empty-state">
+        <div class="empty-icon">
+          <i class="bi bi-tv"></i>
+        </div>
+        <h4>No Device Selected</h4>
+        <p>Select a device from the dropdown to view its information.</p>
+      </div>
+    } @else if (infoError) {
+      <div class="error-state">
+        <div class="error-icon">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <h4>Failed to Load Device Info</h4>
+        <p>{{ infoError.message || 'Unable to get device info' }}</p>
+        <button class="retry-btn" (click)="loadInfo()">
+          <i class="bi bi-arrow-clockwise"></i>
+          Retry
+        </button>
+      </div>
+    } @else if (deviceInfo) {
+      <!-- Hero Header -->
+      <div class="info-hero">
+        <div class="hero-content">
+          <div class="hero-avatar">
+            <i class="bi bi-tv"></i>
+          </div>
+          <div class="hero-text">
+            <h1 class="hero-title">{{ device.name }}</h1>
+            <p class="hero-subtitle">
+              <i class="bi bi-circle-fill status-dot"></i>
+              Connected · {{ device.host }}
+            </p>
+          </div>
+          <button class="copy-btn-hero" (click)="copyDeviceInfo()"
+                  [class.copy-success]="copySuccess"
+                  ngbTooltip="Copy Model Name & webOS Version" placement="bottom">
+            <i class="bi" [ngClass]="copySuccess ? 'bi-check-circle-fill' : 'bi-clipboard'"></i>
+            <span>{{ copySuccess ? 'Copied!' : 'Copy Info' }}</span>
+          </button>
+          @if (device.username === 'root') {
+            <div class="screenshot-action" ngbDropdown container="body" display="dynamic">
+              <button class="screenshot-btn" ngbDropdownToggle>
+                <i class="bi bi-camera-fill"></i>
+                <span>Screenshot</span>
+                <i class="bi bi-chevron-down chevron-small"></i>
+              </button>
+              <div ngbDropdownMenu class="screenshot-dropdown-menu">
+                <button ngbDropdownItem class="screenshot-dropdown-item" (click)="takeScreenshot()">
+                  <i class="bi bi-display"></i>
+                  <span>Display</span>
+                </button>
+                <button ngbDropdownItem class="screenshot-dropdown-item" (click)="takeScreenshot('VIDEO')">
+                  <i class="bi bi-film"></i>
+                  <span>Video</span>
+                </button>
+                <button ngbDropdownItem class="screenshot-dropdown-item" (click)="takeScreenshot('GRAPHIC')">
+                  <i class="bi bi-window"></i>
+                  <span>Graphic (UI)</span>
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Device Info Section -->
+      <div class="info-section">
+        <h5 class="section-title">
+          <i class="bi bi-info-circle-fill"></i>
+          Device Information
+        </h5>
+        <div class="info-grid">
+          <div class="info-card highlight">
+            <div class="info-card-icon">
+              <i class="bi bi-tag-fill"></i>
+            </div>
+            <div class="info-card-body">
+              <span class="info-card-label">Model Name</span>
+              <span class="info-card-value">{{ deviceInfo.modelName || '—' }}</span>
+            </div>
+            <div class="highlight-badge">
+              <i class="bi bi-star-fill"></i>
+            </div>
+          </div>
+
+          <div class="info-card highlight">
+            <div class="info-card-icon">
+              <i class="bi bi-display"></i>
+            </div>
+            <div class="info-card-body">
+              <span class="info-card-label">webOS Version</span>
+              <span class="info-card-value">{{ deviceInfo.osVersion || '—' }}</span>
+            </div>
+            <div class="highlight-badge">
+              <i class="bi bi-star-fill"></i>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <div class="info-card-icon">
+              <i class="bi bi-gear-fill"></i>
+            </div>
+            <div class="info-card-body">
+              <span class="info-card-label">Firmware Version</span>
+              <span class="info-card-value">{{ deviceInfo.firmwareVersion || '—' }}</span>
+            </div>
+          </div>
+
+          @if (deviceInfo.otaId) {
+            <div class="info-card">
+              <div class="info-card-icon">
+                <i class="bi bi-fingerprint"></i>
+              </div>
+              <div class="info-card-body">
+                <span class="info-card-label">OTA ID</span>
+                <span class="info-card-value">{{ deviceInfo.otaId }}</span>
+              </div>
+            </div>
+          }
+
+          @if (deviceInfo.socName) {
+            <div class="info-card">
+              <div class="info-card-icon">
+                <i class="bi bi-cpu-fill"></i>
+              </div>
+              <div class="info-card-body">
+                <span class="info-card-label">SoC</span>
+                <span class="info-card-value">{{ deviceInfo.socName }}</span>
+              </div>
+            </div>
+          }
+
+          <div class="info-card">
+            <div class="info-card-icon">
+              <i class="bi bi-router-fill"></i>
+            </div>
+            <div class="info-card-body">
+              <span class="info-card-label">Host</span>
+              <span class="info-card-value">{{ device.host }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Developer Mode Section -->
+      @if (devModeInfo) {
+        <div class="info-section">
+          <h5 class="section-title">
+            <i class="bi bi-code-square"></i>
+            Developer Mode
+          </h5>
+          <div class="dev-mode-card">
+            @if (devModeInfo.token) {
+              <div class="dev-mode-content">
+                <div class="dev-mode-status">
+                  <div class="dev-mode-icon active">
+                    <i class="bi bi-shield-check"></i>
+                  </div>
+                  <div class="dev-mode-text">
+                    <span class="dev-mode-label">Session Active</span>
+                    <span class="dev-mode-value">{{ devModeInfo.remaining | devmodeCountdown | async }}</span>
+                    <small class="dev-mode-note">Remaining time displayed on TV updates only on boot.</small>
+                  </div>
+                </div>
+                <div class="dev-mode-actions">
+                  <button class="action-btn primary" (click)="renewDevMode()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    Renew Session
+                  </button>
+                  <button class="action-btn secondary" (click)="renewScript()">
+                    <i class="bi bi-clock-history"></i>
+                    Auto Renew
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="dev-mode-content">
+                <div class="dev-mode-status">
+                  <div class="dev-mode-icon inactive">
+                    <i class="bi bi-shield-exclamation"></i>
+                  </div>
+                  <div class="dev-mode-text">
+                    <span class="dev-mode-label">No Valid Token</span>
+                    <small class="dev-mode-note">Can't find a valid Developer Mode token.</small>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    }
+  </div>
+</div>

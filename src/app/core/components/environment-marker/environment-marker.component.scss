@@ -1,0 +1,24 @@
+.env-ribbon {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 200px;
+  padding: 8px 40px;
+  font-weight: bold;
+  font-size: 14px;
+  text-align: center;
+  color: white;
+  z-index: 9999;
+  transform: rotate(45deg) translateY(-50%);
+  transform-origin: right top;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  letter-spacing: 2px;
+
+  &.env-uat {
+    background: linear-gradient(135deg, #FF6B6B 0%, #FF5252 100%);
+  }
+
+  &.env-stg {
+    background: linear-gradient(135deg, #5B9FF5 0%, #4A8FE8 100%);
+  }
+}

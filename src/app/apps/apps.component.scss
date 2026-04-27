@@ -1,0 +1,209 @@
+// Design tokens
+$primary-blue: #5B9FF5;
+$text-secondary: #A8B8CC;
+$border-color: rgba(91, 159, 245, 0.2);
+
+// Global hand cursor for all interactive elements
+:host {
+  button:not(:disabled),
+  .btn:not(:disabled),
+  a,
+  [role="button"],
+  select,
+  [ngbDropdownToggle],
+  [ngbDropdownItem] {
+    cursor: pointer !important;
+  }
+
+  button:disabled,
+  .btn:disabled {
+    cursor: not-allowed !important;
+  }
+}
+
+// Manager Toolbar
+.manager-toolbar {
+  background: rgba(15, 23, 43, 0.6) !important;
+  backdrop-filter: blur(10px);
+  border-color: $border-color !important;
+  position: relative;
+  z-index: 10;
+  overflow: visible !important;
+  padding: 0 24px !important;
+  margin: 0 !important;
+  min-height: 64px !important;
+  height: 64px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: nowrap !important;
+
+  > div {
+    display: flex !important;
+    align-items: center !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+.device-selector-container {
+  flex: 0 1 auto;
+  position: relative;
+  z-index: 50;
+  min-width: 200px;
+  overflow: visible;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start;
+}
+
+.install-btn-container {
+  flex: 0 1 auto;
+  position: relative;
+  z-index: 1;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end;
+
+  .install-btn {
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// Device Dropdown Button
+.device-dropdown-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  height: 42px;
+  min-width: 220px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(91, 159, 245, 0.12) 0%, rgba(91, 159, 245, 0.08) 100%);
+  border: 1.5px solid $border-color;
+  color: #FFFFFF;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-family: 'Segoe UI', 'San Francisco', -apple-system, sans-serif;
+
+  i.bi {
+    font-size: 16px;
+    color: $primary-blue;
+    flex-shrink: 0;
+  }
+
+  .device-name {
+    flex: 1;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .chevron {
+    font-size: 14px;
+    transition: transform 0.25s ease;
+  }
+
+  &:hover {
+    background: linear-gradient(135deg, rgba(91, 159, 245, 0.2) 0%, rgba(91, 159, 245, 0.14) 100%);
+    border-color: rgba(91, 159, 245, 0.5);
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
+    border-color: $primary-blue;
+    box-shadow: 0 0 0 3px rgba(91, 159, 245, 0.15);
+  }
+
+  // When dropdown is open
+  &[aria-expanded="true"] {
+    border-color: $primary-blue;
+    background: linear-gradient(135deg, rgba(91, 159, 245, 0.2) 0%, rgba(91, 159, 245, 0.14) 100%);
+
+    .chevron {
+      transform: rotate(180deg);
+    }
+  }
+
+  // Remove bootstrap dropdown caret
+  &::after {
+    display: none !important;
+  }
+}
+
+// Dropdown Menu
+.device-dropdown-menu {
+  background: linear-gradient(180deg, #1a2744 0%, #0F172B 100%) !important;
+  border: 1px solid rgba(91, 159, 245, 0.3) !important;
+  border-radius: 12px !important;
+  padding: 6px !important;
+  margin-top: 6px !important;
+  min-width: 220px !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(91, 159, 245, 0.1) !important;
+  backdrop-filter: blur(12px);
+  z-index: 1050 !important;
+}
+
+.device-dropdown-empty {
+  display: block;
+  padding: 10px 12px;
+  color: $text-secondary;
+  font-size: 13px;
+  text-align: center;
+  font-style: italic;
+}
+
+.device-dropdown-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 10px 12px !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #FFFFFF !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  border: none !important;
+  width: 100% !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+
+  .check-icon {
+    font-size: 16px;
+    color: $primary-blue;
+    flex-shrink: 0;
+
+    &.invisible {
+      visibility: hidden;
+    }
+  }
+
+  span {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &:hover,
+  &:focus {
+    background: rgba(91, 159, 245, 0.18) !important;
+    color: #FFFFFF !important;
+    outline: none !important;
+  }
+
+  &.active {
+    background: rgba(91, 159, 245, 0.25) !important;
+    color: $primary-blue !important;
+  }
+}

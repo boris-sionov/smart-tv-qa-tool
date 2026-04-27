@@ -1,0 +1,15 @@
+<div class="modal-body">
+  <label class="form-label" for="sshPassphrasePrompt">SSH Private Key Passphrase</label>
+  <input class="form-control" type="text" id="sshPassphrasePrompt" [formControl]="formControl">
+  @if (formControl.errors?.['BadPassphrase']) {
+    <div class="invalid-feedback">
+      Wrong passphrase
+    </div>
+  }
+</div>
+<div class="modal-footer">
+  <button class="btn btn-outline-secondary" (click)="modal.dismiss()" aria-label="Cancel">Cancel</button>
+  <button class="btn btn-primary" [disabled]="formControl.invalid"
+          (click)="formControl.valid && modal.close(formControl.value)" aria-label="OK">OK
+  </button>
+</div>

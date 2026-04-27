@@ -1,0 +1,21 @@
+.breadcrumb-bar {
+  nav {
+    width: fit-content;
+    --bs-breadcrumb-divider: '';
+  }
+}
+
+.stat-bar {
+  .breadcrumb {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .breadcrumb-item {
+    position: relative;
+  }
+}
+
+.loading, .loading * {
+  cursor: progress;
+}

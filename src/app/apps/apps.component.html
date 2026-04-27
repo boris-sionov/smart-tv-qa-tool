@@ -1,0 +1,38 @@
+<div class="w-100 h-100 d-flex flex-column overflow-visible" xmlns="http://www.w3.org/1999/html">
+  <div class="manager-toolbar bg-panel border-bottom">
+    <!-- Device Selector -->
+    <div class="device-selector-container" ngbDropdown>
+      <button class="device-dropdown-btn" ngbDropdownToggle>
+        <i class="bi bi-tv"></i>
+        <span class="device-name">{{ device ? device.name : 'No device selected' }}</span>
+        <i class="bi bi-chevron-down chevron"></i>
+      </button>
+      <div ngbDropdownMenu class="device-dropdown-menu">
+        @if ((devices$ | async)?.length === 0) {
+          <span class="device-dropdown-empty">No devices saved</span>
+        }
+        @for (dev of devices$ | async; track dev.name) {
+          <button ngbDropdownItem class="device-dropdown-item"
+                  [class.active]="dev.name === device?.name"
+                  (click)="deviceManager.setDefault(dev.name)">
+            <i class="bi bi-check2 check-icon" [class.invisible]="dev.name !== device?.name"></i>
+            <span>{{ dev.name }}</span>
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Install Button -->
+    <div class="install-btn-container">
+      <button class="btn btn-primary text-nowrap install-btn" (click)="openInstallChooser()">
+        <i class="bi bi-folder-fill me-2"></i>Install
+      </button>
+    </div>
+  </div>
+  <div class="p-3 flex-fill overflow-auto">
+    <app-installed #installedComponent [device]="device" [installed$]="packages$"></app-installed>
+  </div>
+  <div class="stat-bar border-top bottom-0 mt-auto d-flex flex-row flex-shrink-0 align-items-center">
+    <app-stat-storage-info class="ms-auto me-3 storage-info-bar" [device]="device" #storageInfo></app-stat-storage-info>
+  </div>
+</div>

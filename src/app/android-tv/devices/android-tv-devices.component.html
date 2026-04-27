@@ -1,0 +1,123 @@
+<div class="devices-page">
+  <!-- Hero Header -->
+  <div class="devices-hero">
+    <div class="hero-content">
+      <div class="hero-avatar">
+        <i class="bi bi-hdd-network-fill"></i>
+      </div>
+      <div class="hero-text">
+        <h1 class="hero-title">Manage Devices</h1>
+        <p class="hero-subtitle">
+          {{ devices.length }} {{ devices.length === 1 ? 'device' : 'devices' }} saved
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Device Section -->
+  <div class="devices-section">
+    <h5 class="section-title">
+      <i class="bi bi-plus-circle-fill"></i>
+      Add New Device
+    </h5>
+    <div class="add-device-card">
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-field-label">Device Name</label>
+          <div class="input-wrapper">
+            <i class="bi bi-tag input-icon"></i>
+            <input class="modern-input" type="text" placeholder="e.g. Living Room TV"
+                   [(ngModel)]="newName">
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-field-label">IP Address</label>
+          <div class="input-wrapper">
+            <i class="bi bi-router input-icon"></i>
+            <input class="modern-input" type="text" placeholder="192.168.1.100"
+                   [(ngModel)]="newIp" (keydown.enter)="addDevice()">
+          </div>
+        </div>
+
+        <div class="form-field port-field">
+          <label class="form-field-label">Port</label>
+          <div class="input-wrapper">
+            <i class="bi bi-hdd-network input-icon"></i>
+            <input class="modern-input" type="number" [(ngModel)]="newPort">
+          </div>
+        </div>
+      </div>
+
+      <button class="connect-btn" (click)="addDevice()"
+              [disabled]="!newName.trim() || !newIp.trim() || connecting">
+        @if (connecting) {
+          <span class="spinner-mini"></span>
+          <span>Connecting...</span>
+        } @else {
+          <i class="bi bi-plug-fill"></i>
+          <span>Connect & Save</span>
+        }
+      </button>
+    </div>
+  </div>
+
+  <!-- Saved Devices Section -->
+  <div class="devices-section">
+    <h5 class="section-title">
+      <i class="bi bi-collection-fill"></i>
+      Saved Devices
+    </h5>
+
+    @if (devices.length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon">
+          <i class="bi bi-inbox"></i>
+        </div>
+        <h4>No Devices Yet</h4>
+        <p>Add your first Android TV device using the form above.</p>
+      </div>
+    } @else {
+      <div class="devices-grid">
+        @for (dev of devices; track dev.ip) {
+          <div class="device-card" [class.selected]="isSelected(dev)">
+            <div class="device-card-header">
+              <div class="device-icon" [class.active]="isSelected(dev)">
+                <i class="bi bi-android2"></i>
+              </div>
+              @if (isSelected(dev)) {
+                <span class="status-badge active">
+                  <i class="bi bi-check-circle-fill"></i>
+                  Connected
+                </span>
+              }
+            </div>
+            <div class="device-card-body">
+              <h4 class="device-name">{{ dev.name }}</h4>
+              <div class="device-info">
+                <i class="bi bi-router"></i>
+                <span>{{ dev.ip }}:{{ dev.port }}</span>
+              </div>
+            </div>
+            <div class="device-card-actions">
+              @if (!isSelected(dev)) {
+                <button class="device-btn primary" (click)="selectDevice(dev)">
+                  <i class="bi bi-play-fill"></i>
+                  Select
+                </button>
+              } @else {
+                <button class="device-btn secondary" disabled>
+                  <i class="bi bi-check2"></i>
+                  Active
+                </button>
+              }
+              <button class="device-btn danger" (click)="removeDevice(dev)" ngbTooltip="Remove device" placement="top">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

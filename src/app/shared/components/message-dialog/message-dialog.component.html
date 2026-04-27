@@ -1,0 +1,53 @@
+<div class="modern-dialog">
+  @if (title) {
+    <div class="dialog-header">
+      <div class="header-icon" [class.danger]="positiveStyle === 'danger'" [class.error]="error">
+        <i class="bi" [ngClass]="error ? 'bi-exclamation-triangle-fill' : (positiveStyle === 'danger' ? 'bi-exclamation-octagon-fill' : 'bi-info-circle-fill')"></i>
+      </div>
+      <h5 class="dialog-title">{{ title }}</h5>
+    </div>
+  }
+
+  <div class="dialog-body" [ngSwitch]="messageType">
+    @switch (messageType) {
+      @case ('string') {
+        <p class="dialog-message">{{ message }}</p>
+      }
+      @case ('component') {
+        <ng-container *ngComponentOutlet="$any(message); injector: messageInjector"/>
+      }
+    }
+    @let details = error && $any(error).details;
+    @if (details) {
+      <div class="error-details">
+        <label class="details-label">
+          <i class="bi bi-bug-fill"></i>
+          More info about the error
+        </label>
+        <pre class="details-content">{{ details }}</pre>
+      </div>
+    }
+  </div>
+
+  <div class="dialog-footer">
+    @if (alternative) {
+      <button type="button" class="dialog-btn alternative me-auto" (click)="alternativeClicked()"
+              [autofocus]="autofocus === 'alternative'" [disabled]="alternativeDisabled">
+        {{ alternative }}
+      </button>
+    }
+    @if (negative) {
+      <button type="button" class="dialog-btn negative" (click)="negativeClicked()"
+              [autofocus]="autofocus === 'negative'" [disabled]="negativeDisabled">
+        {{ negative }}
+      </button>
+    }
+    @if (positive) {
+      <button type="button" class="dialog-btn" [ngClass]="'positive-' + positiveStyle"
+              (click)="positiveClicked()" [autofocus]="autofocus === 'positive'"
+              [disabled]="positiveDisabled">
+        {{ positive }}
+      </button>
+    }
+  </div>
+</div>

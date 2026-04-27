@@ -1,0 +1,42 @@
+<div class="modern-layout" (drop)="defaultDrop($event)"
+     (dragover)="defaultDragOver($event)" (dragenter)="defaultDragEnter($event)" (dragleave)="defaultDragLeave($event)">
+  <!-- Modern Top Navigation Bar -->
+  <nav class="modern-navbar">
+    <div class="navbar-container">
+      <div class="navbar-start">
+        <button class="nav-btn back-btn" (click)="goBack()" title="Change Platform">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <span class="platform-label">LG WebOS</span>
+      </div>
+
+      <div class="navbar-center">
+        <div class="nav-pills-horizontal">
+          <a class="nav-link-modern" routerLink="apps" routerLinkActive="active" replaceUrl title="Apps">
+            <i class="bi bi-grid"></i>
+            <span>Apps</span>
+          </a>
+          <a class="nav-link-modern" routerLink="files" routerLinkActive="active" replaceUrl title="Files">
+            <i class="bi bi-folder"></i>
+            <span>Files</span>
+          </a>
+          <a class="nav-link-modern" routerLink="info" routerLinkActive="active" replaceUrl title="Info">
+            <i class="bi bi-info-circle"></i>
+            <span>Info</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="navbar-end">
+        <button class="nav-btn devices-btn" routerLink="devices" routerLinkActive="active" replaceUrl ngbTooltip="Manage Devices" placement="bottom">
+          <i class="bi bi-hdd-rack"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main role="main" class="modern-main">
+    <router-outlet></router-outlet>
+  </main>
+</div>

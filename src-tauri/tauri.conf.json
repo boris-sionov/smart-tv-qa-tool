@@ -1,0 +1,107 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "build": {
+    "beforeBuildCommand": "npm run ng build",
+    "beforeDevCommand": "npm run ng serve -- --port 4281",
+    "devUrl": "http://localhost:4281",
+    "frontendDist": "../dist"
+  },
+  "identifier": "com.freetv.qa-tool",
+  "productName": "FreeTV QA Tool",
+  "version": "../package.json",
+  "app": {
+    "security": {
+      "csp": null,
+      "devCsp": "default-src 'self' localhost"
+    },
+    "windows": [
+      {
+        "dragDropEnabled": false,
+        "fullscreen": false,
+        "height": 720,
+        "label": "main",
+        "minHeight": 600,
+        "minWidth": 420,
+        "resizable": true,
+        "title": "FreeTV QA Tool",
+        "visible": true,
+        "width": 1024
+      }
+    ]
+  },
+  "plugins": {
+    "shell": {
+      "open": ".*"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "copyright": "",
+    "licenseFile": "../LICENSE",
+    "linux": {
+      "deb": {
+        "desktopTemplate": "./assets/app.desktop",
+        "depends": [
+          "zlib1g (>=1.2.11)"
+        ],
+        "provides": [
+          "web-os-dev-manager"
+        ],
+        "conflicts": [
+          "web-os-dev-manager"
+        ],
+        "replaces": [
+          "web-os-dev-manager"
+        ]
+      },
+      "rpm": {
+        "desktopTemplate": "./assets/app.desktop",
+        "depends": [
+          "zlib (>=1.2.11)"
+        ],
+        "provides": [
+          "web-os-dev-manager"
+        ],
+        "conflicts": [
+          "web-os-dev-manager"
+        ],
+        "obsoletes": [
+          "web-os-dev-manager"
+        ]
+      }
+    },
+    "externalBin": [],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "longDescription": "Simple tool to manage developer mode enabled or rooted webOS TV\n\nFeatures\n- No need to install LG SDK or IDE\n- Add device without need to use command line\n- Install apps on TV with a few clicks\n- Configuration compatible with ares-cli\n- Works on Windows, Linux and macOS (Apple Silicon too!)\n- Dark mode follows system preferences",
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null
+    },
+    "resources": [],
+    "shortDescription": "Device/Dev Mode Manager for webOS TV",
+    "targets": "all",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "webviewInstallMode": {
+        "silent": false,
+        "type": "embedBootstrapper"
+      },
+      "wix": {}
+    },
+    "android": {
+      "minSdkVersion": 28
+    }
+  }
+}
