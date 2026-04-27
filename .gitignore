@@ -10,6 +10,8 @@
 /app-builds
 /release
 /target
+/src-tauri/gen
+/src-tauri/target
 index.js
 preload.js
 src/**/*.js
@@ -41,6 +43,7 @@ src/**/*.js
 /.sass-cache
 /connect.lock
 /coverage
+/logs
 /libpeerconnection.log
 npm-debug.log
 testem.log
@@ -56,6 +59,9 @@ testem.log
 Thumbs.db
 
 local.properties
+.env
+.env.*
+!.env.example
 
 ### Fastlane
 
