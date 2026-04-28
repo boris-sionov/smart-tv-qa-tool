@@ -70,6 +70,14 @@ pub fn run() {
                         app.state::<ShellManager>().set_ssh_dir(ssh_dir.clone());
                     }
                     if let Some(conf_dir) = app.get_conf_dir() {
+                        let init_marker = conf_dir.join(".initialized");
+                        if !init_marker.exists() {
+                            let devices_file = conf_dir.join("novacom-devices.json");
+                            if devices_file.exists() {
+                                let _ = std::fs::remove_file(&devices_file);
+                            }
+                            let _ = std::fs::write(&init_marker, "");
+                        }
                         app.state::<DeviceManager>().set_conf_dir(conf_dir.clone());
                     }
                 }
@@ -97,7 +105,7 @@ fn handle_error(e: &tauri::Error) {
     let msg = error_message(e);
     MessageDialog::new()
         .set_type(MessageType::Error)
-        .set_title("webOS Dev Manager")
+        .set_title("Smart TV QA Tool")
         .set_text(&msg)
         .show_alert()
         .expect("Unexpected error occurred while processing unexpected error :(");

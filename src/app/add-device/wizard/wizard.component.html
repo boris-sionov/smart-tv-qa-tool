@@ -1,49 +1,70 @@
 <div class="wizard-modal">
   <!--suppress JSUnusedGlobalSymbols -->
   <ul ngbNav #nav="ngbNav" class="nav-pills d-none" orientation="horizontal" [activeId]="activateId">
-    <li ngbNavItem="mode-select">
-      <a ngbNavLink>Connection Mode</a>
+    <li ngbNavItem="devmode-setup">
+      <a ngbNavLink>Setup Developer Mode</a>
       <ng-template ngbNavContent>
         <div class="step-content">
-          <app-wizard-mode-select [(mode)]="connectionMode" (proceed)="finishConnectionModeSelection()">
-          </app-wizard-mode-select>
+          <div class="devmode-info">
+            <p class="devmode-intro">Do the following steps to get ready for setting up connection to your TV.</p>
+
+            <div class="devmode-section">
+              <div class="devmode-section-title">
+                <i class="bi bi-person-fill"></i>
+                1. Prepare Developer Account
+              </div>
+              <ul class="devmode-bullets">
+                <li>You'll need a developer account to use Developer Mode</li>
+                <li>Go to <strong>webostv.developer.lge.com</strong> and create an LG developer account</li>
+              </ul>
+            </div>
+
+            <div class="devmode-section">
+              <div class="devmode-section-title">
+                <i class="bi bi-download"></i>
+                2. Install Developer Mode App
+              </div>
+              <ul class="devmode-bullets">
+                <li>Open <strong>LG Content Store</strong> on your TV</li>
+                <li>Search for <strong>"Developer Mode"</strong></li>
+                <li>Select <strong>Install</strong></li>
+              </ul>
+            </div>
+
+            <div class="devmode-section">
+              <div class="devmode-section-title">
+                <i class="bi bi-toggle-on"></i>
+                3. Enable Developer Mode
+              </div>
+              <ul class="devmode-bullets">
+                <li>Launch the <strong>Developer Mode</strong> app</li>
+                <li>Login with your developer account</li>
+                <li>Enable <strong>Developer Mode</strong> and wait for TV to restart</li>
+              </ul>
+            </div>
+
+            <div class="devmode-section">
+              <div class="devmode-section-title">
+                <i class="bi bi-gear-fill"></i>
+                4. Prepare for Device Setup
+              </div>
+              <ul class="devmode-bullets">
+                <li>Launch the <strong>Developer Mode</strong> app again</li>
+                <li>Ensure <strong>Dev Mode Status</strong> is ON</li>
+                <li>Enable <strong>Key Server</strong></li>
+                <li>Note down the <strong>device IP address</strong> and <strong>passphrase</strong></li>
+              </ul>
+            </div>
+          </div>
         </div>
         <ng-template appWizardFooterTemplate>
-          @if (cancellable) {
-            <button class="wizard-btn secondary" (click)="modal.dismiss()" aria-label="Cancel">
-              <i class="bi bi-x-lg"></i>
-              <span>Cancel</span>
-            </button>
-          }
-          <button class="wizard-btn primary ms-auto" [disabled]="!connectionMode" [ngSwitch]="connectionMode"
-                  (click)="finishConnectionModeSelection()" aria-label="Next">
+          <button class="wizard-btn primary ms-auto" (click)="editDevice()" aria-label="Next">
             <span>Next</span>
             <i class="bi bi-arrow-right"></i>
           </button>
         </ng-template>
       </ng-template>
     </li>
-    @if (connectionMode === 'devMode') {
-      <li ngbNavItem="devmode-setup">
-        <a ngbNavLink>Setup Developer Mode</a>
-        <ng-template ngbNavContent>
-          <div class="step-content">
-            <app-wizard-devmode-setup #devModeSetup></app-wizard-devmode-setup>
-          </div>
-          <ng-template appWizardFooterTemplate>
-            <button class="wizard-btn secondary" (click)="prevStep()" aria-label="Back">
-              <i class="bi bi-arrow-left"></i>
-              <span>Back</span>
-            </button>
-            <button class="wizard-btn primary ms-auto" (click)="editDevice()"
-                    [attr.aria-label]="devModeSetup.allDone ? 'Next' : 'Skip'">
-              <span>{{ devModeSetup.allDone ? 'Next' : 'Skip' }}</span>
-              <i class="bi bi-arrow-right"></i>
-            </button>
-          </ng-template>
-        </ng-template>
-      </li>
-    }
     <li ngbNavItem="device-info">
       <a ngbNavLink>Setup Device</a>
       <ng-template ngbNavContent>
@@ -68,11 +89,9 @@
 
   <div class="wizard-header">
     <h5 class="wizard-title">{{ navTitle }}</h5>
-    @if (cancellable) {
-      <button class="close-btn" (click)="modal.dismiss()" aria-label="Close">
-        <i class="bi bi-x-lg"></i>
-      </button>
-    }
+    <button class="close-btn" (click)="modal.dismiss()" aria-label="Close">
+      <i class="bi bi-x-lg"></i>
+    </button>
   </div>
 
   <div class="wizard-body" [ngbNavOutlet]="nav"></div>

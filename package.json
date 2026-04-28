@@ -1,16 +1,18 @@
 {
-  "name": "dev-manager-desktop",
-  "version": "1.99.18",
-  "description": "Device Manager for webOS",
-  "homepage": "https://github.com/webosbrew/dev-manager-desktop",
+  "name": "smart-tv-qa-tool",
+  "version": "1.0.0",
+  "description": "Smart TV QA Tool",
+  "homepage": "https://github.com/borissionov/smart-tv-qa-tool",
   "author": {
-    "name": "webOS Homebrew Team",
-    "email": "app@webosbrew.org"
+    "name": "Smart TV QA Team",
+    "email": "qa@smarttv-tool.dev"
   },
   "keywords": [
-    "webos",
-    "webosbrew",
-    "tauri"
+    "smarttv",
+    "qa",
+    "testing",
+    "android-tv",
+    "lg-webos"
   ],
   "scripts": {
     "tauri": "node scripts/tauri-wrapper.js",

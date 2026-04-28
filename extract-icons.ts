@@ -200,7 +200,7 @@ async function extractIcon(packageId: string): Promise<boolean> {
     }
 }
 
-async function getInstalledApps(): Promise<string[]> {
+async function getInstalledApps(): Promise<string[] | null> {
     try {
         const out = run('adb shell pm list packages -3');
         return out.split('\n')
@@ -209,8 +209,7 @@ async function getInstalledApps(): Promise<string[]> {
             .map(line => line.replace('package:', ''))
             .filter(pkg => pkg && !pkg.startsWith('io.appium'));
     } catch (e) {
-        console.error('❌ Failed to get installed packages. Make sure ADB device is connected.');
-        throw e;
+        return null;
     }
 }
 
@@ -228,6 +227,11 @@ async function main() {
     // Get installed packages from device
     console.log('🔍 Discovering installed OTT apps on device...\n');
     const allPackages = await getInstalledApps();
+    if (allPackages === null) {
+        console.log('⚠️  No ADB device connected — skipping icon extraction.');
+        console.log('   Existing icons in src/assets/app-icons/ will be used as-is.\n');
+        return;
+    }
     const packages = allPackages.filter(pkg => OTT_APPS.includes(pkg));
     console.log(`Found ${packages.length} OTT apps out of ${allPackages.length} installed apps\n`);
 

@@ -43,6 +43,14 @@ export class HomeComponent implements OnInit {
         this.router.navigate(['/']);
     }
 
+    openLg(): void {
+        this.router.navigate(['/lg']);
+    }
+
+    openAndroid(): void {
+        this.router.navigate(['/android-tv']);
+    }
+
     markDefault(device: Device): void {
         this.deviceManager.setDefault(device.name).catch(reason => {
             console.log(reason);

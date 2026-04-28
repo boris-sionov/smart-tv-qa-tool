@@ -64,7 +64,7 @@ $border-color: rgba(91, 159, 245, 0.2);
   }
 
   .navbar-start {
-    min-width: 150px;
+    min-width: 300px;
   }
 
   .navbar-center {
@@ -84,6 +84,80 @@ $border-color: rgba(91, 159, 245, 0.2);
     text-transform: uppercase;
     letter-spacing: 1px;
   }
+}
+
+.platform-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.platform-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: $text-secondary;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, transform 0.2s ease;
+
+  i {
+    color: #3DDC84;
+    font-size: 16px;
+  }
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    outline: none;
+    color: #E4EBF5;
+    background: rgba(91, 159, 245, 0.12);
+    border-color: rgba(91, 159, 245, 0.4);
+    box-shadow: 0 10px 24px rgba(91, 159, 245, 0.15);
+    transform: translateY(-2px);
+  }
+
+  &.active {
+    color: #E4EBF5;
+    background: rgba(91, 159, 245, 0.18);
+    border-color: rgba(91, 159, 245, 0.55);
+  }
+
+  &.disabled {
+    opacity: 0.48;
+  }
+}
+
+.platform-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.lg-mark {
+  background: #C30046;
+}
+
+.samsung-mark {
+  background: #1428A0;
 }
 
 // Navigation Pills (Horizontal)
@@ -214,6 +288,10 @@ $border-color: rgba(91, 159, 245, 0.2);
       gap: 12px;
     }
 
+    .navbar-start {
+      min-width: 0;
+    }
+
     .platform-label {
       font-size: 12px;
     }
@@ -232,6 +310,14 @@ $border-color: rgba(91, 159, 245, 0.2);
     width: 40px;
     height: 40px;
     font-size: 16px;
+  }
+
+  .platform-chip {
+    padding: 0 8px;
+
+    span:last-child {
+      display: none;
+    }
   }
 }
 

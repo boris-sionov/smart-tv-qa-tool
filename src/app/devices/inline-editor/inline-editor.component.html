@@ -1,15 +1,24 @@
-<app-device-editor [name]="device.name" [username]="device.username" [auth]="deviceAuth"
-                   [port]="device.port" [host]="device.host" [description]="device.description"
-                   #deviceEditor>
-</app-device-editor>
-<div class="mt-2 w-100 d-flex flex-row">
-  <button class="btn btn-sm btn-danger" (click)="$event.stopPropagation(); remove.emit(device)">
-    Delete
-  </button>
-  <button class="btn btn-sm btn-secondary ms-auto" (click)="$event.stopPropagation(); closed.emit()">
-    Cancel
-  </button>
-  <button class="btn btn-sm btn-primary ms-2" (click)="$event.stopPropagation(); doSave(deviceEditor)"
-          [disabled]="!deviceEditor.valid">Save
-  </button>
+<div class="editor-wrapper">
+  <app-device-editor [name]="device.name" [username]="device.username" [auth]="deviceAuth"
+                     [port]="device.port" [host]="device.host" [description]="device.description"
+                     #deviceEditor>
+  </app-device-editor>
+
+  <div class="editor-actions">
+    <button class="editor-btn danger" (click)="$event.stopPropagation(); remove.emit(device)">
+      <i class="bi bi-trash"></i>
+      Delete
+    </button>
+    <div class="editor-actions-right">
+      <button class="editor-btn secondary" (click)="$event.stopPropagation(); closed.emit()">
+        <i class="bi bi-x-lg"></i>
+        Cancel
+      </button>
+      <button class="editor-btn primary" (click)="$event.stopPropagation(); doSave(deviceEditor)"
+              [disabled]="!deviceEditor.valid">
+        <i class="bi bi-check-lg"></i>
+        Save
+      </button>
+    </div>
+  </div>
 </div>

@@ -45,4 +45,12 @@ export class AndroidTvComponent implements OnInit {
     goBack(): void {
         this.router.navigate(['/']);
     }
+
+    openLg(): void {
+        this.router.navigate(['/lg']);
+    }
+
+    openAndroid(): void {
+        this.router.navigate(['/android-tv']);
+    }
 }

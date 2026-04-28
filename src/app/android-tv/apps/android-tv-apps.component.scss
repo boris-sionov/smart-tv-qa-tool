@@ -2,6 +2,8 @@
 $primary-blue: #5B9FF5;
 $text-secondary: #A8B8CC;
 $border-color: rgba(91, 159, 245, 0.2);
+$panel: rgba(15, 23, 43, 0.72);
+$panel-strong: rgba(18, 30, 55, 0.88);
 
 // Global hand cursor for all interactive elements
 :host {
@@ -230,20 +232,314 @@ $border-color: rgba(91, 159, 245, 0.2);
   z-index: 1;
 }
 
-// App Items
-.app-item {
-  transition: background 0.15s;
-  &:hover { background: rgba(91, 159, 245, 0.05); }
+.android-apps-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
-.app-desc { display: flex; flex-direction: row; align-items: center; }
-.app-icon {
-  width: 64px; height: 64px; border-radius: 8px;
+
+.apps-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 2px 2px;
+}
+
+.apps-heading {
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+    color: #FFFFFF;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+}
+
+.apps-kicker {
+  margin-bottom: 3px;
+  color: $primary-blue;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.apps-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  color: #EAF2FF;
   background: rgba(91, 159, 245, 0.1);
-  padding: 4px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  color: #5B9FF5; font-size: 1.4rem;
+  font-size: 13px;
+  font-weight: 700;
+
+  i {
+    color: $primary-blue;
+    font-size: 15px;
+  }
 }
-.app-icon-img { width: 100%; height: 100%; object-fit: contain; border-radius: 6px; }
-.app-headline { display: flex; flex-direction: column; }
-.app-title { font-weight: 500; font-size: 0.9rem; }
-.app-description { font-size: 0.8rem; color: var(--bs-secondary-color); }
+
+.android-app-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.android-app-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 82px;
+  padding: 12px;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  background: linear-gradient(135deg, $panel-strong 0%, $panel 100%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.app-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.app-icon-frame {
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 58px;
+  border: 1px solid rgba(91, 159, 245, 0.18);
+  border-radius: 8px;
+  color: $primary-blue;
+  background: rgba(7, 13, 28, 0.48);
+  font-size: 24px;
+}
+
+.app-icon-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.app-icon-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #5B9FF5 0%, #8B7FF5 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(91, 159, 245, 0.3);
+}
+
+.app-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.app-title {
+  max-width: 100%;
+  overflow: hidden;
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.version-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(91, 159, 245, 0.24);
+  border-radius: 8px;
+  color: #DCEBFF;
+  background: rgba(91, 159, 245, 0.12);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.package-id {
+  min-width: 0;
+  overflow: hidden;
+  color: $text-secondary;
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-actions {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  align-items: center;
+  gap: 8px;
+}
+
+.app-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, transform 0.18s ease;
+
+  i {
+    font-size: 14px;
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
+  }
+
+  &:hover,
+  &:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(91, 159, 245, 0.18);
+  }
+
+  &.primary {
+    color: #FFFFFF;
+    background: #0D6EFD;
+    border-color: #2E86FF;
+
+    &:hover,
+    &:focus-visible {
+      background: #2E86FF;
+      border-color: #66A8FF;
+      box-shadow: 0 10px 24px rgba(13, 110, 253, 0.32);
+    }
+  }
+
+  &.warning {
+    color: #261A00;
+    background: #FFC107;
+    border-color: #FFD75E;
+
+    &:hover,
+    &:focus-visible {
+      background: #FFD24D;
+      border-color: #FFE08A;
+      box-shadow: 0 10px 24px rgba(255, 193, 7, 0.28);
+    }
+  }
+
+  &.danger {
+    color: #FFFFFF;
+    background: rgba(220, 53, 69, 0.88);
+    border-color: rgba(255, 123, 136, 0.36);
+
+    &:hover,
+    &:focus-visible {
+      background: #DC3545;
+      border-color: rgba(255, 160, 170, 0.58);
+      box-shadow: 0 10px 24px rgba(220, 53, 69, 0.3);
+    }
+  }
+}
+
+.android-empty-state {
+  display: flex;
+  min-height: 260px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  color: $text-secondary;
+  background: $panel;
+  text-align: center;
+
+  i {
+    color: $primary-blue;
+    font-size: 36px;
+  }
+
+  h3 {
+    margin: 0;
+    color: #FFFFFF;
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 980px) {
+  .android-app-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .app-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .app-action {
+    padding: 0 8px;
+  }
+}
+
+@media (max-width: 680px) {
+  .apps-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .apps-count {
+    align-self: stretch;
+    justify-content: center;
+  }
+
+  .app-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .app-action {
+    width: 100%;
+  }
+
+  .package-id {
+    display: none;
+  }
+}

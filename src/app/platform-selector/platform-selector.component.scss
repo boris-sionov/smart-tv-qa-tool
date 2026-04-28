@@ -75,9 +75,29 @@
     height: 80px;
   }
 
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 12px;
+  }
+
   &.android-icon {
     background: rgba(61, 220, 132, 0.12);
     color: #3DDC84;
+  }
+
+  &.vidaa-icon {
+    background: transparent;
+    color: #FF6B00;
+  }
+
+  &.lg-icon {
+    background: transparent;
+  }
+
+  &.tizen-icon {
+    background: transparent;
   }
 }
 

@@ -19,10 +19,10 @@ function matchesPlatform(platforms, platform) {
 async function generateIcons(platforms) {
   // Generate desktop icons
   if (matchesPlatform(platforms, 'desktop')) {
-    await cli.run(['icon', '-o', tmpDesktopIcons, 'resources/icon/desktop.svg'], null);
+    await cli.run(['icon', '-o', tmpDesktopIcons, 'resources/icon/source.png'], null);
   }
   if (matchesPlatform(platforms, 'android') || matchesPlatform(platforms, 'ios')) {
-    await cli.run(['icon', '-o', tmpMobileIcons, '--ios-color', '#03A9F4', 'resources/icon/mobile.png'], null);
+    await cli.run(['icon', '-o', tmpMobileIcons, '--ios-color', '#03A9F4', 'resources/icon/source.png'], null);
   }
 }
 

@@ -439,6 +439,75 @@ $border-color: rgba(91, 159, 245, 0.2);
   }
 }
 
+// Dev Mode Info
+.devmode-info {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.devmode-intro {
+  color: $text-secondary;
+  font-size: 14px;
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.devmode-section {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid $border-color;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  transition: all 0.25s ease;
+
+  &:hover {
+    background: rgba(91, 159, 245, 0.05);
+    border-color: rgba(91, 159, 245, 0.3);
+  }
+}
+
+.devmode-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: $text-primary;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  i.bi {
+    color: $primary-blue;
+    font-size: 15px;
+  }
+}
+
+.devmode-bullets {
+  margin: 0;
+  padding-left: 20px;
+  list-style: none;
+
+  li {
+    font-size: 13px;
+    color: $text-secondary;
+    line-height: 1.7;
+    position: relative;
+    padding-left: 12px;
+
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: $primary-blue;
+      font-weight: bold;
+    }
+
+    strong {
+      color: $text-primary;
+      font-weight: 600;
+    }
+  }
+}
+
 // Footer
 .wizard-footer {
   display: flex;

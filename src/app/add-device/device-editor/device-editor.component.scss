@@ -1,14 +1,119 @@
-.address-input {
-  .host {
+$bg-dark: #0F172B;
+$primary-blue: #5B9FF5;
+$accent-purple: #8B7FF5;
+$accent-red: #FF6B6B;
+$text-primary: #FFFFFF;
+$text-secondary: #A8B8CC;
+$text-muted: #7E92B0;
+$border-color: rgba(91, 159, 245, 0.2);
+
+.form-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.form-control,
+.form-select {
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1.5px solid $border-color;
+  background: rgba(15, 23, 43, 0.5);
+  color: $text-primary;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.25s ease;
+
+  &::placeholder {
+    color: $text-muted;
   }
 
-  .port {
-    max-width: 6em;
+  &:hover {
+    background: rgba(15, 23, 43, 0.7);
+    border-color: rgba(91, 159, 245, 0.4);
+  }
+
+  &:focus {
+    outline: none;
+    background: rgba(15, 23, 43, 0.7);
+    border-color: $primary-blue;
+    box-shadow: 0 0 0 3px rgba(91, 159, 245, 0.15);
   }
 }
 
-.auth-input {
-  select {
-    max-width: 10em;
+.form-select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B9FF5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 36px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 80px;
+  padding: 12px 16px;
+  resize: vertical;
+}
+
+.input-group {
+  .form-control:not(:last-child) {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: none;
   }
+
+  .form-control:not(:first-child) {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .input-group-text {
+    height: 44px;
+    padding: 0 12px;
+    background: rgba(15, 23, 43, 0.5);
+    border: 1.5px solid $border-color;
+    border-left: none;
+    border-right: none;
+    color: $text-muted;
+    font-size: 14px;
+  }
+
+  .btn {
+    height: 44px;
+    border-radius: 0 10px 10px 0;
+    border: 1.5px solid $border-color;
+    border-left: none;
+    background: rgba(91, 159, 245, 0.12);
+    color: $primary-blue;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s ease;
+
+    &:hover {
+      background: rgba(91, 159, 245, 0.2);
+      border-color: $primary-blue;
+    }
+  }
+
+  .port {
+    max-width: 100px;
+  }
+}
+
+.invalid-feedback {
+  display: block;
+  color: $accent-red;
+  font-size: 12px;
+  margin-top: 6px;
 }

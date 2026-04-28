@@ -1,9 +1,10 @@
-import {Component, Host, Input, OnDestroy} from '@angular/core';
+import {Component, Host, Input, NgZone, OnDestroy} from '@angular/core';
 import {AppsComponent} from '../apps.component';
 import {Device, PackageInfo} from "../../types";
 import {Observable, Subscription} from "rxjs";
 import {AppsRepoService, RepositoryItem} from "../../core/services";
 import {RemoteFileService} from "../../core/services/remote-file.service";
+import {IconCacheService} from "../../core/services/icon-cache.service";
 
 @Component({
     selector: 'app-installed',
@@ -18,23 +19,23 @@ export class InstalledComponent implements OnDestroy {
     installedError?: Error;
     repoPackages?: Record<string, RepositoryItem>;
 
-    // Stores loaded icon data URLs keyed by package ID — populated once per package
-    iconCache = new Map<string, string>();
-
     private subscription?: Subscription;
     private installedField?: Observable<PackageInfo[] | null>;
 
-    constructor(@Host() public parent: AppsComponent, private appsRepo: AppsRepoService, private fileService: RemoteFileService) {
-    }
+    constructor(
+        @Host() public parent: AppsComponent,
+        private appsRepo: AppsRepoService,
+        private fileService: RemoteFileService,
+        public iconCache: IconCacheService,
+        private ngZone: NgZone,
+    ) {}
 
     @Input()
     set installed$(value: Observable<PackageInfo[] | null> | undefined) {
         this.subscription?.unsubscribe();
-        this.iconCache.clear();
         this.subscription = value?.subscribe({
             next: (pkgs) => {
                 this.installedError = undefined;
-                this.iconCache.clear(); // refresh icons on every packages reload
                 const strings: string[] = pkgs?.map((pkg) => pkg.id) ?? [];
                 this.appsRepo.showApps(...strings).then(apps => this.repoPackages = apps);
                 pkgs?.forEach(pkg => this.loadIconOnce(pkg));
@@ -79,7 +80,9 @@ export class InstalledComponent implements OnDestroy {
                 const blob = new Blob([buffer], {type: 'image/png'});
                 const reader = new FileReader();
                 reader.onloadend = () => {
-                    this.iconCache.set(pkg.id, reader.result as string);
+                    this.ngZone.run(() => {
+                        this.iconCache.set(pkg.id, reader.result as string);
+                    });
                 };
                 reader.readAsDataURL(blob);
             })

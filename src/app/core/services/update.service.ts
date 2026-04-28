@@ -8,7 +8,7 @@ import {SemVer} from 'semver';
 export class UpdateService {
 
     async getRecentRelease(): Promise<Release> {
-        return fetch('https://api.github.com/repos/webosbrew/dev-manager-desktop/releases/latest', {
+        return fetch('https://api.github.com/repos/borissionov/smart-tv-qa-tool/releases/latest', {
             headers: {'accept': 'application/vnd.github.v3+json'},
 
         }).then(async res => new ReleaseImpl(await res.json()));
@@ -16,7 +16,7 @@ export class UpdateService {
 
     get ignoreUntil(): SemVer | null {
         try {
-            const value = localStorage.getItem('devManager:ignoreVersionUntil');
+            const value = localStorage.getItem('smartTvQaTool:ignoreVersionUntil');
             if (!value) return null;
             return new SemVer(value, true);
         } catch (e) {
@@ -26,9 +26,9 @@ export class UpdateService {
 
     set ignoreUntil(value: SemVer | null) {
         if (value?.version) {
-            localStorage.setItem('devManager:ignoreVersionUntil', value?.version);
+            localStorage.setItem('smartTvQaTool:ignoreVersionUntil', value?.version);
         } else {
-            localStorage.removeItem('devManager:ignoreVersionUntil');
+            localStorage.removeItem('smartTvQaTool:ignoreVersionUntil');
         }
     }
 }

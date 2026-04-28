@@ -12,11 +12,22 @@ export function deviceSerial(d: SavedDevice): string {
 }
 
 const STORAGE_KEY = 'freetv-android-tv-devices';
+const SELECTED_STORAGE_KEY = 'freetv-android-tv-selected-device';
 
 @Injectable({providedIn: 'root'})
 export class AdbStateService {
 
-    selected$ = new BehaviorSubject<SavedDevice | null>(null);
+    selected$ = new BehaviorSubject<SavedDevice | null>(this.getLastSelectedDevice());
+
+    constructor() {
+        const isInitialized = localStorage.getItem('adb-state-initialized');
+        if (!isInitialized) {
+            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(SELECTED_STORAGE_KEY);
+            localStorage.setItem('adb-state-initialized', 'true');
+            this.selected$.next(null);
+        }
+    }
 
     getSavedDevices(): SavedDevice[] {
         try {
@@ -42,12 +53,27 @@ export class AdbStateService {
             d => !(d.ip === device.ip && d.port === device.port)
         );
         localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-        if (this.selected$.value?.ip === device.ip) {
-            this.selected$.next(list[0] ?? null);
+        if (this.selected$.value?.ip === device.ip && this.selected$.value?.port === device.port) {
+            this.select(list[0] ?? null);
         }
     }
 
     select(device: SavedDevice | null): void {
+        if (device) {
+            localStorage.setItem(SELECTED_STORAGE_KEY, deviceSerial(device));
+        } else {
+            localStorage.removeItem(SELECTED_STORAGE_KEY);
+        }
         this.selected$.next(device);
+    }
+
+    private getLastSelectedDevice(): SavedDevice | null {
+        const serial = localStorage.getItem(SELECTED_STORAGE_KEY);
+        const devices = this.getSavedDevices();
+        if (serial) {
+            const match = devices.find(d => deviceSerial(d) === serial);
+            if (match) return match;
+        }
+        return devices[0] ?? null;
     }
 }

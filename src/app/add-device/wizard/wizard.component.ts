@@ -21,7 +21,7 @@ import {findIndex} from "lodash-es";
 })
 export class WizardComponent implements OnInit, AfterContentChecked, OnDestroy {
     connectionMode: DeviceConnectionMode = DeviceConnectionMode.DevMode;
-    activateId: string = 'mode-select';
+    activateId: string = 'devmode-setup';
 
     @ViewChild('nav', {static: true})
     ngbNav!: NgbNav;

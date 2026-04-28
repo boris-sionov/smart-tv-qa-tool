@@ -3,40 +3,73 @@
   <app-error-card title="Unable to get installed apps" [error]="installedError" (retry)="loadPackages()">
   </app-error-card>
 } @else if (installed) {
-  <ul class="list-group list-group-flush">
-    @for (pkg of installed; track pkg.id) {
-      <li class="list-group-item app-item d-flex flex-row align-items-center">
-        <div class="app-desc flex-fill">
-          <!--suppress AngularNgOptimizedImage -->
-          <img class="app-icon" [src]="(iconCache.get(pkg.id) ?? pkg.iconUri) | trustUri" [alt]="pkg.title">
-          <div class="app-headline ms-3">
-            <div class="app-title">{{ pkg.title }}</div>
-            <div class="app-description">
-              <span>v{{ pkg.version }}</span>
+  <section class="installed-shell">
+    <div class="installed-header">
+      <div class="installed-heading">
+        <div class="installed-kicker">LG webOS</div>
+        <h2>Installed Apps</h2>
+      </div>
+      <div class="installed-count">
+        <i class="bi bi-grid-3x3-gap-fill"></i>
+        <span>{{ installed.length }}</span>
+      </div>
+    </div>
+
+    @if (installed.length === 0) {
+      <div class="installed-empty">
+        <i class="bi bi-inbox"></i>
+        <h3>No Apps Found</h3>
+        <p>No developer apps were returned by this TV.</p>
+      </div>
+    } @else {
+      <div class="installed-list">
+        @for (pkg of installed; track pkg.id) {
+          <article class="installed-app-row">
+            <div class="app-identity">
+              <div class="app-icon-frame">
+                <!--suppress AngularNgOptimizedImage -->
+                <img class="app-icon" [src]="(iconCache.get(pkg.id) ?? pkg.iconUri) | trustUri" [alt]="pkg.title"
+                     style="display:none"
+                     (load)="$any($event.target).style.display='block'; $any($event.target).nextElementSibling.style.display='none'"
+                     (error)="$any($event.target).style.display='none'; $any($event.target).nextElementSibling.style.display='flex'">
+                <div class="app-icon-placeholder">STV</div>
+              </div>
+              <div class="app-copy">
+                <div class="app-title">{{ pkg.title }}</div>
+                <div class="app-meta">
+                  <span class="version-pill">v{{ pkg.version }}</span>
+                  <span class="package-id">{{ pkg.id }}</span>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-        <div class="d-flex gap-2 ms-2 align-items-center">
-          <button class="btn btn-sm btn-secondary text-nowrap" type="button" aria-label="Inspect"
-                  (click)="parent.inspectApp()">
-            <i class="bi bi-search me-1"></i>Inspect
-          </button>
-          <button class="btn btn-sm btn-secondary text-nowrap" type="button" aria-label="Change Icon"
-                  (click)="parent.changeAppIcon(pkg)">
-            <i class="bi bi-image me-1"></i>Change Icon
-          </button>
-          <button class="btn btn-sm btn-primary text-nowrap" type="button" aria-label="Launch"
-                  (click)="parent.launchApp(pkg.id)">
-            <i class="bi bi-play-fill me-1"></i>Launch
-          </button>
-          <button class="btn btn-sm btn-danger text-nowrap" type="button" aria-label="Remove"
-                  (click)="parent.removePackage(pkg)">
-            <i class="bi bi-trash me-1"></i>Remove
-          </button>
-        </div>
-      </li>
+
+            <div class="app-actions">
+              <button class="app-action secondary" type="button" aria-label="Inspect"
+                      (click)="parent.inspectApp()">
+                <i class="bi bi-search"></i>
+                <span>Inspect</span>
+              </button>
+              <button class="app-action secondary" type="button" aria-label="Change Icon"
+                      (click)="parent.changeAppIcon(pkg)">
+                <i class="bi bi-image"></i>
+                <span>Change Icon</span>
+              </button>
+              <button class="app-action primary" type="button" aria-label="Launch"
+                      (click)="parent.launchApp(pkg.id)">
+                <i class="bi bi-play-fill"></i>
+                <span>Launch</span>
+              </button>
+              <button class="app-action danger" type="button" aria-label="Remove"
+                      (click)="parent.removePackage(pkg)">
+                <i class="bi bi-trash"></i>
+                <span>Remove</span>
+              </button>
+            </div>
+          </article>
+        }
+      </div>
     }
-  </ul>
+  </section>
 } @else {
   <app-loading-card></app-loading-card>
 }

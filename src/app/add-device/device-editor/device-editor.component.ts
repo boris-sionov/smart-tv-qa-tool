@@ -77,32 +77,18 @@ export class DeviceEditorComponent implements OnInit {
             }),
             address: new FormControl<string>(this.host || '', {
                 nonNullable: true,
-                validators: [
-                    Validators.required,
-                    Validators.pattern(/^(\d|[1-9]\d|1\d\d|2([0-4]\d|5[0-5]))\.(\d|[1-9]\d|1\d\d|2([0-4]\d|5[0-5]))\.(\d|[1-9]\d|1\d\d|2([0-4]\d|5[0-5]))\.(\d|[1-9]\d|1\d\d|2([0-4]\d|5[0-5]))$/)
-                ]
             }),
             port: new FormControl<number | null>(this.port ?? null, {
                 nonNullable: false,
-                validators: [
-                    Validators.required,
-                    Validators.min(0),
-                    Validators.max(65535)
-                ]
             }),
             description: new FormControl<string>(this.description ?? '', {
                 nonNullable: true
             }),
-            // Unix username Regex: https://unix.stackexchange.com/a/435120/277731
-            sshUsername: new FormControl<string>(this.username ?? '', {
+            sshUsername: new FormControl<string>(this.username ?? 'prisoner', {
                 nonNullable: true,
-                validators: [
-                    Validators.required,
-                    Validators.pattern(/^[a-z_]([a-z0-9_-]{0,31}|[a-z0-9_-]{0,30}\$)$/)
-                ]
             }),
             sshAuth: new FormGroup<SetupAuthInfoFormControls>({
-                type: new FormControl<NewDeviceAuthentication>(this.auth?.type ?? NewDeviceAuthentication.LocalKey, {
+                type: new FormControl<NewDeviceAuthentication>(NewDeviceAuthentication.DevKey, {
                     nonNullable: true
                 }),
                 value: new FormControl<SetupAuthInfoUnion['value']>(this.auth?.value ?? null),
@@ -130,18 +116,30 @@ export class DeviceEditorComponent implements OnInit {
 
     async submit(): Promise<NewDevice> {
         const newDevice = await this.getNewDevice();
+        if (this.name) {
+            // Editing existing device — skip connection verification
+            return newDevice;
+        }
         try {
-            console.log(newDevice);
-            const info = await this.deviceManager.getDeviceInfo(newDevice);
-            console.log(info);
+            await this.deviceManager.getDeviceInfo(newDevice);
         } catch (e) {
             console.warn('Failed to get device info:', e);
-            // Something wrong happened. Abort adding by default
             if (!await this.confirmVerificationFailure(newDevice, e as Error)) {
                 throw e;
             }
         }
         return newDevice;
+    }
+
+    onPassphraseInput(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const upper = input.value.toUpperCase();
+        if (input.value !== upper) {
+            const pos = input.selectionStart ?? upper.length;
+            input.value = upper;
+            input.setSelectionRange(pos, pos);
+            this.formGroup.controls.sshAuth.controls.value.setValue(upper);
+        }
     }
 
     private async fetchPrivateKey(address: string, passphrase?: string): Promise<string> {
@@ -204,7 +202,7 @@ export class DeviceEditorComponent implements OnInit {
         }
         const value = this.formGroup.getRawValue() as SetupInfo;
         const base: NewDeviceBase = {
-            new: true,
+            new: !this.name,
             profile: 'ose',
             name: value.name,
             description: value.description,

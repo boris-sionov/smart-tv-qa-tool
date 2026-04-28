@@ -1,339 +1,679 @@
-# FreeTV Multi-Platform Device Manager
+# Smart TV QA Tool - v1.0.0
 
-## What This Project Is
+A **unified Tauri + Angular desktop application** for managing apps across multiple Smart TV platforms.
 
-A **unified Tauri + Angular desktop application** for managing FreeTV apps across three TV platforms:
-- **LG WebOS** — SSH + Luna services (mostly complete)
-- **Android TV** — ADB over TCP/IP (feature-complete, needs integration)
-- **Samsung Tizen** — SDB (Smart Development Bridge) — **to be built**
+**Current Focus:** Samsung Tizen (via SDB)  
+**Completed:** Android TV architecture & design system  
+**Future:** VIDAA (via MQTT), LG WebOS (via Luna API)
 
-One app, three platforms, one device list.
+---
+
+## Project Status (April 28, 2026)
+
+### ✅ COMPLETED
+- [x] App renamed from "FreeTV QA Tool" to "Smart TV QA Tool"
+- [x] Version bumped to 1.0.0
+- [x] All original webOS Dev Manager branding removed (no traces)
+- [x] Modern dark theme design system implemented
+- [x] Data clearing on startup (fresh state every launch)
+- [x] Update notification dialog removed
+- [x] Angular stylesheet budgets increased for modern design
+- [x] Platform selector UI with brand new design
+- [x] Icon system updated with new app branding
+- [x] Android TV ADB service fully functional
+- [x] Research completed on all platforms
+
+### 🔄 IN PROGRESS - PRIORITY 1 & 2
+- [ ] **Samsung Tizen support (SDB protocol)** - PRIMARY (Week 1)
+  - [ ] Implement SDB connection module (Rust)
+  - [ ] App control commands (launch, kill, install)
+  - [ ] Angular UI components for Tizen
+  - [ ] Test with Tizen emulator
+
+- [ ] **VIDAA TV support (MQTT-over-TLS)** - SECONDARY (Week 3+)
+  - [ ] Implement MQTT-over-TLS connection (Rust)
+  - [ ] Port vidaa-control library logic
+  - [ ] Angular UI components for VIDAA
+  - [ ] Test with Hisense TV (or alternative)
+
+### ⏳ PLANNED - AFTER TIZEN & VIDAA
+- [ ] Embed ADB binary in .dmg (Android TV distribution) - Week 2
+- [ ] LG WebOS support (Luna API) - After VIDAA
+- [ ] Build Mac distributable (.dmg) - Final step
+
+---
+
+## What This Project Does
+
+### Android TV (Current)
+**Technology:** ADB (Android Debug Bridge) over TCP/IP  
+**Status:** Feature-complete, wrapper approach, need distribution fix  
+**Capabilities:**
+- Connect to Android TV devices via network
+- List installed apps
+- Install/uninstall APK files
+- Launch apps
+- Get device information
+- Extract app icons from APK files
+
+**Current Architecture:**
+```
+User's System ADB → App calls system `adb` CLI → Commands executed
+                        ❌ Problem: User must install ADB
+```
+
+**Planned Architecture (Next):**
+```
+Bundled ADB Binary → App calls bundled `adb` → Commands executed
+                         ✅ Solution: No user setup needed
+```
+
+---
+
+## Android TV Implementation Details
+
+### Current ADB Approach
+- **File:** `src/app/core/services/adb.service.ts`
+- **Method:** Wraps system CLI (`adb` command)
+- **Pros:** Works perfectly, stable commands
+- **Cons:** Requires user to install Android SDK, hard to distribute
+
+### Why NOT Native ADB Library?
+- Existing Rust libraries (adb-rs) are immature
+- Current CLI wrapper is reliable and well-tested
+- Better to fix distribution than rewrite
+
+### Recommended Solution: Embed ADB Binary
+
+**What:** Package the official Android Platform Tools ADB binary inside the .dmg  
+**Result:** Users open app → everything works (no setup)  
+**Implementation:** 
+1. Download official ADB binary from Google (~15MB)
+2. Add to `src-tauri/resources/platform-tools/adb`
+3. Update TypeScript to use bundled path instead of system PATH
+4. Update `tauri.conf.json` to include files in bundle
+5. Build .dmg automatically includes everything
+
+**Code Changes:**
+```typescript
+// Before
+const cmd = Command.create('zsh', ['-lc', `adb -s ${serial} shell pm list packages`]);
+
+// After
+const adbPath = await appDataDir() + 'platform-tools/adb';
+const cmd = Command.create('zsh', ['-lc', `${adbPath} -s ${serial} shell pm list packages`]);
+```
 
 ---
 
 ## Architecture Overview
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│    Unified Tauri + Angular Frontend (Single Desktop App) │
-│         Platform Selector Screen → Shared Device List    │
-└─────────┬──────────────────────┬─────────────────────┬───┘
-          │                      │                     │
-   ┌──────▼──────────┐    ┌──────▼──────────┐   ┌────▼────────┐
-   │  LG WebOS       │    │ Android TV      │   │ Samsung      │
-   │  Manager        │    │ Manager         │   │ Tizen        │
-   │                 │    │                 │   │ Manager      │
-   │ - SSH/Luna      │    │ - ADB (Rust)    │   │ - SDB (Rust) │
-   │ - Plugin: webos │    │ - Plugin: adb   │   │ - Plugin: sdb│
-   │ - ~95% done     │    │ - Port from     │   │ - New build  │
-   │                 │    │   PySide6       │   │ - 0% done    │
-   └─────────────────┘    └─────────────────┘   └─────────────┘
-           ↓                      ↓                     ↓
-           └──────────────────────┴─────────────────────┘
-                  Rust Backend Plugins
-                  (src-tauri/src/plugins/)
+┌─────────────────────────────────────────────┐
+│   Smart TV QA Tool v1.0.0                   │
+│   Tauri + Angular Desktop Application       │
+└──────────────┬──────────────────────────────┘
+               │
+        ┌──────┴──────┐
+        │             │
+    ┌───▼────┐    ┌──▼────────┐
+    │ Android│    │ Tizen/WebOS│
+    │   TV   │    │  (Future)  │
+    │        │    │            │
+    │ - ADB  │    │ - SDB/Luna │
+    │ - TCP  │    │ - Protocols│
+    │ - Ready│    │ - Planned  │
+    └────────┘    └────────────┘
 ```
 
-**One App. Three Platforms. One UI Framework.**
+---
+
+## App Branding (Complete Rebrand)
+
+### Files Updated
+- ✅ `package.json` - name, description, author, homepage, keywords
+- ✅ `src-tauri/tauri.conf.json` - productName, identifier, copyright, descriptions
+- ✅ `src/index.html` - title, favicon
+- ✅ `src/app/platform-selector/platform-selector.component.html` - UI title
+- ✅ `src/app/home/nav-more/nav-more.component.html` - GitHub link
+- ✅ `src/app/add-device/retry-failed/retry-failed.component.html` - Error messages
+- ✅ `src/app/terminal/dumb/dumb.component.html` - Help text
+- ✅ `src-tauri/src/lib.rs` - Error dialog title
+- ✅ `src-tauri/Cargo.toml` - Package metadata
+
+### Original App References Removed
+- ❌ No "webOS Dev Manager" anywhere
+- ❌ No "webosbrew" (except legitimate Luna service APIs)
+- ❌ No "dev-manager-desktop" (except legitimate package IDs)
+- ❌ No old GitHub links
+
+### Legitimate Preserved
+- ✅ `org.webosbrew.hbchannel` - Real webOS service (kept)
+- ✅ webOS API references - System information (kept)
+- ✅ Luna service calls - Platform APIs (kept)
 
 ---
 
-## Project Locations
+## Data Persistence (Fresh Start)
 
-| Platform | Current Source | Status | Target Stack | Action |
-|---|---|---|---|---|
-| **LG WebOS** | `/Users/borissionov/Privet/Projects/dev-manager-desktop` | 95% ✅ | Tauri + Angular | Move to unified repo, no changes |
-| **Android TV** | `/Users/borissionov/PycharmProjects/AndroidQATool` | 100% ✅ (logic) | Tauri + Angular | Port ADB logic to Rust backend |
-| **Samsung Tizen** | *Not started* | 0% | Tauri + Angular | Build from scratch (SDB in Rust) |
-| **QA AI Tool** | `/Users/borissionov/PycharmProjects/FreeTVQATool` | 100% ✅ | Python Streamlit | Separate project (not part of device manager) |
+### Clears on Startup
+- **Rust Backend:** Deletes `novacom-devices.json` on app startup
+- **Angular Frontend:** Clears Android TV device localStorage
+- **Result:** Every launch is a fresh state, no old data carried forward
 
----
+**Implementation:**
+```rust
+// src-tauri/src/lib.rs - RunEvent::Ready
+if let Some(conf_dir) = app.get_conf_dir() {
+    let devices_file = conf_dir.join("novacom-devices.json");
+    if devices_file.exists() {
+        let _ = std::fs::remove_file(&devices_file);
+    }
+}
+```
 
-## High-Level Integration Plan
-
-### Phase 1: LG WebOS (Nearly Done)
-- ✅ Device connection (SSH)
-- ✅ App list with icons
-- ✅ Install / Launch / Remove / Clear Data
-- ✅ Inspect button (opens port 9998)
-- ✅ Change App Icon
-- ✅ Open RCU / debug panel
-
-### Phase 2: Integrate Android TV
-Move the working PySide6 app into the Tauri backend as a **platform service**:
-- Android TV connection logic → backend module
-- ADB calls → backend Rust plugin (like file.rs, cmd.rs)
-- UI stays unified Angular frontend
-- Reuse device list + app management patterns from LG
-
-### Phase 3: Build Samsung Tizen (New)
-1. Set up Samsung Tizen emulator (from Tizen Studio)
-2. Implement SDB protocol:
-   - Device discovery
-   - App listing
-   - Install (WGT packages)
-   - Launch / Kill
-   - Clear data
-3. Wire into unified Angular UI
-4. Test with emulator (no hardware needed initially)
+```typescript
+// src/app/android-tv/adb-state.service.ts - constructor
+constructor() {
+    localStorage.removeItem('freetv-android-tv-devices');
+    localStorage.removeItem('freetv-android-tv-selected-device');
+}
+```
 
 ---
 
-## Android TV Integration Strategy: Port to Tauri + Angular
+## Design System
 
-The PySide6 app at `/Users/borissionov/PycharmProjects/AndroidQATool` is **production-ready**. We will **port the ADB logic to Rust** and integrate into the unified Tauri backend.
+**Color Palette (Modern Glassmorphism):**
+- Background: `#0F172B` (deep navy)
+- Primary: `#5B9FF5` (vibrant blue)
+- Accent: `#FF6B6B` (soft red)
+- Text Primary: `#FFFFFF`
+- Text Secondary: `#A8B8CC`
 
-### Why This Approach
-
-- ✅ **Single unified app** — one installer, one window, one UX
-- ✅ **Shared device list** — manage all three platforms from one place
-- ✅ **Consistent UI** — all platforms use Angular components
-- ✅ **Professional packaging** — .app/.exe/.deb works for all
-- ✅ **Easier long-term** — one codebase = easier maintenance for Samsung Tizen
-
-### What Needs to Happen
-
-1. **Port ADB logic** (`core/adb_manager.py` → Rust plugin)
-   - ~300 lines of Python, straightforward to translate
-   - Each ADB command becomes a Rust function in `src-tauri/src/plugins/android-tv/adb.rs`
-   - Example:
-     ```python
-     # Python
-     subprocess.run(['adb', 'connect', f'{ip}:5555'])
-     
-     # Rust
-     Command::new("adb").args(&["connect", &format!("{}:5555", ip)]).output()?
-     ```
-
-2. **Integrate Appium** (already HTTP-based, minimal changes)
-   - `AppiumManager` logic can mostly stay the same
-   - Just call the Tauri backend instead of local Python
-
-3. **Create Android TV Angular components**
-   - Reuse patterns from LG manager
-   - Device connection, app list, actions grid
-
-4. **No changes to LG WebOS** — leave it as-is
-
-### Effort & Timeline
-
-- **Porting ADB logic**: 1-2 days
-- **Appium integration**: ~4 hours
-- **Angular UI components**: 1 day
-- **Testing**: 1 day
-- **Total**: 3-5 days for a fully integrated Android TV manager
+**Features:**
+- Glassmorphism with blur effects
+- Rounded corners (12-20px)
+- Smooth transitions and hover states
+- Modern system fonts (Segoe UI, San Francisco)
+- Improved visual hierarchy
 
 ---
 
-## Samsung Tizen — Getting Started
+## Build & Distribution
 
-### Tools Needed
-1. **Tizen Studio** (free, from Samsung)
-   - Includes `sdb` (Smart Development Bridge — like ADB for Tizen)
-   - Includes TV emulator (or use remote test lab cloud devices)
+### Requirements
+- **Rust** - Install via: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Node.js** 20+
+- **macOS/Windows/Linux** - Tauri supports all
 
-2. **tizen CLI** (npm install -g tizen)
-   - Package apps as `.wgt` files
-   - Deploy to devices
-
-### Device Connection (SDB)
+### Build Commands
 ```bash
-sdb connect <ip>:26101        # Connect to Tizen TV
-sdb devices                   # List connected devices
-sdb -s <ip>:26101 shell ...   # Run commands
-sdb -s <ip>:26101 push <file> <remote>  # Install WGT
+npm install                    # Install dependencies
+npm run build                  # Build for current platform
+npm run start                  # Dev mode
 ```
 
-### Key SDB Commands (Tizen Equivalent of ADB)
-| Operation | ADB (Android) | SDB (Tizen) |
-|---|---|---|
-| Connect | `adb connect <ip>:5555` | `sdb connect <ip>:26101` |
-| List devices | `adb devices` | `sdb devices` |
-| Install | `adb install <apk>` | `sdb push <wgt> /opt/usr/apps/` |
-| Launch | `adb shell am start <pkg>/<act>` | `sdb shell 0 execute <app-id>` |
-| Kill | `adb shell am force-stop <pkg>` | `sdb shell 0 execute 0 kill <app-id>` |
-| Shell | `adb shell` | `sdb shell` |
+### Output
+- **macOS:** `src-tauri/target/release/bundle/dmg/Smart\ TV\ QA\ Tool_1.0.0_x64.dmg`
+- **Windows:** `src-tauri/target/release/bundle/msi/Smart_TV_QA_Tool_1.0.0_x64.msi`
+- **Linux:** `src-tauri/target/release/bundle/deb/smart-tv-qa-tool_1.0.0_amd64.deb`
 
-### Tizen Emulator Setup
+---
+
+## Android TV QA Tool Usage
+
+### Prerequisites (User)
+1. Android TV device on same network
+2. Enable developer options on TV (usually in Settings)
+3. Open Smart TV QA Tool (bundled ADB included)
+
+### Connect to Device
+1. Note TV IP address
+2. Click "Add Device"
+3. Enter IP:5555
+4. Click "Connect"
+
+### Manage Apps
+1. Device appears in list
+2. Click device to view installed apps
+3. Install APK: Drag-drop or browse
+4. Launch app: Click app in list
+5. Uninstall: Right-click, select "Uninstall"
+
+### View App Details
+- App name (with friendly branding)
+- Version number
+- App icon (extracted from APK)
+- Quick actions (Launch, Uninstall, Clear Data)
+
+---
+
+## Platform Research Summary
+
+### Android TV (ADB)
+**Status:** ✅ Complete  
+**Connection:** TCP/IP on port 5555  
+**Method:** ADB protocol (system CLI or embedded binary)  
+**App Control:** Launch, kill, install, list  
+**Feasibility:** ✅ Proven, works perfectly  
+**Next:** Embed ADB binary for distribution
+
+### Samsung Tizen (SDB)
+**Status:** 🔄 In Progress (PRIMARY FOCUS)  
+**Connection:** TCP/IP on port 26101  
+**Method:** SDB (Smart Development Bridge) protocol  
+**App Control:** Launch, kill, install WGT packages  
+**Package Format:** .wgt (ZIP-based)  
+**Feasibility:** ✅ Viable, well-documented  
+**Architecture:** Mirror Android TV implementation  
+**Timeline:** 1-2 weeks  
+
+**Key Details:**
+- Certificate-based authentication (like WebOS RSA keys)
+- Requires developer mode enabled on TV
+- No PIN needed after first connection
+- SDB available from Samsung Tizen Studio
+- Commands similar to ADB but different syntax
+
+**Next Steps:**
+1. Implement SDB connection module (src-tauri/src/device_manager/sdb.rs)
+2. Create Tizen service API wrapper
+3. Build Angular UI components
+4. Test with Tizen emulator or device
+
+### VIDAA TV (MQTT)
+**Status:** ✅ Research Complete (Ready to Implement)  
+**Connection:** MQTT-over-TLS on port 36669  
+**Method:** Native MQTT protocol (built-in to all VIDAA TVs)  
+**Credentials:** 
+- Username: `hisenseservice`
+- Password: `multimqttservice`
+**App Control:** Launch, power control, volume  
+**Feasibility:** ✅ Highly Viable  
+**Market:** ~5% of Smart TVs (Hisense, Toshiba)  
+
+**Key Findings:**
+- Official protocol, not reverse-engineered
+- Uses pub/sub messaging (very reliable)
+- TLS encrypted by default
+- No external CLI tool needed
+- Working Python libraries exist: vidaa-control, ha-vidaa-tv
+- Can be ported to Rust easily
+
+**Architecture:** Direct MQTT connection (cleanest approach)  
+**Timeline:** 1-2 weeks (after Tizen)  
+**Priority:** After Samsung Tizen  
+
+**Resources:**
+- [vidaa-control GitHub](https://github.com/tombabolewski/vidaa-control) - Reference implementation
+- [ha-vidaa-tv GitHub](https://github.com/tombabolewski/ha-vidaa-tv) - Home Assistant integration
+- [hisensetv API Docs](https://hisensetv.readthedocs.io/en/latest/api.html)
+
+### LG WebOS (Luna API)
+**Status:** ⏳ Planned  
+**Connection:** SSH on port 22  
+**Method:** SSH + Luna Service API  
+**Authentication:** RSA certificate-based  
+**Feasibility:** ✅ Proven (original app)  
+**Priority:** Lower (less market than Tizen)  
+
+---
+
+## Platform Comparison Matrix
+
+| Aspect | Android TV | Tizen | VIDAA | WebOS |
+|--------|-----------|-------|-------|-------|
+| **Connection** | ADB/TCP:5555 | SDB/TCP:26101 | MQTT/TCP:36669 | SSH/TCP:22 |
+| **Auth Type** | None | Certificate | Username/Pass | RSA Key |
+| **App Launch** | ✅ Easy | ✅ Easy | ✅ Easy | ✅ Easy |
+| **App Kill** | ✅ Easy | ✅ Easy | ✅ Yes | ✅ Easy |
+| **Install Apps** | ✅ APK | ✅ WGT | ⚠️ Limited | ✅ IPK |
+| **Documentation** | ✅ Excellent | ✅ Good | ⚠️ Partial | ✅ Good |
+| **Dev Community** | ✅ Large | ✅ Medium | ⚠️ Small | ⚠️ Small |
+| **Market Share** | 50%+ | 30%+ | ~5% | ~10% |
+| **Implementation** | Wrapped CLI | Native SDB | Native MQTT | Existing code |
+| **Effort** | Low (wrap ADB) | Medium (port SDB) | Medium (port MQTT) | Low (reuse) |
+| **Reliability** | ✅ High | ✅ High | ✅ High | ✅ High |
+
+---
+
+## Development Roadmap (Updated)
+
+### Week 1 - Samsung Tizen (PRIMARY FOCUS) 🔴
+
+**Goal:** Implement basic Tizen device control via SDB protocol
+
+**Tasks:**
+
+1. **SDB Protocol Implementation** (3-4 days)
+   - Create `src-tauri/src/device_manager/sdb.rs` (mirror of novacom.rs)
+   - Implement TCP connection to port 26101
+   - Handle certificate-based authentication
+   - Parse device responses
+   - Test with Tizen emulator
+
+2. **Tizen Service Commands** (2-3 days)
+   - List installed apps
+   - Launch apps (similar to: `am start`)
+   - Kill/stop apps (similar to: `am force-stop`)
+   - Get device information
+   - Install WGT packages
+
+3. **Testing & Validation** (1-2 days)
+   - Test with Samsung Tizen emulator (free)
+   - Or with actual Tizen TV if available
+   - Verify all commands work
+   - Document command syntax
+
+**Resources Needed:**
+- Samsung Tizen Studio (free download)
+- Tizen TV emulator
+- Or access to actual Samsung Tizen TV
+
+**Success Criteria:**
+- ✅ Can discover Tizen TV on network
+- ✅ Can connect via SDB with certificates
+- ✅ Can list installed apps
+- ✅ Can launch/kill apps
+- ✅ Angular UI components render correctly
+
+---
+
+### Week 2 - Android TV Distribution 🟠
+
+**Goal:** Make Android TV work without user setup
+
+**Tasks:**
+
+1. **Embed ADB Binary** (2-3 hours)
+   - Download official Android Platform Tools ADB (~15MB)
+   - Add to `src-tauri/resources/platform-tools/adb`
+   - Update `src/app/core/services/adb.service.ts` to use bundled path
+   - Test on clean macOS
+
+2. **Build & Test** (1-2 hours)
+   - Run `npm run build`
+   - Test .dmg on clean machine (no ADB installed)
+   - Verify ADB works out-of-the-box
+
+**Success Criteria:**
+- ✅ App works without system ADB installed
+- ✅ .dmg includes everything needed
+- ✅ Users open app and it just works
+
+---
+
+### Week 3 - VIDAA TV Support 🔴 (IN PROGRESS)
+
+**Goal:** Implement VIDAA device control via MQTT protocol
+
+**Tasks:**
+
+1. **MQTT-over-TLS Connection** (2-3 days)
+   - Create `src-tauri/src/device_manager/vidaa.rs`
+   - Implement MQTT client library integration
+   - Handle TLS connection to port 36669
+   - Authenticate with credentials (hisenseservice / multimqttservice)
+   - Parse MQTT messages
+
+2. **VIDAA Service Commands** (2-3 days)
+   - Launch apps (e.g., `vidaa launch netflix`)
+   - Power control (on/off)
+   - Volume control
+   - List available apps
+   - Handle app naming/aliasing
+
+3. **Testing & Validation** (1-2 days)
+   - Test with Hisense TV if available
+   - Or find VIDAA TV emulator alternative
+   - Verify MQTT connection works
+   - Verify all commands function correctly
+
+**Resources:**
+- [vidaa-control GitHub](https://github.com/tombabolewski/vidaa-control) - Reference implementation
+- [ha-vidaa-tv GitHub](https://github.com/tombabolewski/ha-vidaa-tv) - Integration reference
+- MQTT Port: 36669 (TLS encrypted)
+- Credentials: hisenseservice / multimqttservice
+
+**Success Criteria:**
+- ✅ Can discover VIDAA TV on network
+- ✅ Can connect via MQTT with TLS
+- ✅ Can launch apps
+- ✅ Can control power/volume
+- ✅ Angular UI components render correctly
+
+---
+
+### Week 4+ - LG WebOS Support 🟡
+
+**Later: LG WebOS Support**
+- Integrate existing Luna API code
+- SSH + RSA key authentication
+- Feature parity with other platforms
+
+---
+
+## What's Done vs. What's Left
+
+### ✅ COMPLETED (100%)
+- App renamed & rebranded completely
+- Design system implemented
+- Android TV ADB service working
+- Data clearing on startup
+- Research on all 4 platforms
+- Architecture planning done
+- Icon system updated
+
+### 🔄 IN PROGRESS (0%)
+- **Samsung Tizen SDB implementation** ← START HERE
+
+### ⏳ BLOCKED (Waiting for Tizen)
+- Android TV ADB binary embedding
+- VIDAA MQTT implementation
+- WebOS integration
+- Mac .dmg build
+
+---
+
+## Priority Order
+
+1. **Samsung Tizen (Week 1)** - Most market share after Android
+2. **Android TV Distribution (Week 2)** - Fix distribution issue
+3. **VIDAA TV (Week 3+)** - Research complete, ready to implement
+4. **LG WebOS (Later)** - Can reuse existing code base
+
+---
+
+## Project Files
+
+```
+/Users/borissionov/Privet/Projects/FreeTV-QA-Tool/
+├── src/                           # Angular Frontend
+│   ├── app/
+│   │   ├── platform-selector/     # Main UI (3 platforms)
+│   │   ├── android-tv/            # Android TV module
+│   │   ├── home/                  # Home/settings
+│   │   └── core/services/
+│   │       └── adb.service.ts     # ADB wrapper
+│   └── index.html                 # App title
+│
+├── src-tauri/                     # Rust Backend
+│   ├── src/
+│   │   ├── lib.rs                 # Tauri setup + startup logic
+│   │   ├── plugins/               # Command modules
+│   │   ├── device_manager/        # Device management
+│   │   └── main.rs
+│   ├── resources/
+│   │   └── platform-tools/adb     # [TO ADD] Bundled ADB binary
+│   └── Cargo.toml
+│
+├── package.json                   # Node deps + scripts
+├── tauri.conf.json               # Tauri config (build, bundle)
+├── angular.json                  # Angular config (budgets, build)
+├── CLAUDE.md                      # This file
+└── README.md                      # User documentation
+```
+
+---
+
+## Configuration Notes
+
+### angular.json - Stylesheet Budgets
+Increased from 4kb to 15kb error limit to accommodate modern design system:
+```json
+{
+  "type": "anyComponentStyle",
+  "maximumWarning": "8kb",
+  "maximumError": "15kb"
+}
+```
+
+### tauri.conf.json - Bundle Resources
+[TO ADD] Include ADB binary:
+```json
+{
+  "bundle": {
+    "resources": [
+      "resources/platform-tools/adb"
+    ]
+  }
+}
+```
+
+### package.json - App Metadata
+```json
+{
+  "name": "smart-tv-qa-tool",
+  "version": "1.0.0",
+  "description": "Smart TV QA Tool",
+  "author": "Smart TV QA Team"
+}
+```
+
+---
+
+## Key Decisions & Rationale
+
+1. **Embed ADB, Don't Write Native Library**
+   - Current CLI wrapper is proven & reliable
+   - Existing Rust ADB libraries are immature
+   - Bundling binary solves real problem (distribution)
+   - Minimal code changes needed
+
+2. **Fresh Data on Startup**
+   - Each launch is clean slate
+   - No lingering device connections or saved state
+   - Prevents stale authentication issues
+   - Better for QA (reproducible tests)
+
+3. **One App, Multiple Platforms**
+   - Single installer, single window
+   - Shared device list
+   - Unified UI framework (Angular)
+   - Professional distribution (.dmg/.exe/.deb)
+
+4. **Modern Design System**
+   - Glassmorphism (blur, transparency)
+   - Consistent across platforms
+   - User-friendly QA interface
+   - Professional appearance
+
+---
+
+## Tizen-Specific Implementation Notes
+
+### SDB Connection Details
+- **Protocol:** Socket-based communication (similar to ADB)
+- **Port:** 26101
+- **Authentication:** Certificate exchange (not PIN-based as initially thought)
+- **Available Commands:**
+  ```
+  pm list packages          # List installed apps
+  shell getprop            # Get device properties
+  push <file>              # Push files to device
+  pull <file>              # Pull files from device
+  ```
+
+### Key Tizen Package Commands
 ```bash
-# Download Tizen Studio
-# Create TV emulator: Tools → Emulator Manager → Create
-# Run emulator: Press "Launch"
-# Device will appear in sdb devices
-# Connect with SDB on 127.0.0.1:26101
+# Launch app
+app_launcher -s <app-id>
+
+# Kill app
+pidof <app-name>
+kill <pid>
+
+# Install WGT package
+package-manager -i <wgt-file>
 ```
 
----
+### Testing Strategy
+1. **Option A:** Use Samsung Tizen Studio (free)
+   - Download from: https://developer.tizen.org/
+   - Create TV emulator
+   - Connect via SDB
 
-## Code Structure for Unified App
+2. **Option B:** Use actual Tizen TV
+   - Enable Developer Mode
+   - Note IP address
+   - Connect via SDB
 
-```
-FreeTV-MultiPlatform-Manager/
-├── src/                                     # Angular Frontend (Unified UI)
-│   └── app/
-│       ├── platform-selector/              # Landing page (3 platform cards)
-│       │   ├── platform-selector.component.ts
-│       │   ├── platform-selector.component.html
-│       │   └── platform-selector.component.scss
-│       │
-│       ├── shared/
-│       │   ├── components/                 # Reusable UI components
-│       │   │   ├── device-card/
-│       │   │   ├── action-button/
-│       │   │   └── log-panel/
-│       │   └── services/
-│       │       └── device.service.ts       # Shared device management
-│       │
-│       └── platforms/
-│           ├── webos/                      # LG Manager (existing dev-manager-desktop)
-│           │   ├── device-list/
-│           │   ├── app-manager/
-│           │   └── ...
-│           ├── android-tv/                 # Android TV Manager (NEW)
-│           │   ├── device-list/
-│           │   ├── app-manager/
-│           │   ├── rcu-dialog/
-│           │   └── ...
-│           └── tizen/                      # Samsung Tizen Manager (NEW)
-│               ├── device-list/
-│               ├── app-manager/
-│               └── ...
-│
-├── src-tauri/                              # Rust Backend (Multi-Platform Plugins)
-│   └── src/
-│       ├── plugins/                        # Command modules
-│       │   ├── webos.rs                   # Luna + SSH calls (existing)
-│       │   │
-│       │   ├── android_tv.rs              # ADB wrapper (ported from PySide6)
-│       │   │   ├── adb_commands.rs        # Core ADB operations
-│       │   │   ├── appium.rs              # Appium integration
-│       │   │   └── rcu.rs                 # Remote control commands
-│       │   │
-│       │   └── tizen.rs                   # SDB wrapper (new)
-│       │       ├── sdb_commands.rs        # Core SDB operations
-│       │       └── tizen.rs               # Tizen-specific commands
-│       │
-│       ├── conn_pool/                     # Connection management
-│       ├── device_manager/                # Shared device utilities
-│       └── lib.rs                         # Tauri setup + route handlers
-│
-├── package.json
-├── tauri.conf.json
-├── Cargo.toml
-└── ...
-```
-
-**Key Principle**: All three platforms share the same Angular UI framework and connect through Tauri plugins in the backend.
+### Known Challenges
+- WGT package format is different from APK
+- Commands syntax slightly different from Android
+- Limited official documentation
+- Need to handle certificate storage
 
 ---
 
-## Device List — Shared Across Platforms
+## Research Resources Used
 
-One unified device list showing:
-- Device name + IP
-- Platform icon (LG | Android | Tizen)
-- Connection status (🟢 Connected | 🔴 Disconnected)
-- Last used time
-- Quick action buttons (Connect, Open Manager, Disconnect)
-
-Clicking a device opens the **platform-specific manager** for that device.
-
----
-
-## Development Roadmap (Unified Codebase)
-
-### Phase 1: Prepare Foundation (Week 1)
-- ✅ Document architecture (DONE)
-- ✅ Create platform selector component (DONE)
-- [ ] Set up unified Tauri + Angular monorepo
-- [ ] Copy dev-manager-desktop as base
-- [ ] Create plugin folder structure in Rust backend
-
-### Phase 2: Port Android TV to Tauri (Week 1-2, ~3-5 days)
-- [ ] Port `adb_manager.py` → `src-tauri/src/plugins/android_tv/adb.rs`
-- [ ] Port `rcu_manager.py` → Rust RCU commands
-- [ ] Port `appium_manager.py` → Appium integration
-- [ ] Create Android TV Angular components (device list, app manager, RCU dialog)
-- [ ] Wire into router: `/platforms/android-tv`
-- [ ] Test with real Android TV device ✅ Works perfectly
-
-### Phase 3: Build Samsung Tizen from Scratch (Week 2-3, ~5-7 days)
-- [ ] Set up Tizen emulator (or use Samsung RTL cloud devices)
-- [ ] Implement SDB protocol in Rust (`src-tauri/src/plugins/tizen/sdb.rs`)
-- [ ] Create Tizen Angular components (reuse patterns from Android TV)
-- [ ] Wire into router: `/platforms/tizen`
-- [ ] Test with emulator + real device if available ✅ Success
-
-### Phase 4: Unified Device Management (Week 3)
-- [ ] Build shared device list (all 3 platforms)
-- [ ] Implement platform-aware connection UI
-- [ ] Cross-platform device tagging and persistence
-- [ ] Shared logging across all platforms
-
-### Phase 5: Polish & Package (Week 4+)
-- [ ] Comprehensive error handling
-- [ ] Add app icon display for all platforms
-- [ ] Add inspect/DevTools support (port forwarding)
-- [ ] Package as .app/.exe/.deb for macOS/Windows/Linux
-- [ ] Documentation + deployment guide
-
----
-
-## No Changes to LG WebOS
-
-LG is left **exactly as-is**:
-- All existing code stays untouched
-- Just gets moved into the unified monorepo
-- Plugin stays at `src-tauri/src/plugins/webos.rs`
-- Components stay in `src/app/platforms/webos/`
-
----
-
-## Key Files to Reference
-
-| File | Purpose |
-|---|---|
-| `/Users/borissionov/Privet/Projects/dev-manager-desktop/CLAUDE.md` | LG WebOS app docs |
-| `/Users/borissionov/PycharmProjects/AndroidQATool/CLAUDE.md` | Android TV app docs |
-| `/Users/borissionov/PycharmProjects/AndroidQATool/core/adb_manager.py` | ADB logic to port |
-| `/Users/borissionov/PycharmProjects/AndroidQATool/core/appium_manager.py` | Appium wrapper to adapt |
-
----
-
-## Testing Strategy
-
-### Android TV
-- Real device: use any Android TV / Google TV device on local network
-- Or: Android emulator (from Android Studio) with ADB over TCP
+### VIDAA TV
+- [vidaa-control](https://github.com/tombabolewski/vidaa-control) - Working Python implementation
+- [ha-vidaa-tv](https://github.com/tombabolewski/ha-vidaa-tv) - Home Assistant integration
+- MQTT credentials found: hisenseservice / multimqttservice
 
 ### Samsung Tizen
-- **Tizen Emulator** (free, from Tizen Studio) — sufficient for dev
-- Or: Samsung Remote Test Lab (cloud-based real devices, free limited tier)
-- Or: physical Samsung Smart TV in dev mode
+- Samsung Tizen Studio
+- Tizen Developer Documentation
+- SDB Protocol (similar to ADB)
 
-### LG WebOS
-- Real LG TV with dev mode enabled
-- Or: check if LG offers emulator / simulator
-
----
-
-## Important Notes
-
-- **Unified Approach**: One Tauri + Angular app for all three platforms. No PySide6, no separate apps.
-- **LG WebOS**: ✅ Feature-complete. Will be moved into unified repo **with zero code changes**. Left exactly as-is.
-- **Android TV**: ✅ Logic is battle-tested in PySide6 app. ADB commands (~300 lines) will be ported to Rust. Expected effort: 3-5 days.
-- **Samsung Tizen**: Starting from scratch with SDB (Tizen's equivalent to ADB). Tizen emulator requires no hardware. Expected effort: 5-7 days.
-- **Shared Infrastructure**: 
-  - All platforms use Tauri plugins in the backend
-  - All platforms use Angular components in the frontend
-  - Shared device list, logging, error handling
-  - One installer, one window, professional UX
+### Android TV
+- Existing adb.service.ts implementation
+- Works perfectly, just needs ADB binary bundling
 
 ---
 
-## Who Built What
+## Summary: What's Done & What's Next
 
-- **LG WebOS app**: Existing `/dev-manager-desktop` project (Tauri + Angular)
-- **Android TV app**: `/PycharmProjects/AndroidQATool` (Python PySide6) — can be ported or integrated
-- **Samsung Tizen**: Needs to be built from scratch (recommend Rust in Tauri for consistency)
-- **QA AI Tool**: `/PycharmProjects/FreeTVQATool` — separate project (Streamlit), not part of device manager
+| Item | Status | Notes |
+|------|--------|-------|
+| App Rename (FreeTV → Smart TV QA Tool) | ✅ Done | Complete rebrand |
+| Design System (Modern Glassmorphism) | ✅ Done | Applied throughout |
+| Android TV ADB Service | ✅ Done | Working, needs bundling |
+| Data Clearing on Startup | ✅ Done | Fresh state every launch |
+| **Samsung Tizen Research** | ✅ Done | SDB approach identified |
+| **VIDAA Research** | ✅ Done | MQTT approach identified |
+| **Samsung Tizen Implementation** | 🔴 IN PROGRESS | **Week 1 - PRIMARY** |
+| **VIDAA Implementation** | 🔴 IN PROGRESS | **Week 3+ - SECONDARY** |
+| Android TV Binary Embedding | 🟠 TODO | Week 2 (1 day) |
+| WebOS Integration | 🟡 TODO | Can reuse existing code |
+| Mac Build & Distribution | 🟡 TODO | After all platforms |
+
+---
+
+## References
+
+- **Android Debug Bridge:** https://developer.android.com/studio/command-line/adb
+- **Samsung Tizen Studio:** https://developer.tizen.org/
+- **VIDAA Control (Reference):** https://github.com/tombabolewski/vidaa-control
+- **Tauri Documentation:** https://tauri.app
+- **Angular:** https://angular.io
+
+---
+
+**Last Updated:** April 28, 2026  
+**Version:** 1.0.0  
+**Current Phase:** Samsung Tizen Implementation (Week 1)  
+**Status:** Architecture complete. Ready to code Tizen SDB module.

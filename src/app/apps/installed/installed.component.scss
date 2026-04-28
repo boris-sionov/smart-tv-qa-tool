@@ -1,9 +1,320 @@
-.app-icon {
-  width: 64px;
-  height: 64px;
+$primary-blue: #5B9FF5;
+$panel: rgba(15, 23, 43, 0.72);
+$panel-strong: rgba(18, 30, 55, 0.88);
+$border: rgba(91, 159, 245, 0.18);
+$text-muted: #A8B8CC;
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.installed-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.installed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 4px 2px 2px;
+}
+
+.installed-heading {
+  min-width: 0;
+
+  h2 {
+    margin: 0;
+    color: #FFFFFF;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+}
+
+.installed-kicker {
+  margin-bottom: 3px;
+  color: $primary-blue;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.installed-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid $border;
   border-radius: 8px;
-  object-fit: contain;
+  color: #EAF2FF;
   background: rgba(91, 159, 245, 0.1);
-  padding: 4px;
-  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 700;
+
+  i {
+    color: $primary-blue;
+    font-size: 15px;
+  }
+}
+
+.installed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.installed-app-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 82px;
+  padding: 12px;
+  border: 1px solid $border;
+  border-radius: 8px;
+  background: linear-gradient(135deg, $panel-strong 0%, $panel 100%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.app-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.app-icon-frame {
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 58px;
+  border: 1px solid rgba(91, 159, 245, 0.18);
+  border-radius: 8px;
+  background: rgba(7, 13, 28, 0.48);
+}
+
+.app-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.app-icon-placeholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #5B9FF5 0%, #8B7FF5 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: white;
+  letter-spacing: -0.5px;
+  box-shadow: 0 4px 12px rgba(91, 159, 245, 0.3);
+}
+
+.app-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.app-title {
+  max-width: 100%;
+  overflow: hidden;
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.version-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(91, 159, 245, 0.24);
+  border-radius: 8px;
+  color: #DCEBFF;
+  background: rgba(91, 159, 245, 0.12);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.package-id {
+  min-width: 0;
+  overflow: hidden;
+  color: $text-muted;
+  font-size: 12px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-actions {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  align-items: center;
+  gap: 8px;
+}
+
+.app-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, transform 0.18s ease;
+
+  i {
+    font-size: 14px;
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
+  }
+
+  &:hover,
+  &:focus-visible {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(91, 159, 245, 0.18);
+  }
+
+  &.secondary {
+    color: #DDE9FA;
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.11);
+
+    &:hover,
+    &:focus-visible {
+      color: #FFFFFF;
+      background: rgba(91, 159, 245, 0.24);
+      border-color: rgba(91, 159, 245, 0.62);
+    }
+  }
+
+  &.primary {
+    color: #FFFFFF;
+    background: #0D6EFD;
+    border-color: #2E86FF;
+
+    &:hover,
+    &:focus-visible {
+      background: #2E86FF;
+      border-color: #66A8FF;
+      box-shadow: 0 10px 24px rgba(13, 110, 253, 0.32);
+    }
+  }
+
+  &.danger {
+    color: #FFFFFF;
+    background: rgba(220, 53, 69, 0.88);
+    border-color: rgba(255, 123, 136, 0.36);
+
+    &:hover,
+    &:focus-visible {
+      background: #DC3545;
+      border-color: rgba(255, 160, 170, 0.58);
+      box-shadow: 0 10px 24px rgba(220, 53, 69, 0.3);
+    }
+  }
+}
+
+.installed-empty {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid $border;
+  border-radius: 8px;
+  color: $text-muted;
+  background: $panel;
+  text-align: center;
+
+  i {
+    color: $primary-blue;
+    font-size: 36px;
+  }
+
+  h3 {
+    margin: 0;
+    color: #FFFFFF;
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 980px) {
+  .installed-app-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .app-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .app-action {
+    padding: 0 8px;
+  }
+}
+
+@media (max-width: 680px) {
+  .installed-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .installed-count {
+    align-self: stretch;
+    justify-content: center;
+  }
+
+  .app-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-action {
+    width: 100%;
+  }
+
+  .package-id {
+    display: none;
+  }
 }

@@ -6,8 +6,8 @@
     "devUrl": "http://localhost:4281",
     "frontendDist": "../dist"
   },
-  "identifier": "com.freetv.qa-tool",
-  "productName": "FreeTV QA Tool",
+  "identifier": "com.smarttv.qa-tool",
+  "productName": "Smart TV QA Tool",
   "version": "../package.json",
   "app": {
     "security": {
@@ -23,7 +23,7 @@
         "minHeight": 600,
         "minWidth": 420,
         "resizable": true,
-        "title": "FreeTV QA Tool",
+        "title": "Smart TV QA Tool",
         "visible": true,
         "width": 1024
       }
@@ -37,7 +37,7 @@
   "bundle": {
     "active": true,
     "category": "DeveloperTool",
-    "copyright": "",
+    "copyright": "© 2026 Smart TV QA Tool",
     "licenseFile": "../LICENSE",
     "linux": {
       "deb": {
@@ -46,13 +46,13 @@
           "zlib1g (>=1.2.11)"
         ],
         "provides": [
-          "web-os-dev-manager"
+          "smart-tv-qa-tool"
         ],
         "conflicts": [
-          "web-os-dev-manager"
+          "smart-tv-qa-tool"
         ],
         "replaces": [
-          "web-os-dev-manager"
+          "smart-tv-qa-tool"
         ]
       },
       "rpm": {
@@ -61,13 +61,13 @@
           "zlib (>=1.2.11)"
         ],
         "provides": [
-          "web-os-dev-manager"
+          "smart-tv-qa-tool"
         ],
         "conflicts": [
-          "web-os-dev-manager"
+          "smart-tv-qa-tool"
         ],
         "obsoletes": [
-          "web-os-dev-manager"
+          "smart-tv-qa-tool"
         ]
       }
     },
@@ -79,7 +79,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "longDescription": "Simple tool to manage developer mode enabled or rooted webOS TV\n\nFeatures\n- No need to install LG SDK or IDE\n- Add device without need to use command line\n- Install apps on TV with a few clicks\n- Configuration compatible with ares-cli\n- Works on Windows, Linux and macOS (Apple Silicon too!)\n- Dark mode follows system preferences",
+    "longDescription": "Smart TV QA Tool for testing and managing applications across multiple Smart TV platforms\n\nFeatures\n- Manage apps on LG WebOS devices\n- Install and test apps via ADB on Android TV\n- Support for multiple platforms and environments\n- Device management and app installation capabilities\n- Works on Windows, Linux and macOS (Apple Silicon too!)\n- Modern dark mode interface",
     "macOS": {
       "entitlements": null,
       "exceptionDomain": "",
@@ -88,7 +88,7 @@
       "signingIdentity": null
     },
     "resources": [],
-    "shortDescription": "Device/Dev Mode Manager for webOS TV",
+    "shortDescription": "QA Tool for Smart TV Testing",
     "targets": "all",
     "windows": {
       "certificateThumbprint": null,

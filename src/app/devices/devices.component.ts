@@ -51,6 +51,9 @@ export class DevicesComponent {
     }
 
     async saveDevice(device: NewDevice) {
+        if (this.editingDevice && this.editingDevice.name !== device.name) {
+            await this.deviceManager.removeDevice(this.editingDevice.name, false);
+        }
         await this.deviceManager.addDevice(device);
         this.editingDevice = undefined;
     }

@@ -7,7 +7,24 @@
         <button class="nav-btn back-btn" (click)="goBack()" title="Change Platform">
           <i class="bi bi-chevron-left"></i>
         </button>
-        <span class="platform-label">LG WebOS</span>
+        <div class="platform-switcher" aria-label="Switch platform">
+          <button class="platform-chip active" type="button" title="LG WebOS" (click)="openLg()">
+            <span class="platform-mark lg-mark">LG</span>
+            <span>LG</span>
+          </button>
+          <button class="platform-chip" type="button" title="Android TV" (click)="openAndroid()">
+            <i class="bi bi-android2"></i>
+            <span>ATV</span>
+          </button>
+          <button class="platform-chip disabled" type="button" title="Samsung Tizen is in progress" disabled>
+            <span class="platform-mark samsung-mark">S</span>
+            <span>Tizen</span>
+          </button>
+          <button class="platform-chip disabled" type="button" title="Vidaa is in progress" disabled>
+            <span class="platform-mark vidaa-mark">H</span>
+            <span>VIDAA</span>
+          </button>
+        </div>
       </div>
 
       <div class="navbar-center">
@@ -16,21 +33,18 @@
             <i class="bi bi-grid"></i>
             <span>Apps</span>
           </a>
-          <a class="nav-link-modern" routerLink="files" routerLinkActive="active" replaceUrl title="Files">
-            <i class="bi bi-folder"></i>
-            <span>Files</span>
-          </a>
           <a class="nav-link-modern" routerLink="info" routerLinkActive="active" replaceUrl title="Info">
             <i class="bi bi-info-circle"></i>
             <span>Info</span>
+          </a>
+          <a class="nav-link-modern" routerLink="devices" routerLinkActive="active" replaceUrl title="Manage Devices">
+            <i class="bi bi-hdd-rack"></i>
+            <span>Manage</span>
           </a>
         </div>
       </div>
 
       <div class="navbar-end">
-        <button class="nav-btn devices-btn" routerLink="devices" routerLinkActive="active" replaceUrl ngbTooltip="Manage Devices" placement="bottom">
-          <i class="bi bi-hdd-rack"></i>
-        </button>
       </div>
     </div>
   </nav>

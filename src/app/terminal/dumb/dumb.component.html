@@ -1,8 +1,6 @@
 <div class="p-2 pb-3 w-100 h-100 container" #container (click)="input.focus()">
   <div class="w-100 text-warning fw-bold small" (click)="$event.stopPropagation()">
-    Interactive terminal is not supported for this connection. Check <a
-    href="https://github.com/webosbrew/dev-manager-desktop/wiki/About-Dumb-Shell" appExternalLink>here</a> for
-    more info.
+    Interactive terminal is not supported for this connection. Some features may be limited.
   </div>
   @for (item of logs; track item.id) {
     <div class="user-select-text" (click)="$event.stopPropagation()">

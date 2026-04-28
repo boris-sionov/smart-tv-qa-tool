@@ -23,7 +23,7 @@ export enum NewDeviceAuthentication {
 export const AppPrivKeyName = 'id_devman';
 
 export declare interface NewDeviceBase extends Omit<Device, 'privateKey' | 'passphrase' | 'password'> {
-    new: true;
+    new: boolean;
     name: string;
     description?: string;
     host: string;

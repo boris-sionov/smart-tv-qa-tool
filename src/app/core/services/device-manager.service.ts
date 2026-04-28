@@ -55,7 +55,9 @@ export class DeviceManagerService extends BackendClient {
     }
 
     async addDevice(device: NewDevice): Promise<Device> {
-        return await this.invoke('add', {device});
+        const result = await this.invoke<Device>('add', {device});
+        this.load();
+        return result;
     }
 
     async readPrivKey(device: Device): Promise<string> {
