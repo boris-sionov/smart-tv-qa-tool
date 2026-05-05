@@ -1,6 +1,6 @@
 import {Component} from '@angular/core';
 import {ActivatedRoute, RouterLink} from "@angular/router";
-import {HomeComponent} from "../home.component";
+import {LgComponent} from "../lg.component";
 import ReleaseInfo from '../../../release.json';
 import {SharedModule} from "../../shared/shared.module";
 import {ExternalLinkDirective} from "../../shared/directives";
@@ -17,14 +17,14 @@ import {ExternalLinkDirective} from "../../shared/directives";
     styleUrl: './nav-more.component.scss'
 })
 export class NavMoreComponent {
-    homeRoute: ActivatedRoute | null;
+    lgRoute: ActivatedRoute | null;
     readonly appVersion: string;
 
     constructor(
         public route: ActivatedRoute,
-        public parent: HomeComponent,
+        public parent: LgComponent,
     ) {
-        this.homeRoute = route.parent;
+        this.lgRoute = route.parent;
         this.appVersion = ReleaseInfo.version;
     }
 }

@@ -1,0 +1,144 @@
+<div class="wizard-modal">
+  <div class="wizard-header">
+    <div class="header-text">
+      <h5 class="wizard-title">
+        @if (currentStep === 1) { Enable Developer Mode on your Samsung TV }
+        @else { Add Samsung Tizen Device }
+      </h5>
+      <div class="step-indicator">
+        <div class="step" [class.active]="currentStep === 1" [class.complete]="currentStep > 1"><span>1</span></div>
+        <div class="step-line" [class.complete]="currentStep > 1"></div>
+        <div class="step" [class.active]="currentStep === 2"><span>2</span></div>
+      </div>
+    </div>
+    <button class="close-btn" (click)="modal.dismiss()" aria-label="Close">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <div class="wizard-body">
+    @if (currentStep === 1) {
+      <div class="devmode-info">
+        <p class="devmode-intro">Follow these steps on your Samsung TV remote to enable Developer Mode.</p>
+
+        <div class="devmode-section">
+          <div class="devmode-section-title">
+            <i class="bi bi-unlock-fill"></i>
+            1. Enable Developer Mode
+          </div>
+          <ul class="devmode-bullets">
+            <li>Open the <strong>Apps</strong> menu on the TV</li>
+            <li>On your remote, press the button that opens the numeric keypad and enter <strong>1 2 3 4 5</strong>
+              <br><em>(On a smart remote, open the numbers UI from the on-screen keypad)</em>
+            </li>
+            <li>In the popup that opens, switch <strong>Developer mode</strong> to <strong>ON</strong></li>
+          </ul>
+        </div>
+
+        <div class="devmode-section">
+          <div class="devmode-section-title">
+            <i class="bi bi-router-fill"></i>
+            2. Set this computer's IP on the TV
+          </div>
+          <ul class="devmode-bullets">
+            @if (macIp) {
+              <li>This Mac's IP is
+                <code>{{ macIp }}</code>
+                — enter it in the <strong>Host PC IP</strong> field on the TV
+              </li>
+            } @else {
+              <li>Find this Mac's IP: <strong>System Settings → Wi-Fi → Details</strong></li>
+              <li>Enter it in the <strong>Host PC IP</strong> field on the TV</li>
+            }
+            <li>Press <strong>OK</strong> to save</li>
+          </ul>
+        </div>
+
+        <div class="devmode-section">
+          <div class="devmode-section-title">
+            <i class="bi bi-power"></i>
+            3. Reboot the TV
+          </div>
+          <ul class="devmode-bullets">
+            <li>Hold the <strong>power button</strong> on the remote for more than 2 seconds</li>
+            <li>When the TV restarts, open the Apps menu again</li>
+            <li>"<strong>Developer mode</strong>" should appear at the top of the screen</li>
+          </ul>
+        </div>
+
+        <div class="devmode-section">
+          <div class="devmode-section-title">
+            <i class="bi bi-check2-circle"></i>
+            4. Note the TV's IP Address
+          </div>
+          <ul class="devmode-bullets">
+            <li>On the TV: <strong>Settings → Network → Network Status → IP Settings</strong></li>
+            <li>You'll need this IP address in the next step</li>
+          </ul>
+        </div>
+      </div>
+    } @else {
+      <div class="form-content">
+        <div class="form-header">
+          <div class="form-icon samsung-icon">
+            <span>S</span>
+          </div>
+          <div>
+            <h3 class="form-title">Connect to your Samsung TV</h3>
+            <p class="form-subtitle">Enter a friendly name and the TV's IP address. SDB port 26101 is used by default.</p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="form-field-label">Device Name</label>
+            <div class="input-wrapper">
+              <i class="bi bi-tag input-icon"></i>
+              <input class="modern-input" type="text" placeholder="e.g. Lab Samsung TV"
+                     [(ngModel)]="name" (keydown.enter)="submit()">
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="form-field-label">IP Address</label>
+            <div class="input-wrapper">
+              <i class="bi bi-router input-icon"></i>
+              <input class="modern-input" type="text" placeholder="192.168.1.100"
+                     [(ngModel)]="ip" (keydown.enter)="submit()">
+            </div>
+          </div>
+        </div>
+
+        @if (error) {
+          <div class="error-banner">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span>{{ error }}</span>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="wizard-footer">
+    @if (currentStep === 1) {
+      <button class="wizard-btn primary ms-auto" (click)="next()">
+        <span>Next</span>
+        <i class="bi bi-arrow-right"></i>
+      </button>
+    } @else {
+      <button class="wizard-btn secondary" (click)="back()" [disabled]="connecting">
+        <i class="bi bi-arrow-left"></i>
+        <span>Back</span>
+      </button>
+      <button class="wizard-btn primary ms-auto" (click)="submit()" [disabled]="!canSubmit">
+        @if (connecting) {
+          <span class="spinner-mini"></span>
+          <span>Connecting...</span>
+        } @else {
+          <i class="bi bi-check-lg"></i>
+          <span>Connect &amp; Save</span>
+        }
+      </button>
+    }
+  </div>
+</div>

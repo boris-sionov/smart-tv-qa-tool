@@ -163,7 +163,7 @@ $border-color: rgba(91, 159, 245, 0.2);
 // Devices Grid
 .devices-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
 
   @media (max-width: 640px) {

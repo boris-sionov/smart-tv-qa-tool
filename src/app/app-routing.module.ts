@@ -1,7 +1,7 @@
 import {NgModule} from '@angular/core';
 import {RouterModule, Routes} from '@angular/router';
-import {HomeComponent} from './home/home.component';
-import {NavMoreComponent} from './home/nav-more/nav-more.component';
+import {LgComponent} from './lg/lg.component';
+import {NavMoreComponent} from './lg/nav-more/nav-more.component';
 
 const routes: Routes = [
     {
@@ -10,7 +10,7 @@ const routes: Routes = [
     },
     {
         path: 'lg',
-        component: HomeComponent,
+        component: LgComponent,
         children: [
             {path: 'apps', loadChildren: () => import('./apps').then(m => m.AppsModule)},
             {path: 'files', loadChildren: () => import('./files').then(m => m.FilesModule)},
@@ -25,6 +25,10 @@ const routes: Routes = [
     {
         path: 'android-tv',
         loadChildren: () => import('./android-tv/android-tv.module').then(m => m.AndroidTvModule),
+    },
+    {
+        path: 'tizen',
+        loadChildren: () => import('./tizen/tizen.module').then(m => m.TizenModule),
     },
     {path: '**', redirectTo: ''},
 ];

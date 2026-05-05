@@ -30,7 +30,7 @@ export class AndroidTvComponent implements OnInit {
         this.selected = dev;
         this.state.select(dev);
         if (dev) {
-            this.adb.connect(dev.ip).catch(() => {});
+            this.adb.connect(deviceSerial(dev)).catch(() => {});
         }
     }
 
@@ -52,5 +52,9 @@ export class AndroidTvComponent implements OnInit {
 
     openAndroid(): void {
         this.router.navigate(['/android-tv']);
+    }
+
+    openTizen(): void {
+        this.router.navigate(['/tizen']);
     }
 }

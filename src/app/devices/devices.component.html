@@ -43,25 +43,13 @@
               <div class="device-icon">
                 <i class="bi bi-tv"></i>
               </div>
-              @if (device.default) {
-                <span class="status-badge default">
-                  <i class="bi bi-star-fill"></i>
-                  Default
-                </span>
-              }
             </div>
             <div class="device-card-body">
               <h4 class="device-name">{{ device.name }}</h4>
               <div class="device-info">
                 <i class="bi bi-router"></i>
-                <span>{{ device.host }}:{{ device.port }}</span>
+                <span>{{ device.host }}</span>
               </div>
-              @if (device.username) {
-                <div class="device-info">
-                  <i class="bi bi-person-fill"></i>
-                  <span>{{ device.username }}</span>
-                </div>
-              }
             </div>
             <div class="device-card-actions">
               @if (editingDevice !== device) {

@@ -13,11 +13,11 @@ import {DeviceChooserComponent} from "./device-chooser/device-chooser.component"
 import {DevicesComponent} from "../devices/devices.component";
 
 @Component({
-    selector: 'app-home',
-    templateUrl: './home.component.html',
-    styleUrls: ['./home.component.scss']
+    selector: 'app-lg',
+    templateUrl: './lg.component.html',
+    styleUrls: ['./lg.component.scss']
 })
-export class HomeComponent implements OnInit {
+export class LgComponent implements OnInit {
 
     selectedDevice?: Device;
     appVersion: string;
@@ -32,9 +32,6 @@ export class HomeComponent implements OnInit {
     ) {
         deviceManager.devices$.pipe(filter(isNonNull)).subscribe((devices) => {
             this.selectedDevice = devices.find((device) => device.default) || devices[0];
-            if (!this.selectedDevice) {
-                this.openSetupDevice(false);
-            }
         });
         this.appVersion = ReleaseInfo.version || packageInfo.version;
     }
@@ -51,6 +48,10 @@ export class HomeComponent implements OnInit {
         this.router.navigate(['/android-tv']);
     }
 
+    openTizen(): void {
+        this.router.navigate(['/tizen']);
+    }
+
     markDefault(device: Device): void {
         this.deviceManager.setDefault(device.name).catch(reason => {
             console.log(reason);
@@ -65,7 +66,6 @@ export class HomeComponent implements OnInit {
                     {provide: 'cancellable', useValue: cancellable}
                 ]
             }),
-            beforeDismiss: () => cancellable,
         });
         ref.result.then((device) => this.deviceManager.setDefault(device.name)).catch(noop);
     }

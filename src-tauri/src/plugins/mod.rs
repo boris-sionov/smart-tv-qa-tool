@@ -1,3 +1,4 @@
+pub mod adb;
 pub mod cmd;
 pub mod device;
 pub mod devmode;

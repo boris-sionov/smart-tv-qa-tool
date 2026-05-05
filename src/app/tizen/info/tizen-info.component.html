@@ -1,0 +1,67 @@
+<div class="info-page">
+  @if (!device) {
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bi bi-tv"></i></div>
+      <h4>No device detected</h4>
+      <p>Go to <strong>Manage</strong> and add a Samsung Tizen device to get started.</p>
+    </div>
+  } @else if (loading) {
+    <div class="loading-state">
+      <div class="spinner-modern"></div>
+      <p>Loading device information...</p>
+    </div>
+  } @else if (error) {
+    <div class="error-state">
+      <div class="error-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+      <h4>Failed to Load Device Info</h4>
+      <p>{{ error.message }}</p>
+      <button class="retry-btn" (click)="loadInfo(device!)">
+        <i class="bi bi-arrow-clockwise"></i> Retry
+      </button>
+    </div>
+  } @else {
+    <div class="info-hero">
+      <div class="hero-content">
+        <div class="hero-avatar">
+          <span class="samsung-s">S</span>
+        </div>
+        <div class="hero-text">
+          <h1 class="hero-title">{{ device.name }}</h1>
+          <p class="hero-subtitle">
+            <i class="bi bi-circle-fill status-dot"></i>
+            Connected · {{ device.ip }}
+          </p>
+        </div>
+        <button class="copy-btn-hero" (click)="copyDeviceInfo()"
+                [class.copy-success]="copySuccess"
+                ngbTooltip="Copy Model & Tizen Version" placement="bottom">
+          <i class="bi" [ngClass]="copySuccess ? 'bi-check-circle-fill' : 'bi-clipboard'"></i>
+          <span>{{ copySuccess ? 'Copied!' : 'Copy Info' }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <h5 class="section-title">
+        <i class="bi bi-info-circle-fill"></i>
+        Device Information
+      </h5>
+      <div class="info-grid">
+        @for (item of info; track item.label) {
+          <div class="info-card" [class.highlight]="item.highlight">
+            <div class="info-card-icon">
+              <i class="bi" [ngClass]="item.icon"></i>
+            </div>
+            <div class="info-card-body">
+              <span class="info-card-label">{{ item.label }}</span>
+              <span class="info-card-value">{{ item.value || '—' }}</span>
+            </div>
+            @if (item.highlight) {
+              <div class="highlight-badge"><i class="bi bi-star-fill"></i></div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

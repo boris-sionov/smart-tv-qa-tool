@@ -1,0 +1,9 @@
+@import "../../../tizen/wizard/tizen-wizard.component";
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+
+  &.error { color: #FF6B6B; }
+}

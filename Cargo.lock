@@ -857,6 +857,7 @@ version = "0.2.0"
 dependencies = [
  "abs-file-macro",
  "flate2",
+ "futures",
  "hex",
  "httparse",
  "httptest",

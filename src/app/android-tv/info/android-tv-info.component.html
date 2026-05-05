@@ -4,8 +4,8 @@
       <div class="empty-icon">
         <i class="bi bi-tv"></i>
       </div>
-      <h4>No Device Selected</h4>
-      <p>Select a device from the dropdown to view its information.</p>
+      <h4>No device detected</h4>
+      <p>Go to <strong>Manage</strong> and add an Android TV device to get started.</p>
     </div>
   } @else if (loading) {
     <div class="loading-state">
@@ -35,7 +35,7 @@
           <h1 class="hero-title">{{ device.name }}</h1>
           <p class="hero-subtitle">
             <i class="bi bi-circle-fill status-dot"></i>
-            Connected · {{ device.ip }}:{{ device.port }}
+            Connected · {{ device.ip }}
           </p>
         </div>
         <button class="copy-btn-hero" (click)="copyDeviceInfo()"

@@ -1,0 +1,13 @@
+[default]
+description = "Default permissions for the ADB manager plugin"
+permissions = [
+  "allow-adb-list-devices",
+  "allow-adb-connect",
+  "allow-adb-disconnect",
+  "allow-adb-list-packages",
+  "allow-adb-get-prop",
+  "allow-adb-launch",
+  "allow-adb-force-stop",
+  "allow-adb-uninstall",
+  "allow-adb-install",
+]

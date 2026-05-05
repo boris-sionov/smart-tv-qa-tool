@@ -1,0 +1,233 @@
+// Reuse Android TV info styles — identical layout, Samsung color accent
+$bg-dark: #0F172B;
+$primary-blue: #5B9FF5;
+$accent-purple: #8B7FF5;
+$accent-samsung: #1428A0;
+$text-primary: #FFFFFF;
+$text-secondary: #A8B8CC;
+$text-muted: #7E92B0;
+$border-color: rgba(91, 159, 245, 0.2);
+
+:host {
+  button:not(:disabled), a, [role="button"] { cursor: pointer !important; }
+}
+
+.info-page {
+  min-height: 100%;
+  padding: 32px;
+  background: linear-gradient(135deg, rgba(15,23,43,0.3) 0%, rgba(26,39,68,0.3) 100%);
+  @media (max-width: 768px) { padding: 16px; }
+}
+
+// ---- Hero ----
+.info-hero {
+  background: linear-gradient(135deg, rgba(20,40,160,0.15) 0%, rgba(91,159,245,0.08) 100%);
+  border: 1px solid rgba(20,40,160,0.3);
+  border-radius: 20px;
+  padding: 28px 32px;
+  margin-bottom: 28px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%; right: -10%;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(20,40,160,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+}
+
+.hero-content {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-avatar {
+  width: 80px; height: 80px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, $accent-samsung 0%, #1E53E5 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 8px 24px rgba(20,40,160,0.4);
+}
+
+.samsung-s {
+  font-size: 36px;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+}
+
+.hero-text { flex: 1; min-width: 0; }
+
+.hero-title {
+  margin: 0 0 6px 0;
+  font-size: 28px; font-weight: 700;
+  color: $text-primary;
+  letter-spacing: -0.5px;
+}
+
+.hero-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: $text-secondary;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-dot { font-size: 8px; color: #4CAF50; }
+
+.copy-btn-hero {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1.5px solid $border-color;
+  background: rgba(255,255,255,0.06);
+  color: $text-secondary;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  white-space: nowrap;
+  font-family: 'Segoe UI', 'San Francisco', -apple-system, sans-serif;
+
+  &:hover { background: rgba(20,40,160,0.18); color: #7BA8FF; border-color: rgba(20,40,160,0.5); }
+  &.copy-success { background: rgba(76,175,80,0.15); color: #66BB6A; border-color: rgba(76,175,80,0.4); }
+
+  i.bi { font-size: 15px; }
+}
+
+// ---- Section ----
+.info-section { margin-bottom: 32px; }
+
+.section-title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 16px; font-weight: 600;
+  color: $text-secondary;
+  margin: 0 0 18px 0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  i.bi { font-size: 18px; color: $primary-blue; }
+}
+
+// ---- Info Grid ----
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.info-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%);
+  border: 1.5px solid rgba(91,159,245,0.15);
+  border-radius: 14px;
+  backdrop-filter: blur(10px);
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    background: rgba(91,159,245,0.08);
+    border-color: rgba(91,159,245,0.35);
+    transform: translateY(-2px);
+  }
+
+  &.highlight {
+    border-color: rgba(20,40,160,0.4);
+    background: linear-gradient(135deg, rgba(20,40,160,0.1) 0%, rgba(20,40,160,0.05) 100%);
+  }
+}
+
+.info-card-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: rgba(91,159,245,0.12);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  i.bi { font-size: 20px; color: $primary-blue; }
+}
+
+.info-card-body { flex: 1; min-width: 0; }
+
+.info-card-label {
+  display: block;
+  font-size: 11px; font-weight: 500;
+  color: $text-muted;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.info-card-value {
+  display: block;
+  font-size: 15px; font-weight: 600;
+  color: $text-primary;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.highlight-badge {
+  position: absolute; top: 12px; right: 12px;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: rgba(20,40,160,0.2);
+  display: flex; align-items: center; justify-content: center;
+  i.bi { font-size: 10px; color: #7BA8FF; }
+}
+
+// ---- States ----
+.empty-state, .error-state, .loading-state {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center;
+  padding: 80px 32px; text-align: center;
+}
+
+.empty-icon, .error-icon {
+  width: 80px; height: 80px;
+  border-radius: 20px;
+  background: rgba(91,159,245,0.1);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px;
+  i.bi { font-size: 38px; color: $primary-blue; }
+}
+
+.error-icon { background: rgba(255,107,107,0.1); i.bi { color: #FF6B6B; } }
+
+h4 { margin: 0 0 8px; font-size: 20px; font-weight: 600; color: $text-primary; }
+p  { margin: 0; color: $text-secondary; font-size: 14px; }
+
+.retry-btn {
+  margin-top: 20px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(91,159,245,0.3);
+  background: rgba(91,159,245,0.1);
+  color: $primary-blue;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-family: 'Segoe UI', 'San Francisco', -apple-system, sans-serif;
+  &:hover { background: rgba(91,159,245,0.2); }
+}
+
+.spinner-modern {
+  width: 44px; height: 44px;
+  border: 3px solid rgba(91,159,245,0.2);
+  border-top-color: $primary-blue;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 20px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

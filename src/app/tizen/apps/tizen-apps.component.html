@@ -1,0 +1,104 @@
+<div class="tizen-apps-page">
+  <div class="manager-toolbar bg-panel border-bottom">
+    <div class="device-selector-container" ngbDropdown>
+      <button class="device-dropdown-btn" ngbDropdownToggle>
+        <span class="samsung-dot">S</span>
+        <span class="device-name">{{ selected ? selected.name : 'No device selected' }}</span>
+        <i class="bi bi-chevron-down chevron"></i>
+      </button>
+      <div ngbDropdownMenu class="device-dropdown-menu">
+        @if (devices.length === 0) {
+          <span class="device-dropdown-empty">No devices saved</span>
+        }
+        @for (dev of devices; track dev.ip + ':' + dev.port) {
+          <button ngbDropdownItem class="device-dropdown-item"
+                  [class.active]="selected && selected.ip === dev.ip && selected.port === dev.port"
+                  (click)="selectDevice(dev.ip + ':' + dev.port)">
+            <i class="bi bi-check2 check-icon" [class.invisible]="!(selected && selected.ip === dev.ip && selected.port === dev.port)"></i>
+            <span>{{ dev.name }}</span>
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="install-btn-container">
+      <button class="btn btn-primary text-nowrap install-btn" (click)="installWgt()"
+              [disabled]="!serial || installing">
+        @if (installing) {
+          <span class="spinner-mini me-2"></span>
+          <span>Installing...</span>
+        } @else {
+          <i class="bi bi-folder-fill me-2"></i>
+          <span>Install WGT</span>
+        }
+      </button>
+    </div>
+  </div>
+
+  <div class="p-3 flex-fill overflow-auto">
+    @if (!serial) {
+      <div class="tizen-empty-state">
+        <i class="bi bi-hdd-network"></i>
+        <h3>No device detected</h3>
+        <p>Go to <strong>Manage</strong> and add a Samsung Tizen device to get started.</p>
+      </div>
+    } @else if (appsError) {
+      <app-error-card title="Unable to get installed apps" [error]="appsError" (retry)="loadApps()">
+      </app-error-card>
+    } @else if (loadingApps || apps === null) {
+      <app-loading-card></app-loading-card>
+    } @else if (filteredApps!.length === 0) {
+      <div class="tizen-empty-state">
+        <i class="bi bi-inbox"></i>
+        <h3>No Apps Found</h3>
+        <p>No known apps were returned by this Samsung TV.</p>
+      </div>
+    } @else {
+      <section class="tizen-shell">
+        <div class="tizen-header">
+          <div>
+            <div class="tizen-kicker">Samsung Tizen</div>
+            <h2>Installed Apps</h2>
+          </div>
+          <button class="icon-button" type="button" aria-label="Refresh apps" ngbTooltip="Refresh apps"
+                  (click)="loadApps()" [disabled]="loadingApps">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+
+        <div class="tizen-app-list">
+          @for (app of filteredApps!; track app.id) {
+            <article class="tizen-app-row">
+              <div class="app-identity">
+                <div class="app-icon-placeholder">TZ</div>
+                <div class="app-copy">
+                  <div class="app-title">{{ app.name }}</div>
+                  <div class="package-id">{{ app.id }}</div>
+                </div>
+              </div>
+              <div class="app-actions">
+                <button class="app-action secondary" type="button" aria-label="Inspect"
+                        (click)="inspectApp(app)" [disabled]="inspecting === app.id">
+                  @if (inspecting === app.id) {
+                    <span class="spinner-mini"></span>
+                  } @else {
+                    <i class="bi bi-search"></i>
+                  }
+                  <span>Inspect</span>
+                </button>
+                <button class="app-action primary" type="button" aria-label="Launch" (click)="launchApp(app)">
+                  <i class="bi bi-play-fill"></i>
+                  <span>Launch</span>
+                </button>
+                <button class="app-action warning" type="button" aria-label="Kill" (click)="killApp(app)">
+                  <i class="bi bi-stop-fill"></i>
+                  <span>Kill</span>
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
+  </div>
+</div>

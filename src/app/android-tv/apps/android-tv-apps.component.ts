@@ -5,6 +5,7 @@ import {AdbService, AdbPackageInfo} from '../../core/services/adb.service';
 import {AdbStateService, deviceSerial, SavedDevice} from '../adb-state.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {ProgressDialogComponent} from '../../shared/components/progress-dialog/progress-dialog.component';
+import {extractMessage} from '../../core/utils/error.utils';
 
 @Component({
     selector: 'app-android-tv-apps',
@@ -76,7 +77,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         try {
             this.packages = await this.adb.listPackages(this.serial);
         } catch (e) {
-            this.packagesError = e as Error;
+            this.packagesError = new Error(extractMessage(e, 'Failed to load apps'));
         } finally {
             this.loading = false;
         }
@@ -97,7 +98,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
             window.location.reload(); // Reload to pick up new icons
         } catch (e) {
             MessageDialogComponent.open(this.modalService, {
-                title: 'Failed to install', message: (e as Error).message, error: e as Error, positive: 'Close',
+                title: 'Failed to install', message: extractMessage(e, 'Failed to install'), positive: 'Close',
             });
         } finally {
             progress.close(true);
@@ -108,7 +109,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         if (!this.serial) return;
         this.adb.launch(this.serial, pkg.id).catch(e =>
             MessageDialogComponent.open(this.modalService, {
-                title: 'Failed to launch', message: (e as Error).message, error: e as Error, positive: 'Close',
+                title: 'Failed to launch', message: extractMessage(e, 'Failed to launch'), positive: 'Close',
             }));
     }
 
@@ -116,7 +117,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         if (!this.serial) return;
         this.adb.forceStop(this.serial, pkg.id).catch(e =>
             MessageDialogComponent.open(this.modalService, {
-                title: 'Failed to kill', message: (e as Error).message, error: e as Error, positive: 'Close',
+                title: 'Failed to kill', message: extractMessage(e, 'Failed to kill app'), positive: 'Close',
             }));
     }
 
@@ -134,7 +135,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
             await this.loadPackages();
         } catch (e) {
             MessageDialogComponent.open(this.modalService, {
-                title: 'Failed to uninstall', message: (e as Error).message, error: e as Error, positive: 'Close',
+                title: 'Failed to uninstall', message: extractMessage(e, 'Failed to uninstall'), positive: 'Close',
             });
         } finally {
             progress.close(true);
