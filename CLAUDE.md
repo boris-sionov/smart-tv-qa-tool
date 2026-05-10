@@ -205,6 +205,27 @@ Manual process — no code needed:
 
 Certificate flow: create author cert (`tz cert`) → create distributor profile (`tz security-profiles add`) → sign & install (`tz pack` + `tz install`).
 
+#### TizenBrew-Compatible Commands (vd_* protocol)
+Our app supports both the standard `tz` CLI flow and the TizenBrew push+shell flow:
+
+| Operation | Standard (tz CLI) | TizenBrew (vd_* protocol) |
+|-----------|-------------------|---------------------------|
+| Install | `tz install -p <file> -e <serial>` | `sdb push` + `shell 0 vd_appinstall <id> <path>` |
+| List apps | `sdb shell 0 applist` | `sdb shell 0 vd_applist` (includes version, app_index) |
+| Launch | `sdb shell 0 execute <id>` | `sdb shell 0 was_execute <id>` |
+| Debug | `sdb shell 0 debug <id>` | `sdb shell 0 debug <tizenId> 0` |
+| Uninstall | `sdb uninstall <id>` | `sdb shell 0 vd_appuninstall <id>` |
+
+**Implementation:** `installViaTizenBrew()` in `sdb.service.ts` replicates the TizenBrew install flow:
+1. Extract app ID from WGT/TPK ZIP manifest (config.xml or tizen-manifest.xml)
+2. Push file via `sdb push` to `/home/owner/share/tmp/sdk_tools/<filename>`
+3. Run `sdb shell 0 vd_appinstall <appId> <remotePath>`
+
+**vd_applist fields:** `app_title`, `app_version`, `app_id` (runtime), `app_tizen_id` (package), `app_index` (≥300 = user-installed, can be debugged)
+
+**Launch:** Tries `was_execute` first, falls back to `execute`.
+**Debug:** Uses `0 debug <tizenId> 0` (trailing 0 required per TizenBrew protocol).
+
 ### VIDAA TV (MQTT)
 - **Connection:** MQTT-over-TLS port 36669
 - **Credentials:** `hisenseservice` / `multimqttservice`

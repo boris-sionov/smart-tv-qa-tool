@@ -1,4 +1,4 @@
-export type Platform = 'android-tv' | 'tizen' | 'vidaa' | 'webos';
+export type Platform = 'android-tv' | 'tizen' | 'webos';
 
 export interface PlatformDevice {
     serial: string;

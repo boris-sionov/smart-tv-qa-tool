@@ -15,8 +15,16 @@
     {
       "identifier": "shell:allow-execute",
       "allow": [
-        {"name": "zsh", "cmd": "/bin/zsh", "args": true},
-        {"name": "binaries/adb", "sidecar": true, "args": true}
+        {
+          "name": "zsh",
+          "cmd": "/bin/zsh",
+          "args": true
+        },
+        {
+          "name": "binaries/adb",
+          "sidecar": true,
+          "args": true
+        }
       ]
     },
     "dialog:allow-open",

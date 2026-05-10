@@ -1,4 +1,7 @@
+use adb_client::device::{ADBTransportMessage, MessageCommand};
+use adb_client::{ADBDeviceExt, ADBMessageTransport, ADBTcpDevice};
 use futures::future::join_all;
+use std::net::SocketAddr;
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_shell::ShellExt;
@@ -23,8 +26,20 @@ pub struct AdbPackageInfo {
     pub version_name: String,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct TizenAppInfo {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "versionName")]
+    pub version_name: String,
+    #[serde(rename = "runtimeId")]
+    pub runtime_id: Option<String>,
+    #[serde(rename = "tizenId")]
+    pub tizen_id: Option<String>,
+}
+
 // ---------------------------------------------------------------------------
-// App name / sort helpers
+// App name / sort helpers (Android TV)
 // ---------------------------------------------------------------------------
 
 fn app_name(package_id: &str) -> Option<&'static str> {
@@ -68,7 +83,7 @@ fn sort_key(name: &str) -> u32 {
 }
 
 // ---------------------------------------------------------------------------
-// Internal helper
+// Android TV helpers (ADB sidecar)
 // ---------------------------------------------------------------------------
 
 async fn run_adb<R: Runtime>(app: &AppHandle<R>, args: &[&str]) -> Result<String, Error> {
@@ -94,7 +109,164 @@ async fn run_adb<R: Runtime>(app: &AppHandle<R>, args: &[&str]) -> Result<String
 }
 
 // ---------------------------------------------------------------------------
-// Commands
+// Tizen helpers (native ADB/SDB protocol — no binary needed)
+// ---------------------------------------------------------------------------
+
+fn tizen_tcp_device(serial: &str) -> Result<ADBTcpDevice, Error> {
+    let target = if serial.contains(':') {
+        serial.to_string()
+    } else {
+        format!("{serial}:26101")
+    };
+    let addr: SocketAddr = target
+        .parse()
+        .map_err(|e| Error::new(format!("Invalid Tizen address {target}: {e}")))?;
+    ADBTcpDevice::new(addr)
+        .map_err(|e| Error::new(format!("Cannot connect to Tizen device at {target}: {e}")))
+}
+
+fn tizen_run_shell(serial: &str, command: &str) -> Result<String, Error> {
+    let mut device = tizen_tcp_device(serial)?;
+    let mut output = Vec::new();
+    device
+        .shell_command(&[command], &mut output)
+        .map_err(|e| Error::new(format!("Tizen shell '{command}' failed: {e}")))?;
+    Ok(String::from_utf8_lossy(&output).trim().to_owned())
+}
+
+fn tizen_daemon_open(serial: &str, daemon_command: &str) -> Result<String, Error> {
+    let target = if serial.contains(':') {
+        serial.to_string()
+    } else {
+        format!("{serial}:26101")
+    };
+    let parsed: SocketAddr = target
+        .parse()
+        .map_err(|e| Error::new(format!("Failed to parse SDB address {target}: {e}")))?;
+    let mut device = ADBTcpDevice::new(parsed)
+        .map_err(|e| Error::new(format!("Failed to connect to SDB at {target}: {e}")))?;
+
+    let res = device
+        .inner_mut()
+        .open_session(daemon_command.as_bytes())
+        .map_err(|e| Error::new(format!("Failed to open SDB session {daemon_command:?}: {e}")))?;
+
+    if res.header().command() != MessageCommand::Okay {
+        return Err(Error::new(format!(
+            "SDB rejected {daemon_command:?}: {:?}",
+            res.header().command()
+        )));
+    }
+
+    let mut output = Vec::new();
+    loop {
+        let response = device
+            .inner_mut()
+            .get_transport_mut()
+            .read_message()
+            .map_err(|e| Error::new(format!("Failed to read SDB response: {e}")))?;
+        if response.header().command() == MessageCommand::Write {
+            output.extend_from_slice(response.payload());
+            device
+                .inner_mut()
+                .get_transport_mut()
+                .write_message(ADBTransportMessage::new(
+                    MessageCommand::Okay,
+                    response.header().arg1(),
+                    response.header().arg0(),
+                    &[],
+                ))
+                .map_err(|e| Error::new(format!("Failed to ack SDB response: {e}")))?;
+            continue;
+        }
+        break;
+    }
+
+    Ok(String::from_utf8_lossy(&output).into_owned())
+}
+
+fn parse_tizen_app_list(output: &str) -> Vec<TizenAppInfo> {
+    let mut apps = Vec::new();
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        // vd_applist format: "AppIndex:0 AppID:com.example RuntimeID:com.example Name:App ..."
+        if line.contains("AppID:") {
+            let mut id = String::new();
+            let mut name = String::new();
+            let mut runtime_id: Option<String> = None;
+            for part in line.split_whitespace() {
+                if let Some(v) = part.strip_prefix("AppID:") {
+                    id = v.to_string();
+                } else if let Some(v) = part.strip_prefix("Name:") {
+                    name = v.to_string();
+                } else if let Some(v) = part.strip_prefix("RuntimeID:") {
+                    runtime_id = Some(v.to_string());
+                }
+            }
+            if !id.is_empty() {
+                let display = if name.is_empty() { id.clone() } else { name };
+                apps.push(TizenAppInfo {
+                    id: id.clone(),
+                    name: display,
+                    version_name: String::new(),
+                    runtime_id,
+                    tizen_id: None,
+                });
+            }
+        // pipe-separated fallback: id|name|version
+        } else if line.contains('|') {
+            let parts: Vec<&str> = line.split('|').collect();
+            if parts.len() >= 2 {
+                apps.push(TizenAppInfo {
+                    id: parts[0].trim().to_string(),
+                    name: parts[1].trim().to_string(),
+                    version_name: parts
+                        .get(2)
+                        .map(|v| v.trim().to_string())
+                        .unwrap_or_default(),
+                    runtime_id: None,
+                    tizen_id: None,
+                });
+            }
+        }
+    }
+    apps
+}
+
+fn extract_tizen_app_id(file_path: &str) -> Result<String, Error> {
+    let file = std::fs::File::open(file_path)
+        .map_err(|e| Error::new(format!("Cannot open {file_path}: {e}")))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| Error::new(format!("Not a valid ZIP/WGT/TPK file: {e}")))?;
+
+    for manifest_name in &["config.xml", "tizen-manifest.xml"] {
+        if let Ok(mut entry) = archive.by_name(manifest_name) {
+            use std::io::Read;
+            let mut contents = String::new();
+            entry
+                .read_to_string(&mut contents)
+                .map_err(|e| Error::new(format!("Cannot read {manifest_name}: {e}")))?;
+
+            // <widget id="...">  or  <manifest package="...">
+            let re =
+                regex::Regex::new(r#"(?:widget|manifest)[^>]+?(?:id|package)="([^"]+)""#)
+                    .unwrap();
+            if let Some(cap) = re.captures(&contents) {
+                return Ok(cap[1].trim().to_string());
+            }
+        }
+    }
+
+    Err(Error::new(
+        "Could not find app ID in WGT/TPK manifest (config.xml or tizen-manifest.xml)",
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Android TV commands
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
@@ -127,12 +299,10 @@ async fn adb_connect<R: Runtime>(app: AppHandle<R>, host: String) -> Result<Stri
         format!("{host}:5555")
     };
 
-    let sidecar = app
+    let output = app
         .shell()
         .sidecar("adb")
-        .map_err(|e| Error::new(format!("Failed to create ADB sidecar: {e}")))?;
-
-    let output = sidecar
+        .map_err(|e| Error::new(format!("Failed to create ADB sidecar: {e}")))?
         .args(["connect", &target])
         .output()
         .await
@@ -177,7 +347,6 @@ async fn adb_list_packages<R: Runtime>(
     app: AppHandle<R>,
     serial: String,
 ) -> Result<Vec<AdbPackageInfo>, Error> {
-    // 1. Get all packages
     let list_out = run_adb(&app, &["-s", &serial, "shell", "pm", "list", "packages"]).await?;
     let ids: Vec<String> = list_out
         .lines()
@@ -186,13 +355,11 @@ async fn adb_list_packages<R: Runtime>(
         .filter(|s| !s.is_empty())
         .collect();
 
-    // 2. Filter to whitelisted
     let whitelisted: Vec<(String, &'static str)> = ids
         .iter()
         .filter_map(|id| app_name(id).map(|name| (id.clone(), name)))
         .collect();
 
-    // 3. Fetch version for each whitelisted package in parallel
     let version_futures: Vec<_> = whitelisted
         .iter()
         .map(|(id, _)| {
@@ -204,12 +371,11 @@ async fn adb_list_packages<R: Runtime>(
                     .await
                     .ok()
                     .and_then(|s| {
-                        s.lines()
-                            .find_map(|l| {
-                                l.trim()
-                                    .strip_prefix("versionName=")
-                                    .map(|v| v.trim().to_string())
-                            })
+                        s.lines().find_map(|l| {
+                            l.trim()
+                                .strip_prefix("versionName=")
+                                .map(|v| v.trim().to_string())
+                        })
                     })
                     .unwrap_or_default()
             }
@@ -218,7 +384,6 @@ async fn adb_list_packages<R: Runtime>(
 
     let versions: Vec<String> = join_all(version_futures).await;
 
-    // 4. Build sorted results
     let mut results: Vec<AdbPackageInfo> = whitelisted
         .iter()
         .zip(versions.iter())
@@ -287,8 +452,7 @@ async fn adb_uninstall<R: Runtime>(
     serial: String,
     package_id: String,
 ) -> Result<(), Error> {
-    run_adb(&app, &["-s", &serial, "uninstall", &package_id])
-        .await?;
+    run_adb(&app, &["-s", &serial, "uninstall", &package_id]).await?;
     Ok(())
 }
 
@@ -298,9 +462,173 @@ async fn adb_install<R: Runtime>(
     serial: String,
     apk_path: String,
 ) -> Result<(), Error> {
-    run_adb(&app, &["-s", &serial, "install", "-r", &apk_path])
-        .await?;
+    run_adb(&app, &["-s", &serial, "install", "-r", &apk_path]).await?;
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Tizen commands (native protocol — no SDB binary required)
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+async fn tizen_connect(serial: String) -> Result<String, Error> {
+    tizen_tcp_device(&serial).map(|_| format!("Connected to {serial}"))
+}
+
+#[tauri::command]
+async fn tizen_shell(serial: String, command: String) -> Result<String, Error> {
+    tizen_run_shell(&serial, &command)
+}
+
+/// Returns a single property value.
+/// Samsung Tizen does not have Android's `getprop` — instead we read
+/// `/etc/info.ini` and extract the requested key from it.
+/// Recognised keys: model, manufacturer, osVersion (and their aliases).
+#[tauri::command]
+async fn tizen_get_prop(serial: String, prop: String) -> Result<String, Error> {
+    let ini = tizen_run_shell(&serial, "0 cat /etc/info.ini").unwrap_or_default();
+    let key = match prop.as_str() {
+        "ro.product.model" | "model" => "model_name",
+        "ro.product.manufacturer" | "manufacturer" => "manufacturer",
+        "ro.build.version.release" | "version" => "sw_version",
+        other => other,
+    };
+    for line in ini.lines() {
+        let line = line.trim();
+        if let Some(val) = line.strip_prefix(&format!("{key}=")) {
+            return Ok(val.trim().to_owned());
+        }
+        // case-insensitive fallback
+        let lower = line.to_lowercase();
+        let key_lower = key.to_lowercase();
+        if lower.starts_with(&format!("{key_lower}=")) {
+            return Ok(line[key.len() + 1..].trim().to_owned());
+        }
+    }
+    Ok(String::new())
+}
+
+/// Returns basic Samsung TV info by reading /etc/info.ini.
+#[tauri::command]
+async fn tizen_get_device_info(serial: String) -> Result<serde_json::Value, Error> {
+    let ini = tizen_run_shell(&serial, "0 cat /etc/info.ini").unwrap_or_default();
+    let mut model = String::new();
+    let mut manufacturer = String::new();
+    let mut os_version = String::new();
+    for line in ini.lines() {
+        let line = line.trim();
+        let lower = line.to_lowercase();
+        if lower.starts_with("model_name=") { model = line[11..].trim().to_owned(); }
+        else if lower.starts_with("manufacturer=") { manufacturer = line[13..].trim().to_owned(); }
+        else if lower.starts_with("sw_version=") { os_version = line[11..].trim().to_owned(); }
+    }
+    Ok(serde_json::json!({"model": model, "manufacturer": manufacturer, "osVersion": os_version}))
+}
+
+#[tauri::command]
+async fn tizen_list_apps(serial: String) -> Result<Vec<TizenAppInfo>, Error> {
+    for cmd in &["0 vd_applist", "0 applist", "0 pkgcmd -l", "0 /usr/bin/pkgcmd -l"] {
+        if let Ok(out) = tizen_run_shell(&serial, cmd) {
+            let apps = parse_tizen_app_list(&out);
+            if !apps.is_empty() {
+                return Ok(apps);
+            }
+        }
+    }
+    Ok(vec![])
+}
+
+#[tauri::command]
+async fn tizen_install(serial: String, file_path: String) -> Result<String, Error> {
+    let app_id = extract_tizen_app_id(&file_path)?;
+    let file_name = std::path::Path::new(&file_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "app.wgt".to_string());
+    let remote_path = format!("/opt/usr/apps/tmp/{file_name}");
+
+    // Push and install on a single device connection to avoid race conditions
+    let mut device = tizen_tcp_device(&serial)?;
+    let file = std::fs::File::open(&file_path)
+        .map_err(|e| Error::new(format!("Cannot read {file_path}: {e}")))?;
+    device
+        .push(&mut std::io::BufReader::new(file), &remote_path)
+        .map_err(|e| Error::new(format!("Push to device failed: {e}")))?;
+
+    let mut output = Vec::new();
+    device
+        .shell_command(&[&format!("0 vd_appinstall {app_id} {remote_path}")], &mut output)
+        .map_err(|e| Error::new(format!("vd_appinstall failed: {e}")))?;
+    Ok(String::from_utf8_lossy(&output).trim().to_owned())
+}
+
+#[tauri::command]
+async fn tizen_uninstall(
+    serial: String,
+    app_id: String,
+    runtime_id: Option<String>,
+) -> Result<String, Error> {
+    let rid = runtime_id.as_deref().unwrap_or(&app_id);
+    if let Ok(out) = tizen_run_shell(&serial, &format!("0 vd_appuninstall {rid}")) {
+        return Ok(out);
+    }
+    tizen_run_shell(&serial, &format!("0 pkgcmd -u -n {app_id}"))
+}
+
+#[tauri::command]
+async fn tizen_launch(serial: String, app_id: String) -> Result<String, Error> {
+    tizen_run_shell(&serial, &format!("0 was_execute {app_id}"))
+        .or_else(|_| tizen_run_shell(&serial, &format!("0 execute {app_id}")))
+}
+
+#[tauri::command]
+async fn tizen_kill(serial: String, app_id: String) -> Result<String, Error> {
+    tizen_run_shell(&serial, &format!("0 execute 0 kill {app_id}"))
+}
+
+#[tauri::command]
+async fn tizen_debug(serial: String, app_id: String) -> Result<u16, Error> {
+    let out = tizen_run_shell(&serial, &format!("0 debug {app_id} 0"))?;
+    regex::Regex::new(r"port:\s*(\d+)")
+        .unwrap()
+        .captures(&out)
+        .and_then(|c| c.get(1))
+        .and_then(|m| m.as_str().parse().ok())
+        .ok_or_else(|| Error::new(format!("Could not parse debug port from: {out}")))
+}
+
+#[tauri::command]
+async fn tizen_get_duid(serial: String) -> Result<String, Error> {
+    if let Ok(out) = tizen_daemon_open(&serial, "duid: ") {
+        let t = out.trim().to_owned();
+        if !t.is_empty() {
+            return Ok(t);
+        }
+    }
+    for cmd in &["0 duid", "0 /usr/bin/duid", "0 getprop _duid"] {
+        if let Ok(out) = tizen_run_shell(&serial, cmd) {
+            if !out.is_empty() {
+                return Ok(out);
+            }
+        }
+    }
+    Err(Error::new("Could not retrieve device DUID"))
+}
+
+#[tauri::command]
+async fn tizen_get_app_version(serial: String, app_id: String) -> Result<String, Error> {
+    let out = tizen_run_shell(&serial, &format!("0 pkginfo --pkg {app_id}"))?;
+    regex::Regex::new(r"(?mi)^Version:\s*(.+)")
+        .unwrap()
+        .captures(&out)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().trim().to_owned())
+        .ok_or_else(|| Error::new(format!("Could not parse version from: {out}")))
+}
+
+#[tauri::command]
+async fn tizen_daemon_command(serial: String, command: String) -> Result<String, Error> {
+    tizen_daemon_open(&serial, &command)
 }
 
 // ---------------------------------------------------------------------------
@@ -310,6 +638,7 @@ async fn adb_install<R: Runtime>(
 pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
     Builder::new(name)
         .invoke_handler(tauri::generate_handler![
+            // Android TV
             adb_list_devices,
             adb_connect,
             adb_disconnect,
@@ -319,6 +648,20 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             adb_force_stop,
             adb_uninstall,
             adb_install,
+            // Samsung Tizen (native — no SDB binary needed)
+            tizen_connect,
+            tizen_shell,
+            tizen_get_prop,
+            tizen_get_device_info,
+            tizen_list_apps,
+            tizen_install,
+            tizen_uninstall,
+            tizen_launch,
+            tizen_kill,
+            tizen_debug,
+            tizen_get_duid,
+            tizen_get_app_version,
+            tizen_daemon_command,
         ])
         .build()
 }

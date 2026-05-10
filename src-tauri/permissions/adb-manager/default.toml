@@ -10,4 +10,5 @@ permissions = [
   "allow-adb-force-stop",
   "allow-adb-uninstall",
   "allow-adb-install",
+  "allow-tizen-daemon-command",
 ]

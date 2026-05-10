@@ -20,8 +20,4 @@ export class PlatformSelectorComponent {
     openTizen(): void {
         this.router.navigate(['/tizen']);
     }
-
-    openVidaa(): void {
-        this.router.navigate(['/vidaa']);
-    }
 }

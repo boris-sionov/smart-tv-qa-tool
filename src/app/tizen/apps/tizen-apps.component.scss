@@ -455,24 +455,77 @@ $panel-strong: rgba(18, 30, 55, 0.88);
 }
 
 .app-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
   min-width: 0;
 }
 
 .app-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   overflow: hidden;
   color: #FFFFFF;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.package-id {
-  overflow: hidden;
-  margin-top: 3px;
-  color: $text-secondary;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+
+  &.store {
+    color: #A8B8CC;
+    background: rgba(168, 184, 204, 0.15);
+    border: 1px solid rgba(168, 184, 204, 0.25);
+  }
+
+  &.sideloaded {
+    color: #4ADE80;
+    background: rgba(74, 222, 128, 0.12);
+    border: 1px solid rgba(74, 222, 128, 0.3);
+  }
+}
+
+.app-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.version-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(91, 159, 245, 0.24);
+  border-radius: 8px;
+  color: #DCEBFF;
+  background: rgba(91, 159, 245, 0.12);
   font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.package-id {
+  min-width: 0;
+  overflow: hidden;
+  color: $text-secondary;
+  font-size: 12px;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -511,10 +564,10 @@ $panel-strong: rgba(18, 30, 55, 0.88);
     border-color: rgba(91, 159, 245, 0.24);
   }
 
-  &.warning {
+  &.danger {
     color: #FFFFFF;
-    background: rgba(255, 193, 7, 0.2);
-    border-color: rgba(255, 193, 7, 0.36);
+    background: rgba(220, 53, 69, 0.88);
+    border-color: rgba(255, 123, 136, 0.36);
   }
 
   &:hover:not(:disabled),

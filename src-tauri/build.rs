@@ -54,6 +54,7 @@ fn main() {
                     "adb_force_stop",
                     "adb_uninstall",
                     "adb_install",
+                    "tizen_daemon_command",
                 ]),
             ),
     )

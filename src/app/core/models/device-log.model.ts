@@ -1,5 +1,5 @@
 export type LogLevel = 'verbose' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
-export type LogPlatform = 'android-tv' | 'tizen' | 'vidaa' | 'webos';
+export type LogPlatform = 'android-tv' | 'tizen' | 'webos';
 
 export interface DeviceLog {
     id: string;

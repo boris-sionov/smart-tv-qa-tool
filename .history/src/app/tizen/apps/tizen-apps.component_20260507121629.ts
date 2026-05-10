@@ -44,7 +44,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         return this.selected ? tizenSerial(this.selected) : null;
     }
 
-    private static readonly ALLOWED_PATTERN = /freetv|\b(sting|yes|partner|cellcom|hot|next|reshet|13)\b/i;
+    private static readonly ALLOWED_PATTERN = /freetv|\b(sting|yes|partner|cellcom|hot|next|reshet)\b/i;
 
     get filteredApps(): SdbAppInfo[] | null {
         if (!this.apps) return null;
@@ -176,15 +176,9 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             }));
     }
 
-    private static readonly SIDELOADED_PATTERN = /freeTVpreprod|freeTVuat|freeTVdev|freeTVstaging/i;
-
     canInspect(app: SdbAppInfo): boolean {
-        const re = TizenAppsComponent.SIDELOADED_PATTERN;
-        return re.test(app.id) || re.test(app.tizenId ?? '') || re.test(app.runtimeId ?? '');
-    }
-
-    isStoreApp(app: SdbAppInfo): boolean {
-        return !this.canInspect(app);
+        const index = Number(app.appIndex);
+        return Number.isFinite(index) && index >= 300;
     }
 
     async uninstallApp(app: SdbAppInfo): Promise<void> {

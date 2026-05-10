@@ -21,15 +21,27 @@
       </div>
     </div>
 
-    <div class="install-btn-container">
+    <div class="install-btn-container toolbar-actions">
       <button class="btn btn-primary text-nowrap install-btn" (click)="installWgt()"
-              [disabled]="!serial || installing">
+              [disabled]="!serial || installing || installingTizenBrew">
         @if (installing) {
           <span class="spinner-mini me-2"></span>
           <span>Installing...</span>
         } @else {
           <i class="bi bi-folder-fill me-2"></i>
           <span>Install WGT</span>
+        }
+      </button>
+      <button class="btn btn-outline-warning text-nowrap install-btn experimental-install-btn"
+              (click)="installViaTizenBrew()"
+              [disabled]="!serial || installing || installingTizenBrew"
+              ngbTooltip="Test the TizenBrew push + vd_appinstall flow">
+        @if (installingTizenBrew) {
+          <span class="spinner-mini me-2"></span>
+          <span>Testing...</span>
+        } @else {
+          <i class="bi bi-flask-fill me-2"></i>
+          <span>Test TizenBrew Install</span>
         }
       </button>
     </div>
@@ -72,27 +84,43 @@
               <div class="app-identity">
                 <div class="app-icon-placeholder">TZ</div>
                 <div class="app-copy">
-                  <div class="app-title">{{ app.name }}</div>
-                  <div class="package-id">{{ app.id }}</div>
+                  <div class="app-title">
+                    {{ app.name }}
+                    @if (isStoreApp(app)) {
+                      <span class="source-badge store">Store</span>
+                    } @else {
+                      <span class="source-badge sideloaded">Installed</span>
+                    }
+                  </div>
+                  <div class="app-meta">
+                    @if (appVersions.get(app.id); as ver) {
+                      <span class="version-pill">v{{ ver }}</span>
+                    } @else {
+                      <span class="version-pill">vunknown</span>
+                    }
+                    <span class="package-id">{{ app.id }}</span>
+                  </div>
                 </div>
               </div>
               <div class="app-actions">
-                <button class="app-action secondary" type="button" aria-label="Inspect"
-                        (click)="inspectApp(app)" [disabled]="inspecting === app.id">
-                  @if (inspecting === app.id) {
-                    <span class="spinner-mini"></span>
-                  } @else {
-                    <i class="bi bi-search"></i>
-                  }
-                  <span>Inspect</span>
-                </button>
+                @if (canInspect(app)) {
+                  <button class="app-action secondary" type="button" aria-label="Inspect"
+                          (click)="inspectApp(app)" [disabled]="inspecting === app.id">
+                    @if (inspecting === app.id) {
+                      <span class="spinner-mini"></span>
+                    } @else {
+                      <i class="bi bi-search"></i>
+                    }
+                    <span>Inspect</span>
+                  </button>
+                }
                 <button class="app-action primary" type="button" aria-label="Launch" (click)="launchApp(app)">
                   <i class="bi bi-play-fill"></i>
                   <span>Launch</span>
                 </button>
-                <button class="app-action warning" type="button" aria-label="Kill" (click)="killApp(app)">
-                  <i class="bi bi-stop-fill"></i>
-                  <span>Kill</span>
+                <button class="app-action danger" type="button" aria-label="Remove" (click)="uninstallApp(app)">
+                  <i class="bi bi-trash"></i>
+                  <span>Remove</span>
                 </button>
               </div>
             </article>
