@@ -26,6 +26,10 @@ const routes: Routes = [
         path: 'android-tv',
         loadChildren: () => import('./android-tv/android-tv.module').then(m => m.AndroidTvModule),
     },
+    {
+        path: 'vidaa',
+        loadChildren: () => import('./vidaa/vidaa.module').then(m => m.VidaaModule),
+    },
     {path: '**', redirectTo: ''},
 ];
 

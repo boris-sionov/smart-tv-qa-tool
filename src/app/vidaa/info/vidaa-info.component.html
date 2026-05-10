@@ -1,0 +1,48 @@
+<div class="p-3 h-100 overflow-auto">
+  @if (!selected) {
+    <div class="text-center text-secondary mt-5">
+      <i class="bi bi-tv fs-1 d-block mb-3"></i>
+      <p>No device selected.</p>
+    </div>
+  } @else if (infoError) {
+    <app-error-card title="Unable to get device info" [error]="infoError" (retry)="loadInfo()">
+    </app-error-card>
+  } @else if (loading || info === null) {
+    <app-loading-card></app-loading-card>
+  } @else {
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="info-card-label">Device Name</div>
+        <div class="info-card-value">{{ selected.name }}</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">IP Address</div>
+        <div class="info-card-value">{{ selected.ip }}</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">Browser</div>
+        <div class="info-card-value">{{ info.Browser || '—' }}</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">WebKit Version</div>
+        <div class="info-card-value">{{ info['WebKit-Version'] || '—' }}</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">Protocol Version</div>
+        <div class="info-card-value">{{ info['Protocol-Version'] || '—' }}</div>
+      </div>
+      <div class="info-card info-card-wide">
+        <div class="info-card-label">User Agent</div>
+        <div class="info-card-value small">{{ info['User-Agent'] || '—' }}</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-label">Chrome DevTools</div>
+        <div class="info-card-value">
+          <a href="#" (click)="$event.preventDefault()" class="text-decoration-none">
+            http://{{ selected.ip }}:9226
+          </a>
+        </div>
+      </div>
+    </div>
+  }
+</div>

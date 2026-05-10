@@ -1,0 +1,102 @@
+<div class="w-100 h-100 d-flex flex-column overflow-visible">
+  <!-- Toolbar -->
+  <div class="manager-toolbar bg-panel border-bottom">
+    <!-- Device selector -->
+    <div class="device-selector-container" ngbDropdown>
+      <button class="device-dropdown-btn" ngbDropdownToggle>
+        <i class="bi bi-hdd-network"></i>
+        <span class="device-name">{{ selected ? selected.name : 'No device selected' }}</span>
+        <i class="bi bi-chevron-down chevron"></i>
+      </button>
+      <div ngbDropdownMenu class="device-dropdown-menu">
+        @if (devices.length === 0) {
+          <span class="device-dropdown-empty">No devices saved</span>
+        }
+        @for (dev of devices; track dev.ip) {
+          <button ngbDropdownItem class="device-dropdown-item"
+                  [class.active]="selected?.ip === dev.ip"
+                  (click)="selectDevice(dev.ip)">
+            <i class="bi bi-check2 check-icon" [class.invisible]="selected?.ip !== dev.ip"></i>
+            <span>{{ dev.name }}</span>
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Install by URL -->
+    <div class="install-url-area d-flex gap-2 align-items-center flex-fill mx-2">
+      <div ngbDropdown class="known-url-dropdown">
+        <button class="btn btn-sm btn-outline-secondary" ngbDropdownToggle ngbTooltip="Known builds" placement="bottom">
+          <i class="bi bi-bookmark"></i>
+        </button>
+        <div ngbDropdownMenu>
+          @for (k of knownUrls; track k.url) {
+            <button ngbDropdownItem (click)="useKnownUrl(k)">{{ k.label }}</button>
+          }
+        </div>
+      </div>
+      <input class="form-control form-control-sm install-url-input" type="url"
+             placeholder="App URL (https://…)" [(ngModel)]="installUrl" [disabled]="!selected || installing"/>
+      <input class="form-control form-control-sm install-name-input" type="text"
+             placeholder="App name" [(ngModel)]="installName" [disabled]="!selected || installing"/>
+      <button class="btn btn-sm btn-vidaa text-nowrap" (click)="installApp()"
+              [disabled]="!selected || !installUrl.trim() || !installName.trim() || installing">
+        <i class="bi bi-cloud-arrow-down me-1"></i>Install
+      </button>
+    </div>
+
+    <!-- Inspect button -->
+    <button class="btn btn-sm btn-outline-secondary text-nowrap me-2" (click)="inspectApp()" [disabled]="!selected"
+            ngbTooltip="Open Chrome DevTools in browser" placement="bottom">
+      <i class="bi bi-bug me-1"></i>Inspect
+    </button>
+  </div>
+
+  <!-- App list -->
+  <div class="p-3 flex-fill overflow-auto">
+    @if (appsError) {
+      <app-error-card title="Unable to load apps" [error]="appsError" (retry)="loadApps()">
+      </app-error-card>
+    } @else if (!selected) {
+      <div class="text-center text-secondary mt-5">
+        <i class="bi bi-tv fs-1 d-block mb-3"></i>
+        <p>No device selected.</p>
+        <p class="small">Add a Hisense TV in <strong>Devices</strong> and select it.</p>
+      </div>
+    } @else if (loading || apps === null) {
+      <app-loading-card></app-loading-card>
+    } @else if (apps.length === 0) {
+      <div class="text-center text-secondary mt-5">
+        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+        <p>No sideloaded apps found.</p>
+        <p class="small">Install a build using the toolbar above, or open <strong>DevKit → App Manager</strong> on your TV first to enable app listing.</p>
+      </div>
+    } @else {
+      <ul class="list-group list-group-flush">
+        @for (app of apps; track app.Id) {
+          <li class="list-group-item app-item d-flex flex-row align-items-center">
+            <div class="app-desc flex-fill">
+              <div class="app-icon vidaa-icon">
+                <i class="bi bi-display"></i>
+              </div>
+              <div class="app-headline ms-3">
+                <div class="app-title">{{ app.AppName }}</div>
+                <div class="app-description">
+                  <span class="text-secondary small text-truncate" style="max-width: 400px">{{ app.URL }}</span>
+                  @if (app.InstallTime) {
+                    <span class="ms-2 text-muted small">Installed {{ app.InstallTime }}</span>
+                  }
+                </div>
+              </div>
+            </div>
+            <div class="d-flex gap-2 ms-2 align-items-center">
+              <button class="btn btn-sm btn-danger text-nowrap" type="button" (click)="uninstallApp(app)">
+                <i class="bi bi-trash me-1"></i>Remove
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+</div>

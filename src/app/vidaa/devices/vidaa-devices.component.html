@@ -1,0 +1,64 @@
+<div class="p-3 h-100 overflow-auto">
+  <!-- Add device form -->
+  <div class="add-device-card mb-4">
+    <h6 class="mb-3">Add Hisense TV</h6>
+    <p class="text-secondary small mb-3">
+      Requires <strong>DevKit</strong> installed on the TV with SecureCode and Chrome DevTools enabled
+      (one-time setup). The TV must be on the same network.
+    </p>
+    <div class="d-flex gap-2 flex-wrap">
+      <input class="form-control" type="text" placeholder="Name (e.g. Living Room TV)"
+             [(ngModel)]="newName" [disabled]="connecting" style="max-width: 220px"/>
+      <input class="form-control" type="text" placeholder="TV IP address"
+             [(ngModel)]="newIp" [disabled]="connecting" style="max-width: 180px"
+             (keydown.enter)="addDevice()"/>
+      <button class="btn btn-vidaa" (click)="addDevice()"
+              [disabled]="connecting || !newName.trim() || !newIp.trim()">
+        @if (connecting) {
+          <span class="spinner-border spinner-border-sm me-1"></span>Connecting…
+        } @else {
+          <i class="bi bi-plus-lg me-1"></i>Add & Connect
+        }
+      </button>
+    </div>
+  </div>
+
+  <!-- Device list -->
+  @if (devices.length === 0) {
+    <div class="text-center text-secondary mt-4">
+      <i class="bi bi-tv fs-1 d-block mb-2"></i>
+      <p>No Hisense TVs added yet.</p>
+    </div>
+  } @else {
+    <div class="device-list">
+      @for (dev of devices; track dev.ip) {
+        <div class="device-row" [class.selected]="isSelected(dev)" (click)="selectDevice(dev)">
+          <div class="device-icon">
+            <i class="bi bi-tv"></i>
+          </div>
+          <div class="device-info flex-fill">
+            <div class="device-name">{{ dev.name }}</div>
+            <div class="device-ip text-secondary small">{{ dev.ip }} · port 9226</div>
+          </div>
+          @if (isSelected(dev)) {
+            <span class="badge badge-vidaa me-2">Selected</span>
+          }
+          <button class="btn btn-sm btn-outline-danger" (click)="$event.stopPropagation(); removeDevice(dev)">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Setup instructions -->
+  <div class="setup-info mt-4">
+    <h6 class="mb-2"><i class="bi bi-info-circle me-1"></i>One-time TV Setup</h6>
+    <ol class="small text-secondary ps-3 mb-0">
+      <li>In App Store, move focus to search and press <code>2775379</code> on remote → DevKit installs</li>
+      <li>Open DevKit → enter your SecureCode → unlock Advanced Features</li>
+      <li>In Advanced Features → Open DevTools → reboot TV</li>
+      <li>Add this TV above using its IP address</li>
+    </ol>
+  </div>
+</div>

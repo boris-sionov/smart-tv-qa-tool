@@ -47,6 +47,9 @@ tauri-plugin-fs = "2.4.5"
 tauri-plugin-log = "2.8.0"
 tauri-plugin-os = "2.3.2"
 tauri-plugin-http = { version = "2.5.7", default-features = false, features = ["json", "native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util = "0.3"
 
 [dependencies.tauri]
 version = "2.10.2"

@@ -41,6 +41,16 @@ fn main() {
             .plugin(
                 "local-file",
                 InlinedPlugin::new().commands(&["checksum", "remove", "copy", "temp_path"]),
+            )
+            .plugin(
+                "vidaa",
+                InlinedPlugin::new().commands(&[
+                    "get_device_info",
+                    "get_pages",
+                    "list_apps",
+                    "install_app",
+                    "uninstall_app",
+                ]),
             ),
     )
     .expect("failed to run tauri-build");

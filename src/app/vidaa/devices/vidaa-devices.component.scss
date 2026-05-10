@@ -1,0 +1,81 @@
+.btn-vidaa {
+    background: #00B4D8;
+    color: #fff;
+    border-color: #00B4D8;
+
+    &:hover, &:focus {
+        background: #0096b5;
+        border-color: #0096b5;
+        color: #fff;
+    }
+
+    &:disabled { opacity: 0.6; }
+}
+
+.badge-vidaa {
+    background: rgba(0, 180, 216, 0.15);
+    color: #00B4D8;
+    font-weight: 500;
+    font-size: 0.75rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.add-device-card {
+    background: var(--bs-body-bg, #fff);
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.device-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.device-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+
+    &:hover {
+        border-color: #00B4D8;
+        background: rgba(0, 180, 216, 0.04);
+    }
+
+    &.selected {
+        border-color: #00B4D8;
+        background: rgba(0, 180, 216, 0.08);
+    }
+}
+
+.device-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: rgba(0, 180, 216, 0.12);
+    color: #00B4D8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.device-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.setup-info {
+    background: var(--bs-body-bg, #fff);
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: 10px;
+    padding: 14px 16px;
+}

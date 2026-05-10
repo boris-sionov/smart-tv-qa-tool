@@ -1,0 +1,30 @@
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.info-card {
+    background: var(--bs-body-bg, #fff);
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: 10px;
+    padding: 14px 16px;
+
+    &-wide {
+        grid-column: 1 / -1;
+    }
+}
+
+.info-card-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6c757d;
+    margin-bottom: 4px;
+}
+
+.info-card-value {
+    font-size: 0.95rem;
+    font-weight: 500;
+    word-break: break-all;
+}

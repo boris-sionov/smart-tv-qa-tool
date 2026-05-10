@@ -46,6 +46,7 @@ pub fn run() {
         .plugin(plugins::file::plugin("remote-file"))
         .plugin(plugins::devmode::plugin("dev-mode"))
         .plugin(plugins::local_file::plugin("local-file"))
+        .plugin(plugins::vidaa::plugin("vidaa"))
         .manage(DeviceManager::default())
         .manage(SessionManager::default())
         .manage(SpawnManager::default())

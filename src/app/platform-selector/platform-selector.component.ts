@@ -16,4 +16,8 @@ export class PlatformSelectorComponent {
     openAndroid(): void {
         this.router.navigate(['/android-tv']);
     }
+
+    openVidaa(): void {
+        this.router.navigate(['/vidaa']);
+    }
 }
