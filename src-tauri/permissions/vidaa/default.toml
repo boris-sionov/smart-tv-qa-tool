@@ -1,0 +1,9 @@
+[default]
+description = "Default permissions for the Vidaa/Hisense plugin"
+permissions = [
+  "allow-get-device-info",
+  "allow-get-pages",
+  "allow-list-apps",
+  "allow-install-app",
+  "allow-uninstall-app",
+]

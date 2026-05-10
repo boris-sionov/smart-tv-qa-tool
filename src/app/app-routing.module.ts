@@ -30,6 +30,10 @@ const routes: Routes = [
         path: 'tizen',
         loadChildren: () => import('./tizen/tizen.module').then(m => m.TizenModule),
     },
+    {
+        path: 'vidaa',
+        loadChildren: () => import('./vidaa/vidaa.module').then(m => m.VidaaModule),
+    },
     {path: '**', redirectTo: ''},
 ];
 
