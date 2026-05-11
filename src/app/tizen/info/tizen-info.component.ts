@@ -63,21 +63,14 @@ export class TizenInfoComponent implements OnInit, OnDestroy {
 
             const get = (...keys: string[]): string => this.findValue(systemInfo, keys);
 
-            const tizenVersion = get(
-                'TIZEN_VERSION', 'platform_version', 'Platform Version',
-                'Tizen Version', 'PRODUCT_VERSION', 'SW_VERSION',
-            );
-            const deviceMode = get(
-                'DEVICE_MODE', 'Device Mode', 'device_mode',
-                'USAGE_TYPE', 'Usage Type', 'usage_type',
-                'DEBUGMODE_SUPPORT', 'debugmode_support',
-                'MODE', 'mode',
-            );
+            const modelName    = get('model_name', 'MODEL_NAME', 'Model Name', 'Model', 'PRODUCT_CODE');
+            const tizenVersion = get('TIZEN_VERSION', 'platform_version', 'Platform Version', 'Tizen Version', 'PRODUCT_VERSION', 'SW_VERSION');
+            const platform     = get('PROFILE', 'profile_name', 'Platform', 'platform', 'PLATFORM', 'device_type', 'DEVICE_TYPE');
 
             this.info = [
-                {label: 'Device Name',    value: dev.name,      icon: 'bi-tag-fill',   highlight: true},
+                {label: 'Model Name',     value: modelName,     icon: 'bi-tag-fill',   highlight: true},
                 {label: 'Tizen Version',  value: tizenVersion,  icon: 'bi-display',    highlight: true},
-                {label: 'Device Mode',    value: deviceMode,    icon: 'bi-toggles',    highlight: false},
+                {label: 'Platform',       value: platform,      icon: 'bi-layers-fill', highlight: true},
             ].filter(row => row.value !== '');
 
         } catch (e) {
@@ -106,11 +99,13 @@ export class TizenInfoComponent implements OnInit, OnDestroy {
     }
 
     async copyDeviceInfo(): Promise<void> {
-        const model = this.info.find(i => i.label === 'Model Name')?.value ?? '';
-        const tizen = this.info.find(i => i.label === 'Tizen Version')?.value ?? '';
+        const model    = this.info.find(i => i.label === 'Model Name')?.value ?? '';
+        const tizen    = this.info.find(i => i.label === 'Tizen Version')?.value ?? '';
+        const platform = this.info.find(i => i.label === 'Platform')?.value ?? '';
         const text = [
-            model && `Model: ${model}`,
-            tizen && `Tizen: ${tizen}`,
+            model    && `Model: ${model}`,
+            tizen    && `Tizen: ${tizen}`,
+            platform && `Platform: ${platform}`,
         ].filter(Boolean).join('\n') || (this.device?.name ?? '');
         try {
             await navigator.clipboard.writeText(text);
