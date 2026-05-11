@@ -1,7 +1,4 @@
-use adb_client::device::{ADBTransportMessage, MessageCommand};
-use adb_client::{ADBDeviceExt, ADBMessageTransport, ADBTcpDevice};
 use futures::future::join_all;
-use std::net::SocketAddr;
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_shell::ShellExt;
@@ -109,80 +106,55 @@ async fn run_adb<R: Runtime>(app: &AppHandle<R>, args: &[&str]) -> Result<String
 }
 
 // ---------------------------------------------------------------------------
-// Tizen helpers (native ADB/SDB protocol — no binary needed)
+// Tizen helpers — use the `sdb` binary (Samsung Debug Bridge), NOT adb_client
 // ---------------------------------------------------------------------------
 
-fn tizen_tcp_device(serial: &str) -> Result<ADBTcpDevice, Error> {
-    let target = if serial.contains(':') {
-        serial.to_string()
-    } else {
-        format!("{serial}:26101")
-    };
-    let addr: SocketAddr = target
-        .parse()
-        .map_err(|e| Error::new(format!("Invalid Tizen address {target}: {e}")))?;
-    ADBTcpDevice::new(addr)
-        .map_err(|e| Error::new(format!("Cannot connect to Tizen device at {target}: {e}")))
-}
-
-fn tizen_run_shell(serial: &str, command: &str) -> Result<String, Error> {
-    let mut device = tizen_tcp_device(serial)?;
-    let mut output = Vec::new();
-    device
-        .shell_command(&[command], &mut output)
-        .map_err(|e| Error::new(format!("Tizen shell '{command}' failed: {e}")))?;
-    Ok(String::from_utf8_lossy(&output).trim().to_owned())
-}
-
-fn tizen_daemon_open(serial: &str, daemon_command: &str) -> Result<String, Error> {
-    let target = if serial.contains(':') {
-        serial.to_string()
-    } else {
-        format!("{serial}:26101")
-    };
-    let parsed: SocketAddr = target
-        .parse()
-        .map_err(|e| Error::new(format!("Failed to parse SDB address {target}: {e}")))?;
-    let mut device = ADBTcpDevice::new(parsed)
-        .map_err(|e| Error::new(format!("Failed to connect to SDB at {target}: {e}")))?;
-
-    let res = device
-        .inner_mut()
-        .open_session(daemon_command.as_bytes())
-        .map_err(|e| Error::new(format!("Failed to open SDB session {daemon_command:?}: {e}")))?;
-
-    if res.header().command() != MessageCommand::Okay {
-        return Err(Error::new(format!(
-            "SDB rejected {daemon_command:?}: {:?}",
-            res.header().command()
-        )));
-    }
-
-    let mut output = Vec::new();
-    loop {
-        let response = device
-            .inner_mut()
-            .get_transport_mut()
-            .read_message()
-            .map_err(|e| Error::new(format!("Failed to read SDB response: {e}")))?;
-        if response.header().command() == MessageCommand::Write {
-            output.extend_from_slice(response.payload());
-            device
-                .inner_mut()
-                .get_transport_mut()
-                .write_message(ADBTransportMessage::new(
-                    MessageCommand::Okay,
-                    response.header().arg1(),
-                    response.header().arg0(),
-                    &[],
-                ))
-                .map_err(|e| Error::new(format!("Failed to ack SDB response: {e}")))?;
-            continue;
+fn sdb_binary() -> String {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let candidates = [
+        format!("{home}/tizen-studio/tools/sdb"),
+        format!("{home}/tizen-studio-data/tools/sdb"),
+        "/opt/tizen-studio/tools/sdb".to_string(),
+    ];
+    for path in &candidates {
+        if std::path::Path::new(path).exists() {
+            return path.clone();
         }
-        break;
     }
+    "sdb".to_string() // fallback: assume it's in PATH
+}
 
-    Ok(String::from_utf8_lossy(&output).into_owned())
+fn sdb_serial(serial: &str) -> String {
+    if serial.contains(':') {
+        serial.to_string()
+    } else {
+        format!("{serial}:26101")
+    }
+}
+
+/// Run `sdb -s <serial> shell <command>` and return stdout.
+fn tizen_run_shell(serial: &str, command: &str) -> Result<String, Error> {
+    let s = sdb_serial(serial);
+    let out = std::process::Command::new(sdb_binary())
+        .args(["-s", &s, "shell", command])
+        .output()
+        .map_err(|e| Error::new(format!("Failed to run sdb: {e}")))?;
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    if stdout.trim().is_empty() && !stderr.trim().is_empty() {
+        return Err(Error::new(stderr.trim().to_owned()));
+    }
+    Ok(stdout)
+}
+
+/// Run `sdb -s <serial> capability` and return stdout (device info).
+fn tizen_capability(serial: &str) -> Result<String, Error> {
+    let s = sdb_serial(serial);
+    let out = std::process::Command::new(sdb_binary())
+        .args(["-s", &s, "capability"])
+        .output()
+        .map_err(|e| Error::new(format!("Failed to run sdb capability: {e}")))?;
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 /// Exact port of TizenBrew device manager Apps.jsx parsing logic.
@@ -502,7 +474,19 @@ async fn adb_install<R: Runtime>(
 
 #[tauri::command]
 async fn tizen_connect(serial: String) -> Result<String, Error> {
-    tizen_tcp_device(&serial).map(|_| format!("Connected to {serial}"))
+    let s = sdb_serial(&serial);
+    let out = std::process::Command::new(sdb_binary())
+        .args(["connect", &s])
+        .output()
+        .map_err(|e| Error::new(format!("Failed to run sdb connect: {e}")))?;
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_owned();
+    let combined = if !stdout.is_empty() { stdout } else { stderr };
+    Ok(if combined.is_empty() {
+        format!("Connected to {serial}")
+    } else {
+        combined
+    })
 }
 
 #[tauri::command]
@@ -538,21 +522,46 @@ async fn tizen_get_prop(serial: String, prop: String) -> Result<String, Error> {
     Ok(String::new())
 }
 
-/// Returns basic Samsung TV info by reading /etc/info.ini.
+/// Returns basic Samsung TV info from sdb capability + /etc/info.ini.
 #[tauri::command]
 async fn tizen_get_device_info(serial: String) -> Result<serde_json::Value, Error> {
+    // Get Tizen platform_version from sdb capability
+    let capability = tizen_capability(&serial).unwrap_or_default();
+    let mut tizen_version = String::new();
+    for line in capability.lines() {
+        if let Some(v) = line.strip_prefix("platform_version:") {
+            tizen_version = v.trim().to_owned();
+            break;
+        }
+    }
+
+    // Get model / manufacturer / firmware from /etc/info.ini
     let ini = tizen_run_shell(&serial, "0 cat /etc/info.ini").unwrap_or_default();
     let mut model = String::new();
     let mut manufacturer = String::new();
-    let mut os_version = String::new();
+    let mut fw_version = String::new();
     for line in ini.lines() {
         let line = line.trim();
         let lower = line.to_lowercase();
-        if lower.starts_with("model_name=") { model = line[11..].trim().to_owned(); }
-        else if lower.starts_with("manufacturer=") { manufacturer = line[13..].trim().to_owned(); }
-        else if lower.starts_with("sw_version=") { os_version = line[11..].trim().to_owned(); }
+        if lower.starts_with("model_name=") {
+            model = line[11..].trim().to_owned();
+        } else if lower.starts_with("manufacturer=") {
+            manufacturer = line[13..].trim().to_owned();
+        } else if lower.starts_with("sw_version=") {
+            fw_version = line[11..].trim().to_owned();
+        }
     }
-    Ok(serde_json::json!({"model": model, "manufacturer": manufacturer, "osVersion": os_version}))
+
+    if manufacturer.is_empty() {
+        manufacturer = "Samsung".to_owned();
+    }
+    let os_version = if !tizen_version.is_empty() { tizen_version } else { fw_version };
+
+    Ok(serde_json::json!({
+        "model": model,
+        "manufacturer": manufacturer,
+        "osVersion": os_version
+    }))
 }
 
 #[tauri::command]
@@ -580,19 +589,19 @@ async fn tizen_install(serial: String, file_path: String) -> Result<String, Erro
         .unwrap_or_else(|| "app.wgt".to_string());
     let remote_path = format!("/opt/usr/apps/tmp/{file_name}");
 
-    // Push and install on a single device connection to avoid race conditions
-    let mut device = tizen_tcp_device(&serial)?;
-    let file = std::fs::File::open(&file_path)
-        .map_err(|e| Error::new(format!("Cannot read {file_path}: {e}")))?;
-    device
-        .push(&mut std::io::BufReader::new(file), &remote_path)
-        .map_err(|e| Error::new(format!("Push to device failed: {e}")))?;
+    // Push the WGT via sdb push
+    let s = sdb_serial(&serial);
+    let push_out = std::process::Command::new(sdb_binary())
+        .args(["-s", &s, "push", &file_path, &remote_path])
+        .output()
+        .map_err(|e| Error::new(format!("sdb push failed: {e}")))?;
+    if !push_out.status.success() {
+        let stderr = String::from_utf8_lossy(&push_out.stderr);
+        return Err(Error::new(format!("sdb push failed: {stderr}")));
+    }
 
-    let mut output = Vec::new();
-    device
-        .shell_command(&[&format!("0 vd_appinstall {app_id} {remote_path}")], &mut output)
-        .map_err(|e| Error::new(format!("vd_appinstall failed: {e}")))?;
-    Ok(String::from_utf8_lossy(&output).trim().to_owned())
+    // Install via vd_appinstall
+    tizen_run_shell(&serial, &format!("0 vd_appinstall {app_id} {remote_path}"))
 }
 
 #[tauri::command]
@@ -632,16 +641,11 @@ async fn tizen_debug(serial: String, app_id: String) -> Result<u16, Error> {
 
 #[tauri::command]
 async fn tizen_get_duid(serial: String) -> Result<String, Error> {
-    if let Ok(out) = tizen_daemon_open(&serial, "duid: ") {
-        let t = out.trim().to_owned();
-        if !t.is_empty() {
-            return Ok(t);
-        }
-    }
     for cmd in &["0 duid", "0 /usr/bin/duid", "0 getprop _duid"] {
         if let Ok(out) = tizen_run_shell(&serial, cmd) {
-            if !out.is_empty() {
-                return Ok(out);
+            let t = out.trim().to_owned();
+            if !t.is_empty() {
+                return Ok(t);
             }
         }
     }
@@ -661,23 +665,45 @@ async fn tizen_get_app_version(serial: String, app_id: String) -> Result<String,
 
 #[tauri::command]
 async fn tizen_daemon_command(serial: String, command: String) -> Result<String, Error> {
-    tizen_daemon_open(&serial, &command)
+    // Map a daemon-style command (e.g. "sysinfo: ") to a shell command
+    let shell_cmd = format!(
+        "0 {}",
+        command.trim_end_matches(": ").trim_end_matches(':').trim()
+    );
+    tizen_run_shell(&serial, &shell_cmd)
 }
 
 #[tauri::command]
 async fn tizen_install_tizen_brew(serial: String, file_path: String) -> Result<String, Error> {
-    // Push the package to a temp location then invoke TizenBrew installer
     let pkg_name = std::path::Path::new(&file_path)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "package.wgt".to_string());
     let remote_path = format!("/tmp/{pkg_name}");
-    // Push file via SDB shell cat (pipe stdin approach via run_shell is limited;
-    // use the ADB put path through shell redirect)
-    // Fall back: use shell to run TizenBrew install command directly after push
-    tizen_run_shell(&serial, &format!("0 tizenBrew install {remote_path}"))
-        .or_else(|_| tizen_run_shell(&serial, &format!("0 vd_appinstall {remote_path}")))
-        .map_err(|e| Error::new(format!("TizenBrew install failed: {e}\nMake sure TizenBrew is installed on the TV.")))
+
+    // Push the file to the TV via sdb push
+    let s = sdb_serial(&serial);
+    let push_out = std::process::Command::new(sdb_binary())
+        .args(["-s", &s, "push", &file_path, &remote_path])
+        .output()
+        .map_err(|e| Error::new(format!("sdb push failed: {e}")))?;
+    if !push_out.status.success() {
+        let stderr = String::from_utf8_lossy(&push_out.stderr);
+        return Err(Error::new(format!("sdb push failed: {stderr}")));
+    }
+
+    // Try TizenBrew-style install, fall back to vd_appinstall
+    let app_id = extract_tizen_app_id(&file_path).ok();
+    let install_cmd = if let Some(ref id) = app_id {
+        format!("0 vd_appinstall {id} {remote_path}")
+    } else {
+        format!("0 vd_appinstall {remote_path}")
+    };
+
+    tizen_run_shell(&serial, &install_cmd)
+        .map_err(|e| Error::new(format!(
+            "Install failed: {e}\nMake sure TizenBrew is installed on the TV."
+        )))
 }
 
 #[derive(serde::Serialize)]
@@ -695,32 +721,58 @@ struct TizenInfoEntry {
 
 #[tauri::command]
 async fn tizen_tizen_brew_device_details(serial: String) -> Result<TizenBrewDetails, Error> {
-    // Exact port of TizenBrew AdbClient.js getSystemInfo():
-    //   const sysinfo = await invoke('run_daemon_command', { command: 'sysinfo: ' });
-    //   const sysData = sysinfo.split(' ').filter(a => a !== '');
-    //   // each entry is displayed as info.split(':')[0] (key) and info.split(':')[1] (value)
-    let (entries, daemon_error) = match tizen_daemon_open(&serial, "sysinfo: ") {
-        Ok(output) => {
-            let parsed: Vec<TizenInfoEntry> = output
-                .split('\0')
-                .filter(|s| !s.trim().is_empty())
-                .filter_map(|chunk| {
-                    let colon = chunk.find(':')?;
-                    let key   = chunk[..colon].trim().to_owned();
-                    let value = chunk[colon + 1..].trim().to_owned();
-                    if key.is_empty() { return None; }
-                    Some(TizenInfoEntry { key, value })
-                })
-                .collect();
-            if parsed.is_empty() {
-                let preview = &output[..output.len().min(500)];
-                (vec![], format!("sysinfo returned no entries.\nRaw ({} bytes): {:?}", output.len(), preview))
+    let mut entries: Vec<TizenInfoEntry> = Vec::new();
+    let mut daemon_error = String::new();
+
+    // Primary: /etc/info.ini (model name, manufacturer, firmware)
+    match tizen_run_shell(&serial, "0 cat /etc/info.ini") {
+        Ok(ini) => {
+            let ini_entries = parse_ini_entries(&ini);
+            if ini_entries.is_empty() {
+                daemon_error = format!(
+                    "info.ini returned no entries. Raw ({} bytes): {:?}",
+                    ini.len(),
+                    &ini[..ini.len().min(300)]
+                );
             } else {
-                (parsed, String::new())
+                entries.extend(ini_entries);
             }
         }
-        Err(e) => (vec![], format!("sysinfo: daemon command failed: {e}")),
-    };
+        Err(e) => {
+            daemon_error = format!("sdb shell 0 cat /etc/info.ini failed: {e}");
+        }
+    }
+
+    // Secondary: sdb capability (platform_version = Tizen version, cpu_arch, etc.)
+    match tizen_capability(&serial) {
+        Ok(cap) => {
+            for line in cap.lines() {
+                if let Some(colon) = line.find(':') {
+                    let raw_key = line[..colon].trim();
+                    let value   = line[colon + 1..].trim().to_owned();
+                    if raw_key.is_empty() || value.is_empty() {
+                        continue;
+                    }
+                    let key = match raw_key {
+                        "platform_version" => "TIZEN_VERSION".to_owned(),
+                        "cpu_arch"         => "CPU_ARCH".to_owned(),
+                        "profile_name"     => "PROFILE".to_owned(),
+                        "sdk_version"      => "SDK_VERSION".to_owned(),
+                        other              => other.replace('_', " ").to_uppercase(),
+                    };
+                    entries.push(TizenInfoEntry { key, value });
+                }
+            }
+        }
+        Err(e) => {
+            let cap_err = format!("sdb capability failed: {e}");
+            if daemon_error.is_empty() {
+                daemon_error = cap_err;
+            } else {
+                daemon_error.push_str(&format!(" | {cap_err}"));
+            }
+        }
+    }
 
     Ok(TizenBrewDetails { system_info: entries, daemon_error })
 }

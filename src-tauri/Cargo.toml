@@ -45,7 +45,6 @@ port_check = "0.3.0"
 keyring = { version = "3.6.3", features = ["apple-native", "windows-native"] }
 tauri-plugin-shell = "2.3.5"
 futures = "0.3"
-adb_client = { git = "https://github.com/reisxd/adb_client.git", subdir = "adb_client" }
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
 tauri-plugin-log = "2.8.0"
