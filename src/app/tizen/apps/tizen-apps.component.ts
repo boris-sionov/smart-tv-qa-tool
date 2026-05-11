@@ -44,21 +44,33 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         return this.selected ? tizenSerial(this.selected) : null;
     }
 
-    private static readonly PRIORITY_PATTERN = /freetv|\b(sting|yes|partner|cellcom|hot|next|reshet|13)\b/i;
+    // Apps to show — any environment variant of these brands
+    private static readonly ALLOWED_PATTERN =
+        /freetv|stingtv|sting\.tv|\bsting\b|yesplus|yes\.plus|\byes\b|partnertv|partner\.tv|\bpartner\b|cellcomtv|cellcom\.tv|\bcellcom\b|\bhot\b|disney|netflix|hbomax|hbo\.max|\bhbo\b|warnermedia/i;
+
+    // Sort order: FreeTV first, then the rest alphabetically
+    private static readonly FREETV_PATTERN = /freetv/i;
+
+    isAllowed(app: SdbAppInfo): boolean {
+        const re = TizenAppsComponent.ALLOWED_PATTERN;
+        return re.test(app.name) || re.test(app.id) || re.test(app.runtimeId ?? '') || re.test(app.tizenId ?? '');
+    }
 
     isPriority(app: SdbAppInfo): boolean {
-        const re = TizenAppsComponent.PRIORITY_PATTERN;
+        const re = TizenAppsComponent.FREETV_PATTERN;
         return re.test(app.name) || re.test(app.id) || re.test(app.runtimeId ?? '') || re.test(app.tizenId ?? '');
     }
 
     get filteredApps(): SdbAppInfo[] | null {
         if (!this.apps) return null;
-        return [...this.apps].sort((a, b) => {
-            const aPriority = this.isPriority(a);
-            const bPriority = this.isPriority(b);
-            if (aPriority !== bPriority) return aPriority ? -1 : 1;
-            return a.name.localeCompare(b.name);
-        });
+        return [...this.apps]
+            .filter(app => this.isAllowed(app))
+            .sort((a, b) => {
+                const aPriority = this.isPriority(a);
+                const bPriority = this.isPriority(b);
+                if (aPriority !== bPriority) return aPriority ? -1 : 1;
+                return a.name.localeCompare(b.name);
+            });
     }
 
     selectDevice(serial: string): void {
