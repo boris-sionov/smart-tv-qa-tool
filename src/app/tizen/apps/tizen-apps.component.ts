@@ -227,7 +227,9 @@ async inspectApp(app: SdbAppInfo): Promise<void> {
         if (!this.serial || !this.selected) return;
         this.inspecting = app.id;
         try {
-            const port = await this.sdb.debug(this.serial, app.tizenId || app.id);
+            // Debug requires the tizenId format (e.g. Plusdrei00.FreeTV), not numeric app id
+            const debugId = app.tizenId || app.id;
+            const port = await this.sdb.debug(this.serial, debugId);
             await openUrl(`http://${this.selected.ip}:${port}`);
         } catch (e) {
             MessageDialogComponent.open(this.modalService, {

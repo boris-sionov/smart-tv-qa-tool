@@ -630,13 +630,26 @@ async fn tizen_kill(serial: String, app_id: String) -> Result<String, Error> {
 
 #[tauri::command]
 async fn tizen_debug(serial: String, app_id: String) -> Result<u16, Error> {
-    let out = tizen_run_shell(&serial, &format!("0 debug {app_id} 0"))?;
-    regex::Regex::new(r"port:\s*(\d+)")
-        .unwrap()
-        .captures(&out)
+    // Try with trailing 0 (standard), then without
+    let out = tizen_run_shell(&serial, &format!("0 debug {app_id} 0"))
+        .or_else(|_| tizen_run_shell(&serial, &format!("0 debug {app_id}")))?;
+
+    // Samsung TVs output the port in various formats:
+    //   "port: 9234"  /  "Port = 9234"  /  "DEBUG_PORT=9234"  /  just "9234"
+    let re = regex::Regex::new(r"(?i)(?:port|debug_port)[:\s=]+(\d{4,5})").unwrap();
+    if let Some(port) = re.captures(&out)
         .and_then(|c| c.get(1))
-        .and_then(|m| m.as_str().parse().ok())
-        .ok_or_else(|| Error::new(format!("Could not parse debug port from: {out}")))
+        .and_then(|m| m.as_str().parse::<u16>().ok())
+    {
+        return Ok(port);
+    }
+
+    // Fallback: grab the first 4-5 digit number in the output
+    let fallback = regex::Regex::new(r"\b(\d{4,5})\b").unwrap();
+    fallback.captures(&out)
+        .and_then(|c| c.get(1))
+        .and_then(|m| m.as_str().parse::<u16>().ok())
+        .ok_or_else(|| Error::new(format!("Could not parse debug port.\nRaw output:\n{out}")))
 }
 
 #[tauri::command]
