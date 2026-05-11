@@ -185,108 +185,83 @@ fn tizen_daemon_open(serial: &str, daemon_command: &str) -> Result<String, Error
     Ok(String::from_utf8_lossy(&output).into_owned())
 }
 
+/// Exact port of TizenBrew device manager Apps.jsx parsing logic.
+///
+/// Original JS (Apps.jsx):
+///   const list = data.split('\n').slice(2).join('\n')
+///       .split('------...------').filter(a => a != '');
+///   list[i] = list[i].replace(/--------------/g,'').replace(/-------------/g,'')
+///       .replace(/\s+=/g,'=').replace(/[\r]/g,'');
+///   list.pop();
+///   const appData = app.split('\n').map(a => a.split('='));
+///   Fields: app_title, app_version, app_tizen_id, app_id, app_index
 fn parse_tizen_app_list(output: &str) -> Vec<TizenAppInfo> {
-    let mut apps = Vec::new();
+    const SEPARATOR: &str = "---------------------------------------------------------------------------------------------";
 
-    // TizenBrew / vd_applist format:
-    // 2 header lines, then blocks separated by long dash lines.
-    // Each block contains key=value pairs:
-    //   app_title=Netflix
-    //   app_version=1.0.0
-    //   app_tizen_id=org.tizen.netflix
-    //   app_id=12345
-    //   app_index=100
-    if output.contains("---") && (output.contains("app_title=") || output.contains("app_id=")) {
-        // Split on separator lines (sequences of dashes)
-        let mut blocks2: Vec<String> = Vec::new();
-        let mut current = String::new();
-        for line in output.lines() {
-            let trimmed = line.trim();
-            if trimmed.chars().all(|c| c == '-') && trimmed.len() > 10 {
-                if !current.trim().is_empty() {
-                    blocks2.push(current.clone());
-                }
-                current = String::new();
-            } else {
-                current.push_str(line);
-                current.push('\n');
-            }
-        }
-        if !current.trim().is_empty() {
-            blocks2.push(current);
-        }
+    // Step 1: skip first 2 header lines, rejoin
+    let body: String = output.lines().skip(2).collect::<Vec<_>>().join("\n");
 
-        for block in &blocks2 {
-            let mut id = String::new();
-            let mut title = String::new();
-            let mut version = String::new();
-            let mut tizen_id = String::new();
+    // Step 2: split on the exact separator used by Samsung
+    let mut blocks: Vec<String> = body
+        .split(SEPARATOR)
+        .map(|s| {
+            // Clean each block exactly like TizenBrew:
+            // remove partial dash lines, normalize whitespace before '=', strip \r
+            s.replace("--------------", "")
+             .replace("-------------", "")
+             .replace('\r', "")
+        })
+        .map(|s| {
+            // Normalize "key   =value" → "key=value"
+            s.lines()
+             .map(|line| {
+                 if let Some(eq) = line.find('=') {
+                     let key = line[..eq].trim();
+                     let val = line[eq + 1..].trim();
+                     format!("{key}={val}")
+                 } else {
+                     line.to_owned()
+                 }
+             })
+             .collect::<Vec<_>>()
+             .join("\n")
+        })
+        .filter(|s| !s.trim().is_empty())
+        .collect();
 
-            for line in block.lines() {
-                // Normalize: remove leading dashes, trim spaces around '='
-                let line = line
-                    .trim_start_matches('-')
-                    .replace(" =", "=")
-                    .replace("= ", "=")
-                    .trim()
-                    .to_string();
-                if let Some(v) = line.strip_prefix("app_title=").or_else(|| line.strip_prefix("app_name=")) {
-                    title = v.trim().to_owned();
-                } else if let Some(v) = line.strip_prefix("app_id=") {
-                    id = v.trim().to_owned();
-                } else if let Some(v) = line.strip_prefix("app_version=") {
-                    version = v.trim().to_owned();
-                } else if let Some(v) = line.strip_prefix("app_tizen_id=") {
-                    tizen_id = v.trim().to_owned();
-                }
-            }
-
-            if !id.is_empty() || !title.is_empty() {
-                let name = if title.is_empty() { id.clone() } else { title };
-                let primary_id = if !tizen_id.is_empty() { tizen_id.clone() } else { id.clone() };
-                apps.push(TizenAppInfo {
-                    id: primary_id,
-                    name,
-                    version_name: version,
-                    runtime_id: if !id.is_empty() && !tizen_id.is_empty() { Some(id) } else { None },
-                    tizen_id: if !tizen_id.is_empty() { Some(tizen_id) } else { None },
-                });
-            }
-        }
-        return apps;
+    // Step 3: pop trailing empty block (TizenBrew does list.pop())
+    if blocks.last().map(|s| s.trim().is_empty()).unwrap_or(false) {
+        blocks.pop();
     }
 
-    // Fallback: space-separated "AppID:x Name:y RuntimeID:z" format
-    for line in output.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
+    // Step 4: parse each block as key=value pairs
+    let mut apps = Vec::new();
+    for block in &blocks {
+        let mut kv: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        for line in block.lines() {
+            if let Some(eq) = line.find('=') {
+                kv.insert(line[..eq].trim(), line[eq + 1..].trim());
+            }
+        }
+
+        let app_id    = kv.get("app_id").copied().unwrap_or("").trim();
+        let title     = kv.get("app_title").copied().unwrap_or("").trim();
+        let version   = kv.get("app_version").copied().unwrap_or("").trim();
+        let tizen_id  = kv.get("app_tizen_id").copied().unwrap_or("").trim();
+
+        if app_id.is_empty() && title.is_empty() {
             continue;
         }
-        if line.contains("AppID:") {
-            let mut id = String::new();
-            let mut name = String::new();
-            let mut runtime_id: Option<String> = None;
-            for part in line.split_whitespace() {
-                if let Some(v) = part.strip_prefix("AppID:") { id = v.to_owned(); }
-                else if let Some(v) = part.strip_prefix("Name:") { name = v.to_owned(); }
-                else if let Some(v) = part.strip_prefix("RuntimeID:") { runtime_id = Some(v.to_owned()); }
-            }
-            if !id.is_empty() {
-                let display = if name.is_empty() { id.clone() } else { name };
-                apps.push(TizenAppInfo { id, name: display, version_name: String::new(), runtime_id, tizen_id: None });
-            }
-        } else if line.contains('|') {
-            let parts: Vec<&str> = line.split('|').collect();
-            if parts.len() >= 2 {
-                apps.push(TizenAppInfo {
-                    id: parts[0].trim().to_owned(),
-                    name: parts[1].trim().to_owned(),
-                    version_name: parts.get(2).map(|v| v.trim().to_owned()).unwrap_or_default(),
-                    runtime_id: None,
-                    tizen_id: None,
-                });
-            }
-        }
+
+        let name = if title.is_empty() { app_id.to_owned() } else { title.to_owned() };
+
+        apps.push(TizenAppInfo {
+            id: app_id.to_owned(),
+            name,
+            version_name: version.to_owned(),
+            runtime_id: None,
+            tizen_id: if !tizen_id.is_empty() { Some(tizen_id.to_owned()) } else { None },
+        });
     }
     apps
 }
@@ -717,42 +692,28 @@ struct TizenInfoEntry {
 
 #[tauri::command]
 async fn tizen_tizen_brew_device_details(serial: String) -> Result<TizenBrewDetails, Error> {
-    let mut entries: Vec<TizenInfoEntry> = Vec::new();
-
-    // PRIMARY: use the SDB daemon "sysinfo: " session — same as TizenBrew device manager.
-    // The command must have the trailing ": " (colon + space) to be recognised by Samsung's
-    // SDB service. The response is null-byte-delimited "Key:Value" pairs.
-    if let Ok(output) = tizen_daemon_open(&serial, "sysinfo: ") {
-        for chunk in output.split('\0') {
-            let chunk = chunk.trim();
-            if chunk.is_empty() { continue; }
-            // Each chunk may contain multiple "Key:Value\n" lines
-            for line in chunk.lines() {
-                if let Some((k, v)) = line.split_once(':') {
-                    let k = k.trim().to_owned();
-                    let v = v.trim().to_owned();
-                    if !k.is_empty() && !v.is_empty() {
-                        entries.push(TizenInfoEntry { key: k, value: v });
-                    }
-                }
-            }
+    // Exact port of TizenBrew AdbClient.js getSystemInfo():
+    //   const sysinfo = await invoke('run_daemon_command', { command: 'sysinfo: ' });
+    //   const sysData = sysinfo.split(' ').filter(a => a !== '');
+    //   // each entry is displayed as info.split(':')[0] (key) and info.split(':')[1] (value)
+    let entries = match tizen_daemon_open(&serial, "sysinfo: ") {
+        Ok(output) => {
+            output
+                .split('\0')
+                .filter(|s| !s.trim().is_empty())
+                .filter_map(|chunk| {
+                    // info.split(':')[0] = key,  info.split(':')[1] = value
+                    let colon = chunk.find(':')?;
+                    let key   = chunk[..colon].trim().to_owned();
+                    let value = chunk[colon + 1..].trim().to_owned();
+                    if key.is_empty() { return None; }
+                    Some(TizenInfoEntry { key, value })
+                })
+                .collect()
         }
-    }
+        Err(_) => vec![],   // never surface an error — show empty state instead
+    };
 
-    // FALLBACK: read /etc/info.ini via shell (works on some firmware versions)
-    if entries.is_empty() {
-        for cmd in &["0 cat /etc/info.ini", "0 cat /opt/etc/info.ini", "0 cat /etc/version"] {
-            if let Ok(output) = tizen_run_shell(&serial, cmd) {
-                let parsed = parse_ini_entries(&output);
-                if !parsed.is_empty() {
-                    entries = parsed;
-                    break;
-                }
-            }
-        }
-    }
-
-    // Return whatever we found — never surface an error to the UI
     Ok(TizenBrewDetails { system_info: entries, daemon_error: String::new() })
 }
 
