@@ -26,6 +26,51 @@
   line-height: 1;
 }
 
+.device-summary-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 480px;
+  margin: 32px auto 0;
+  padding: 0 16px;
+}
+
+.summary-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-panel, #1a2535);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  padding: 18px 20px;
+
+  .summary-icon {
+    font-size: 22px;
+    color: #5B9FF5;
+    flex-shrink: 0;
+    width: 28px;
+    text-align: center;
+  }
+
+  .summary-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #7a8fa8;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    width: 120px;
+    flex-shrink: 0;
+  }
+
+  .summary-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e2eaf5;
+    flex: 1;
+    word-break: break-all;
+  }
+}
+
 .loading-state {
   display: flex;
   flex-direction: column;

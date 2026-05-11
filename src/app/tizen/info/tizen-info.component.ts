@@ -48,56 +48,38 @@ export class TizenInfoComponent implements OnInit, OnDestroy {
         try {
             let systemInfo: TizenInfoEntry[] = [];
 
-            // Primary: try to get full key-value info from the TV
+            // Primary: full key-value info via sdb capability + /etc/info.ini
             const details = await this.sdb.getTizenBrewDeviceDetails(serial);
             systemInfo = details.systemInfo;
 
-            // Fallback: if nothing came back, use getDeviceInfo (model/firmware/osVersion)
+            // Fallback: basic device info if nothing came back
             if (systemInfo.length === 0) {
                 const basic = await this.sdb.getDeviceInfo(serial).catch(() => null);
                 if (basic) {
-                    if (basic.model)        systemInfo.push({key: 'Model Name',    value: basic.model});
-                    if (basic.manufacturer) systemInfo.push({key: 'Manufacturer', value: basic.manufacturer});
-                    if (basic.osVersion)    systemInfo.push({key: 'Tizen Version', value: basic.osVersion});
+                    if (basic.model)      systemInfo.push({key: 'MODEL_NAME',    value: basic.model});
+                    if (basic.osVersion)  systemInfo.push({key: 'TIZEN_VERSION', value: basic.osVersion});
                 }
             }
 
             const get = (...keys: string[]): string => this.findValue(systemInfo, keys);
 
+            const tizenVersion = get(
+                'TIZEN_VERSION', 'platform_version', 'Platform Version',
+                'Tizen Version', 'PRODUCT_VERSION', 'SW_VERSION',
+            );
+            const deviceMode = get(
+                'DEVICE_MODE', 'Device Mode', 'device_mode',
+                'USAGE_TYPE', 'Usage Type', 'usage_type',
+                'DEBUGMODE_SUPPORT', 'debugmode_support',
+                'MODE', 'mode',
+            );
+
             this.info = [
-                {
-                    label: 'Model Name',
-                    value: get('MODEL_NAME', 'Model Name', 'Model', 'model', 'PRODUCT_CODE', 'Product Code'),
-                    icon: 'bi-tag-fill',
-                    highlight: true,
-                },
-                {
-                    label: 'Tizen Version',
-                    value: get('TIZEN_VERSION', 'Tizen Version', 'tizen', 'tizen_version', 'PRODUCT_VERSION', 'Platform Version', 'OS Version'),
-                    icon: 'bi-display',
-                    highlight: true,
-                },
-                {
-                    label: 'Manufacturer',
-                    value: get('MANUFACTURER', 'Manufacturer', 'manufacturer'),
-                    icon: 'bi-building',
-                },
-                {
-                    label: 'Firmware',
-                    value: get('FIRMWARE_VERSION', 'firmware', 'Firmware', 'FIRMWARE', 'SW_VERSION', 'Build'),
-                    icon: 'bi-gear-fill',
-                },
-                {
-                    label: 'Resolution',
-                    value: get('SCREEN_SIZE', 'resolution', 'RESOLUTION', 'Resolution', 'screen_size'),
-                    icon: 'bi-aspect-ratio-fill',
-                },
-                ...this.additionalSystemRows(systemInfo),
+                {label: 'Device Name',    value: dev.name,      icon: 'bi-tag-fill',   highlight: true},
+                {label: 'Tizen Version',  value: tizenVersion,  icon: 'bi-display',    highlight: true},
+                {label: 'Device Mode',    value: deviceMode,    icon: 'bi-toggles',    highlight: false},
             ].filter(row => row.value !== '');
 
-            if (this.info.length === 0) {
-                this.info = [{label: 'Device Name', value: dev.name, icon: 'bi-tag-fill'}];
-            }
         } catch (e) {
             this.error = e as Error;
         } finally {
@@ -119,36 +101,8 @@ export class TizenInfoComponent implements OnInit, OnDestroy {
         return '';
     }
 
-    private additionalSystemRows(entries: TizenInfoEntry[]): InfoRow[] {
-        const used = new Set([
-            'model_name', 'model', 'product_code',
-            'tizen_version', 'product_version', 'platform_version', 'os_version',
-            'platform', 'device_type',
-            'firmware_version', 'firmware', 'sw_version', 'build',
-            'screen_size', 'resolution',
-            'sdb_version',
-        ]);
-
-        return entries
-            .filter(entry => !used.has(this.normalizeKey(entry.key)))
-            .slice(0, 12)
-            .map(entry => ({
-                label: this.prettyLabel(entry.key),
-                value: entry.value,
-                icon: 'bi-info-square',
-            }));
-    }
-
     private normalizeKey(key: string): string {
         return key.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-    }
-
-    private prettyLabel(key: string): string {
-        return key
-            .replace(/[_-]+/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .replace(/\b\w/g, chr => chr.toUpperCase());
     }
 
     async copyDeviceInfo(): Promise<void> {

@@ -71,25 +71,12 @@
       </div>
 
       <div class="info-section">
-        <h5 class="section-title">
-          <i class="bi bi-info-circle-fill"></i>
-          Device Information
-        </h5>
-        <div class="info-grid">
+        <div class="device-summary-cards">
           @for (item of info; track item.label) {
-            <div class="info-card" [class.highlight]="item.highlight">
-              <div class="info-card-icon">
-                <i class="bi" [ngClass]="item.icon"></i>
-              </div>
-              <div class="info-card-body">
-                <span class="info-card-label">{{ item.label }}</span>
-                <span class="info-card-value">{{ item.value || '—' }}</span>
-              </div>
-              @if (item.highlight) {
-                <div class="highlight-badge">
-                  <i class="bi bi-star-fill"></i>
-                </div>
-              }
+            <div class="summary-card">
+              <i class="bi summary-icon" [ngClass]="item.icon"></i>
+              <span class="summary-label">{{ item.label }}</span>
+              <span class="summary-value">{{ item.value || '—' }}</span>
             </div>
           }
         </div>
