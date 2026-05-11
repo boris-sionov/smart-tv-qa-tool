@@ -109,6 +109,10 @@
                   <i class="bi bi-play-fill"></i>
                   <span>Launch</span>
                 </button>
+                <button class="app-action warning" type="button" aria-label="Stop" (click)="killApp(app)">
+                  <i class="bi bi-stop-fill"></i>
+                  <span>Stop</span>
+                </button>
                 <button class="app-action danger" type="button" aria-label="Remove" (click)="uninstallApp(app)">
                   <i class="bi bi-trash"></i>
                   <span>Remove</span>

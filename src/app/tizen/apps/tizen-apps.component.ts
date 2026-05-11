@@ -179,6 +179,17 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         return lines.slice(-16).join('\n') || '(no output)';
     }
 
+    killApp(app: SdbAppInfo): void {
+        if (!this.serial) return;
+        this.sdb.kill(this.serial, app.tizenId || app.id)
+            .catch(e => MessageDialogComponent.open(this.modalService, {
+                title: 'Failed to stop app',
+                message: (e as Error).message,
+                error: e as Error,
+                positive: 'Close',
+            }));
+    }
+
     launchApp(app: SdbAppInfo): void {
         if (!this.serial) return;
         this.sdb.launch(this.serial, app.runtimeId || app.id)
