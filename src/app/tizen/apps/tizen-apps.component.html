@@ -86,11 +86,6 @@
                 <div class="app-copy">
                   <div class="app-title">
                     {{ app.name }}
-                    @if (isStoreApp(app)) {
-                      <span class="source-badge store">Store</span>
-                    } @else {
-                      <span class="source-badge sideloaded">Installed</span>
-                    }
                   </div>
                   <div class="app-meta">
                     @if (appVersions.get(app.id); as ver) {
