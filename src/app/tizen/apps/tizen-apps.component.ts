@@ -232,10 +232,13 @@ async inspectApp(app: SdbAppInfo): Promise<void> {
             const port = await this.sdb.debug(this.serial, debugId);
             await openUrl(`http://${this.selected.ip}:${port}`);
         } catch (e) {
+            const raw = (e as Error).message ?? '';
+            const cannotInspect = /closed|not allowed|permission|denied|unsupported/i.test(raw);
             MessageDialogComponent.open(this.modalService, {
                 title: 'Inspect failed',
-                message: (e as Error).message,
-                error: e as Error,
+                message: cannotInspect
+                    ? `This app cannot be inspected.\n\nOnly sideloaded development builds support remote inspection.`
+                    : raw,
                 positive: 'Close',
             });
         } finally {
