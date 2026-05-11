@@ -89,13 +89,13 @@ export class SdbService implements DeviceProvider {
 
     async installViaTizenBrew(serial: string, filePath: string): Promise<string> {
         const s = this.normalizeSerial(serial);
-        return invoke<string>('plugin:adb-manager|tizen_install_tizenBrew', {serial: s, filePath});
+        return invoke<string>('plugin:adb-manager|tizen_install_tizen_brew', {serial: s, filePath});
     }
 
     async getTizenBrewDeviceDetails(serial: string): Promise<{systemInfo: TizenInfoEntry[], daemonError: string}> {
         const s = this.normalizeSerial(serial);
         return invoke<{systemInfo: TizenInfoEntry[], daemonError: string}>(
-            'plugin:adb-manager|tizen_tizenBrew_device_details', {serial: s}
+            'plugin:adb-manager|tizen_tizen_brew_device_details', {serial: s}
         ).catch(() => ({systemInfo: [], daemonError: 'TizenBrew daemon not available'}));
     }
 

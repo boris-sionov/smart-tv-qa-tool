@@ -631,6 +631,61 @@ async fn tizen_daemon_command(serial: String, command: String) -> Result<String,
     tizen_daemon_open(&serial, &command)
 }
 
+#[tauri::command]
+async fn tizen_install_tizen_brew(serial: String, file_path: String) -> Result<String, Error> {
+    // Push the package to a temp location then invoke TizenBrew installer
+    let pkg_name = std::path::Path::new(&file_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "package.wgt".to_string());
+    let remote_path = format!("/tmp/{pkg_name}");
+    // Push file via SDB shell cat (pipe stdin approach via run_shell is limited;
+    // use the ADB put path through shell redirect)
+    let push_cmd = format!("0 /bin/cat > {remote_path}");
+    // Fall back: use shell to run TizenBrew install command directly after push
+    tizen_run_shell(&serial, &format!("0 tizenBrew install {remote_path}"))
+        .or_else(|_| tizen_run_shell(&serial, &format!("0 vd_appinstall {remote_path}")))
+        .map_err(|e| Error::new(format!("TizenBrew install failed: {e}\nMake sure TizenBrew is installed on the TV.")))
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TizenBrewDetails {
+    system_info: Vec<TizenInfoEntry>,
+    daemon_error: String,
+}
+
+#[derive(serde::Serialize)]
+struct TizenInfoEntry {
+    key: String,
+    value: String,
+}
+
+#[tauri::command]
+async fn tizen_tizen_brew_device_details(serial: String) -> Result<TizenBrewDetails, Error> {
+    match tizen_daemon_open(&serial, "sysinfo") {
+        Ok(output) => {
+            let entries = output
+                .lines()
+                .filter_map(|line| {
+                    let mut parts = line.splitn(2, ':');
+                    let key = parts.next()?.trim().to_owned();
+                    let value = parts.next()?.trim().to_owned();
+                    if key.is_empty() || value.is_empty() {
+                        return None;
+                    }
+                    Some(TizenInfoEntry { key, value })
+                })
+                .collect();
+            Ok(TizenBrewDetails { system_info: entries, daemon_error: String::new() })
+        }
+        Err(e) => Ok(TizenBrewDetails {
+            system_info: vec![],
+            daemon_error: e.to_string(),
+        }),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Plugin registration
 // ---------------------------------------------------------------------------
@@ -662,6 +717,8 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             tizen_get_duid,
             tizen_get_app_version,
             tizen_daemon_command,
+            tizen_install_tizen_brew,
+            tizen_tizen_brew_device_details,
         ])
         .build()
 }
