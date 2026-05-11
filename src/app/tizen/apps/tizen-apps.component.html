@@ -84,17 +84,7 @@
               <div class="app-identity">
                 <div class="app-icon-placeholder">TZ</div>
                 <div class="app-copy">
-                  <div class="app-title">
-                    {{ app.name }}
-                  </div>
-                  <div class="app-meta">
-                    @if (appVersions.get(app.id); as ver) {
-                      <span class="version-pill">v{{ ver }}</span>
-                    } @else {
-                      <span class="version-pill">vunknown</span>
-                    }
-                    <span class="package-id">{{ app.id }}</span>
-                  </div>
+                  <div class="app-title">{{ app.name }}</div>
                 </div>
               </div>
               <div class="app-actions">
