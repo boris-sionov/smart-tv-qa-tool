@@ -214,7 +214,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         }
     }
 
-    async inspectApp(app: SdbAppInfo): Promise<void> {
+async inspectApp(app: SdbAppInfo): Promise<void> {
         if (!this.serial || !this.selected) return;
         this.inspecting = app.id;
         try {
