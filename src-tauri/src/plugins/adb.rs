@@ -557,15 +557,18 @@ async fn tizen_get_device_info(serial: String) -> Result<serde_json::Value, Erro
 
 #[tauri::command]
 async fn tizen_list_apps(serial: String) -> Result<Vec<TizenAppInfo>, Error> {
-    for cmd in &["0 vd_applist", "0 applist", "0 pkgcmd -l", "0 /usr/bin/pkgcmd -l"] {
-        if let Ok(out) = tizen_run_shell(&serial, cmd) {
-            let apps = parse_tizen_app_list(&out);
-            if !apps.is_empty() {
-                return Ok(apps);
-            }
-        }
+    // Try primary command — propagate the raw output/error so UI can debug
+    let out = tizen_run_shell(&serial, "0 vd_applist")?;
+    let apps = parse_tizen_app_list(&out);
+    if !apps.is_empty() {
+        return Ok(apps);
     }
-    Ok(vec![])
+    // Return the raw output as an error so the user can see what the TV sent
+    Err(Error::new(format!(
+        "vd_applist returned no parseable apps.\nRaw output ({} bytes):\n{}",
+        out.len(),
+        &out[..out.len().min(1000)]
+    )))
 }
 
 #[tauri::command]
@@ -696,25 +699,30 @@ async fn tizen_tizen_brew_device_details(serial: String) -> Result<TizenBrewDeta
     //   const sysinfo = await invoke('run_daemon_command', { command: 'sysinfo: ' });
     //   const sysData = sysinfo.split(' ').filter(a => a !== '');
     //   // each entry is displayed as info.split(':')[0] (key) and info.split(':')[1] (value)
-    let entries = match tizen_daemon_open(&serial, "sysinfo: ") {
+    let (entries, daemon_error) = match tizen_daemon_open(&serial, "sysinfo: ") {
         Ok(output) => {
-            output
+            let parsed: Vec<TizenInfoEntry> = output
                 .split('\0')
                 .filter(|s| !s.trim().is_empty())
                 .filter_map(|chunk| {
-                    // info.split(':')[0] = key,  info.split(':')[1] = value
                     let colon = chunk.find(':')?;
                     let key   = chunk[..colon].trim().to_owned();
                     let value = chunk[colon + 1..].trim().to_owned();
                     if key.is_empty() { return None; }
                     Some(TizenInfoEntry { key, value })
                 })
-                .collect()
+                .collect();
+            if parsed.is_empty() {
+                let preview = &output[..output.len().min(500)];
+                (vec![], format!("sysinfo returned no entries.\nRaw ({} bytes): {:?}", output.len(), preview))
+            } else {
+                (parsed, String::new())
+            }
         }
-        Err(_) => vec![],   // never surface an error — show empty state instead
+        Err(e) => (vec![], format!("sysinfo: daemon command failed: {e}")),
     };
 
-    Ok(TizenBrewDetails { system_info: entries, daemon_error: String::new() })
+    Ok(TizenBrewDetails { system_info: entries, daemon_error })
 }
 
 fn parse_ini_entries(text: &str) -> Vec<TizenInfoEntry> {
