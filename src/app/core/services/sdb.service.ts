@@ -102,7 +102,7 @@ export class SdbService implements DeviceProvider {
     async listApps(serial: string): Promise<PlatformApp[]> {
         const s = this.normalizeSerial(serial);
         const raw = await invoke<RawTizenAppInfo[]>('plugin:adb-manager|tizen_list_apps', {serial: s});
-        return raw.map(a => ({id: a.id, name: a.name, versionName: a.versionName}));
+        return raw.map(a => ({id: a.id, name: a.name, versionName: a.versionName, tizenId: a.tizenId, runtimeId: a.runtimeId}));
     }
 
     // -----------------------------------------------------------------------
