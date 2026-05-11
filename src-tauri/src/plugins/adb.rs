@@ -187,46 +187,101 @@ fn tizen_daemon_open(serial: &str, daemon_command: &str) -> Result<String, Error
 
 fn parse_tizen_app_list(output: &str) -> Vec<TizenAppInfo> {
     let mut apps = Vec::new();
+
+    // TizenBrew / vd_applist format:
+    // 2 header lines, then blocks separated by long dash lines.
+    // Each block contains key=value pairs:
+    //   app_title=Netflix
+    //   app_version=1.0.0
+    //   app_tizen_id=org.tizen.netflix
+    //   app_id=12345
+    //   app_index=100
+    if output.contains("---") && (output.contains("app_title=") || output.contains("app_id=")) {
+        // Split on separator lines (sequences of dashes)
+        let mut blocks2: Vec<String> = Vec::new();
+        let mut current = String::new();
+        for line in output.lines() {
+            let trimmed = line.trim();
+            if trimmed.chars().all(|c| c == '-') && trimmed.len() > 10 {
+                if !current.trim().is_empty() {
+                    blocks2.push(current.clone());
+                }
+                current = String::new();
+            } else {
+                current.push_str(line);
+                current.push('\n');
+            }
+        }
+        if !current.trim().is_empty() {
+            blocks2.push(current);
+        }
+
+        for block in &blocks2 {
+            let mut id = String::new();
+            let mut title = String::new();
+            let mut version = String::new();
+            let mut tizen_id = String::new();
+
+            for line in block.lines() {
+                // Normalize: remove leading dashes, trim spaces around '='
+                let line = line
+                    .trim_start_matches('-')
+                    .replace(" =", "=")
+                    .replace("= ", "=")
+                    .trim()
+                    .to_string();
+                if let Some(v) = line.strip_prefix("app_title=").or_else(|| line.strip_prefix("app_name=")) {
+                    title = v.trim().to_owned();
+                } else if let Some(v) = line.strip_prefix("app_id=") {
+                    id = v.trim().to_owned();
+                } else if let Some(v) = line.strip_prefix("app_version=") {
+                    version = v.trim().to_owned();
+                } else if let Some(v) = line.strip_prefix("app_tizen_id=") {
+                    tizen_id = v.trim().to_owned();
+                }
+            }
+
+            if !id.is_empty() || !title.is_empty() {
+                let name = if title.is_empty() { id.clone() } else { title };
+                let primary_id = if !tizen_id.is_empty() { tizen_id.clone() } else { id.clone() };
+                apps.push(TizenAppInfo {
+                    id: primary_id,
+                    name,
+                    version_name: version,
+                    runtime_id: if !id.is_empty() && !tizen_id.is_empty() { Some(id) } else { None },
+                    tizen_id: if !tizen_id.is_empty() { Some(tizen_id) } else { None },
+                });
+            }
+        }
+        return apps;
+    }
+
+    // Fallback: space-separated "AppID:x Name:y RuntimeID:z" format
     for line in output.lines() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        // vd_applist format: "AppIndex:0 AppID:com.example RuntimeID:com.example Name:App ..."
         if line.contains("AppID:") {
             let mut id = String::new();
             let mut name = String::new();
             let mut runtime_id: Option<String> = None;
             for part in line.split_whitespace() {
-                if let Some(v) = part.strip_prefix("AppID:") {
-                    id = v.to_string();
-                } else if let Some(v) = part.strip_prefix("Name:") {
-                    name = v.to_string();
-                } else if let Some(v) = part.strip_prefix("RuntimeID:") {
-                    runtime_id = Some(v.to_string());
-                }
+                if let Some(v) = part.strip_prefix("AppID:") { id = v.to_owned(); }
+                else if let Some(v) = part.strip_prefix("Name:") { name = v.to_owned(); }
+                else if let Some(v) = part.strip_prefix("RuntimeID:") { runtime_id = Some(v.to_owned()); }
             }
             if !id.is_empty() {
                 let display = if name.is_empty() { id.clone() } else { name };
-                apps.push(TizenAppInfo {
-                    id: id.clone(),
-                    name: display,
-                    version_name: String::new(),
-                    runtime_id,
-                    tizen_id: None,
-                });
+                apps.push(TizenAppInfo { id, name: display, version_name: String::new(), runtime_id, tizen_id: None });
             }
-        // pipe-separated fallback: id|name|version
         } else if line.contains('|') {
             let parts: Vec<&str> = line.split('|').collect();
             if parts.len() >= 2 {
                 apps.push(TizenAppInfo {
-                    id: parts[0].trim().to_string(),
-                    name: parts[1].trim().to_string(),
-                    version_name: parts
-                        .get(2)
-                        .map(|v| v.trim().to_string())
-                        .unwrap_or_default(),
+                    id: parts[0].trim().to_owned(),
+                    name: parts[1].trim().to_owned(),
+                    version_name: parts.get(2).map(|v| v.trim().to_owned()).unwrap_or_default(),
                     runtime_id: None,
                     tizen_id: None,
                 });
@@ -641,7 +696,6 @@ async fn tizen_install_tizen_brew(serial: String, file_path: String) -> Result<S
     let remote_path = format!("/tmp/{pkg_name}");
     // Push file via SDB shell cat (pipe stdin approach via run_shell is limited;
     // use the ADB put path through shell redirect)
-    let push_cmd = format!("0 /bin/cat > {remote_path}");
     // Fall back: use shell to run TizenBrew install command directly after push
     tizen_run_shell(&serial, &format!("0 tizenBrew install {remote_path}"))
         .or_else(|_| tizen_run_shell(&serial, &format!("0 vd_appinstall {remote_path}")))
@@ -665,44 +719,40 @@ struct TizenInfoEntry {
 async fn tizen_tizen_brew_device_details(serial: String) -> Result<TizenBrewDetails, Error> {
     let mut entries: Vec<TizenInfoEntry> = Vec::new();
 
-    // Try to read device info from several candidate paths / commands.
-    // All failures are silently swallowed — we always return Ok so the UI
-    // can show whatever partial info it has instead of an error screen.
-    let ini_candidates = [
-        "0 cat /etc/info.ini",
-        "0 cat /opt/etc/info.ini",
-        "0 cat /usr/etc/info.ini",
-        "0 cat /etc/version",
-    ];
-    for cmd in &ini_candidates {
-        if let Ok(output) = tizen_run_shell(&serial, cmd) {
-            let parsed = parse_ini_entries(&output);
-            if !parsed.is_empty() {
-                entries = parsed;
-                break;
-            }
-        }
-    }
-
-    // If file reads all failed, try individual Samsung shell commands
-    if entries.is_empty() {
-        let cmds: &[(&str, &str)] = &[
-            ("model",       "0 getDeviceProperty MODEL_NAME"),
-            ("firmware",    "0 getDeviceProperty FIRMWARE_VERSION"),
-            ("tizen",       "0 getDeviceProperty TIZEN_VERSION"),
-            ("resolution",  "0 getDeviceProperty SCREEN_SIZE"),
-        ];
-        for (key, cmd) in cmds {
-            if let Ok(val) = tizen_run_shell(&serial, cmd) {
-                let val = val.trim().to_owned();
-                if !val.is_empty() {
-                    entries.push(TizenInfoEntry { key: key.to_string(), value: val });
+    // PRIMARY: use the SDB daemon "sysinfo: " session — same as TizenBrew device manager.
+    // The command must have the trailing ": " (colon + space) to be recognised by Samsung's
+    // SDB service. The response is null-byte-delimited "Key:Value" pairs.
+    if let Ok(output) = tizen_daemon_open(&serial, "sysinfo: ") {
+        for chunk in output.split('\0') {
+            let chunk = chunk.trim();
+            if chunk.is_empty() { continue; }
+            // Each chunk may contain multiple "Key:Value\n" lines
+            for line in chunk.lines() {
+                if let Some((k, v)) = line.split_once(':') {
+                    let k = k.trim().to_owned();
+                    let v = v.trim().to_owned();
+                    if !k.is_empty() && !v.is_empty() {
+                        entries.push(TizenInfoEntry { key: k, value: v });
+                    }
                 }
             }
         }
     }
 
-    // Return whatever we found — never surface an error
+    // FALLBACK: read /etc/info.ini via shell (works on some firmware versions)
+    if entries.is_empty() {
+        for cmd in &["0 cat /etc/info.ini", "0 cat /opt/etc/info.ini", "0 cat /etc/version"] {
+            if let Ok(output) = tizen_run_shell(&serial, cmd) {
+                let parsed = parse_ini_entries(&output);
+                if !parsed.is_empty() {
+                    entries = parsed;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Return whatever we found — never surface an error to the UI
     Ok(TizenBrewDetails { system_info: entries, daemon_error: String::new() })
 }
 
