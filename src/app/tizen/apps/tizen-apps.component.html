@@ -86,9 +86,7 @@
                 <div class="app-copy">
                   <div class="app-title">
                     {{ app.name }}
-                    @if (isPriority(app)) {
-                      <span class="source-badge freetv">FreeTV</span>
-                    } @else if (isStoreApp(app)) {
+                    @if (isStoreApp(app)) {
                       <span class="source-badge store">Store</span>
                     } @else {
                       <span class="source-badge sideloaded">Installed</span>
