@@ -46,7 +46,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
 
     // Apps to show — any environment variant of these brands
     private static readonly ALLOWED_PATTERN =
-        /freetv|stingtv|sting\.tv|\bsting\b|yesplus|yes\.plus|\byes\b|partnertv|partner\.tv|\bpartner\b|cellcomtv|cellcom\.tv|\bcellcom\b|\bhot\b|disney|netflix|hbomax|hbo\.max|\bhbo\b|warnermedia/i;
+        /freetv|stingtv|sting\.tv|\bsting\b|yesplus|yes\.plus|\byes\b|partnertv|partner\.tv|\bpartner\b|cellcomtv|cellcom\.tv|\bcellcom\b|\bhot\b|nexttv|next\.tv|\bnext\b|disney|netflix|hbomax|hbo\.max|\bhbo\b|warnermedia/i;
 
     // Sort order: FreeTV first, then the rest alphabetically
     private static readonly FREETV_PATTERN = /freetv/i;
