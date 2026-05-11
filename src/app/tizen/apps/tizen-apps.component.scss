@@ -497,6 +497,12 @@ $panel-strong: rgba(18, 30, 55, 0.88);
     background: rgba(74, 222, 128, 0.12);
     border: 1px solid rgba(74, 222, 128, 0.3);
   }
+
+  &.freetv {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
 }
 
 .app-meta {

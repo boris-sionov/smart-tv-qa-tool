@@ -44,19 +44,21 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         return this.selected ? tizenSerial(this.selected) : null;
     }
 
-    private static readonly ALLOWED_PATTERN = /freetv|\b(sting|yes|partner|cellcom|hot|next|reshet|13)\b/i;
+    private static readonly PRIORITY_PATTERN = /freetv|\b(sting|yes|partner|cellcom|hot|next|reshet|13)\b/i;
+
+    isPriority(app: SdbAppInfo): boolean {
+        const re = TizenAppsComponent.PRIORITY_PATTERN;
+        return re.test(app.name) || re.test(app.id) || re.test(app.runtimeId ?? '') || re.test(app.tizenId ?? '');
+    }
 
     get filteredApps(): SdbAppInfo[] | null {
         if (!this.apps) return null;
-        const re = TizenAppsComponent.ALLOWED_PATTERN;
-        return this.apps
-            .filter(app => re.test(app.name) || re.test(app.id) || re.test(app.runtimeId ?? '') || re.test(app.tizenId ?? ''))
-            .sort((a, b) => {
-                const aFtv = /freetv/i.test(a.name) || /freetv/i.test(a.id) || /freetv/i.test(a.runtimeId ?? '') || /freetv/i.test(a.tizenId ?? '');
-                const bFtv = /freetv/i.test(b.name) || /freetv/i.test(b.id) || /freetv/i.test(b.runtimeId ?? '') || /freetv/i.test(b.tizenId ?? '');
-                if (aFtv !== bFtv) return aFtv ? -1 : 1;
-                return a.name.localeCompare(b.name);
-            });
+        return [...this.apps].sort((a, b) => {
+            const aPriority = this.isPriority(a);
+            const bPriority = this.isPriority(b);
+            if (aPriority !== bPriority) return aPriority ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
     }
 
     selectDevice(serial: string): void {

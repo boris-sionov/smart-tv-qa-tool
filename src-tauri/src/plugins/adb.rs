@@ -663,27 +663,46 @@ struct TizenInfoEntry {
 
 #[tauri::command]
 async fn tizen_tizen_brew_device_details(serial: String) -> Result<TizenBrewDetails, Error> {
-    match tizen_daemon_open(&serial, "sysinfo") {
-        Ok(output) => {
-            let entries = output
-                .lines()
-                .filter_map(|line| {
-                    let mut parts = line.splitn(2, ':');
-                    let key = parts.next()?.trim().to_owned();
-                    let value = parts.next()?.trim().to_owned();
-                    if key.is_empty() || value.is_empty() {
-                        return None;
+    // Read /etc/info.ini (primary source of truth on Samsung Tizen TVs)
+    let mut entries: Vec<TizenInfoEntry> = Vec::new();
+    let mut daemon_error = String::new();
+
+    match tizen_run_shell(&serial, "0 cat /etc/info.ini") {
+        Ok(output) if !output.trim().is_empty() => {
+            for line in output.lines() {
+                let line = line.trim();
+                if line.is_empty() || line.starts_with('[') || line.starts_with('#') {
+                    continue;
+                }
+                if let Some((key, value)) = line.split_once('=') {
+                    let k = key.trim().to_owned();
+                    let v = value.trim().to_owned();
+                    if !k.is_empty() && !v.is_empty() {
+                        entries.push(TizenInfoEntry { key: k, value: v });
                     }
-                    Some(TizenInfoEntry { key, value })
-                })
-                .collect();
-            Ok(TizenBrewDetails { system_info: entries, daemon_error: String::new() })
+                }
+            }
         }
-        Err(e) => Ok(TizenBrewDetails {
-            system_info: vec![],
-            daemon_error: e.to_string(),
-        }),
+        Ok(_) => daemon_error = "info.ini was empty".to_owned(),
+        Err(e) => daemon_error = e.to_string(),
     }
+
+    // Supplement with /etc/version if info.ini had nothing useful
+    if entries.is_empty() {
+        if let Ok(ver) = tizen_run_shell(&serial, "0 cat /etc/version") {
+            for line in ver.lines() {
+                if let Some((k, v)) = line.split_once('=') {
+                    let k = k.trim().to_owned();
+                    let v = v.trim().to_owned();
+                    if !k.is_empty() && !v.is_empty() {
+                        entries.push(TizenInfoEntry { key: k, value: v });
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(TizenBrewDetails { system_info: entries, daemon_error })
 }
 
 // ---------------------------------------------------------------------------
