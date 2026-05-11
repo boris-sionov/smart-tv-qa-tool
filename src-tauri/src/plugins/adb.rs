@@ -663,46 +663,62 @@ struct TizenInfoEntry {
 
 #[tauri::command]
 async fn tizen_tizen_brew_device_details(serial: String) -> Result<TizenBrewDetails, Error> {
-    // Read /etc/info.ini (primary source of truth on Samsung Tizen TVs)
     let mut entries: Vec<TizenInfoEntry> = Vec::new();
-    let mut daemon_error = String::new();
 
-    match tizen_run_shell(&serial, "0 cat /etc/info.ini") {
-        Ok(output) if !output.trim().is_empty() => {
-            for line in output.lines() {
-                let line = line.trim();
-                if line.is_empty() || line.starts_with('[') || line.starts_with('#') {
-                    continue;
-                }
-                if let Some((key, value)) = line.split_once('=') {
-                    let k = key.trim().to_owned();
-                    let v = value.trim().to_owned();
-                    if !k.is_empty() && !v.is_empty() {
-                        entries.push(TizenInfoEntry { key: k, value: v });
-                    }
-                }
+    // Try to read device info from several candidate paths / commands.
+    // All failures are silently swallowed — we always return Ok so the UI
+    // can show whatever partial info it has instead of an error screen.
+    let ini_candidates = [
+        "0 cat /etc/info.ini",
+        "0 cat /opt/etc/info.ini",
+        "0 cat /usr/etc/info.ini",
+        "0 cat /etc/version",
+    ];
+    for cmd in &ini_candidates {
+        if let Ok(output) = tizen_run_shell(&serial, cmd) {
+            let parsed = parse_ini_entries(&output);
+            if !parsed.is_empty() {
+                entries = parsed;
+                break;
             }
         }
-        Ok(_) => daemon_error = "info.ini was empty".to_owned(),
-        Err(e) => daemon_error = e.to_string(),
     }
 
-    // Supplement with /etc/version if info.ini had nothing useful
+    // If file reads all failed, try individual Samsung shell commands
     if entries.is_empty() {
-        if let Ok(ver) = tizen_run_shell(&serial, "0 cat /etc/version") {
-            for line in ver.lines() {
-                if let Some((k, v)) = line.split_once('=') {
-                    let k = k.trim().to_owned();
-                    let v = v.trim().to_owned();
-                    if !k.is_empty() && !v.is_empty() {
-                        entries.push(TizenInfoEntry { key: k, value: v });
-                    }
+        let cmds: &[(&str, &str)] = &[
+            ("model",       "0 getDeviceProperty MODEL_NAME"),
+            ("firmware",    "0 getDeviceProperty FIRMWARE_VERSION"),
+            ("tizen",       "0 getDeviceProperty TIZEN_VERSION"),
+            ("resolution",  "0 getDeviceProperty SCREEN_SIZE"),
+        ];
+        for (key, cmd) in cmds {
+            if let Ok(val) = tizen_run_shell(&serial, cmd) {
+                let val = val.trim().to_owned();
+                if !val.is_empty() {
+                    entries.push(TizenInfoEntry { key: key.to_string(), value: val });
                 }
             }
         }
     }
 
-    Ok(TizenBrewDetails { system_info: entries, daemon_error })
+    // Return whatever we found — never surface an error
+    Ok(TizenBrewDetails { system_info: entries, daemon_error: String::new() })
+}
+
+fn parse_ini_entries(text: &str) -> Vec<TizenInfoEntry> {
+    text.lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('[') || line.starts_with('#') {
+                return None;
+            }
+            let (k, v) = line.split_once('=')?;
+            let k = k.trim().to_owned();
+            let v = v.trim().to_owned();
+            if k.is_empty() || v.is_empty() { None } else { Some(TizenInfoEntry { key: k, value: v }) }
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------

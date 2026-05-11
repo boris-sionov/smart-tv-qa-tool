@@ -46,47 +46,57 @@ export class TizenInfoComponent implements OnInit, OnDestroy {
         this.error = undefined;
         const serial = tizenSerial(dev);
         try {
+            let systemInfo: TizenInfoEntry[] = [];
+
+            // Primary: try to get full key-value info from the TV
             const details = await this.sdb.getTizenBrewDeviceDetails(serial);
-            const systemInfo = details.systemInfo;
-            if (systemInfo.length === 0 && details.daemonError) {
-                throw new Error(`Could not load TizenBrew sysinfo.\n\n${details.daemonError}`);
+            systemInfo = details.systemInfo;
+
+            // Fallback: if nothing came back, use getDeviceInfo (model/firmware/osVersion)
+            if (systemInfo.length === 0) {
+                const basic = await this.sdb.getDeviceInfo(serial).catch(() => null);
+                if (basic) {
+                    if (basic.model)        systemInfo.push({key: 'Model Name',    value: basic.model});
+                    if (basic.manufacturer) systemInfo.push({key: 'Manufacturer', value: basic.manufacturer});
+                    if (basic.osVersion)    systemInfo.push({key: 'Tizen Version', value: basic.osVersion});
+                }
             }
+
             const get = (...keys: string[]): string => this.findValue(systemInfo, keys);
 
             this.info = [
                 {
                     label: 'Model Name',
-                    value: get('MODEL_NAME', 'Model', 'model', 'PRODUCT_CODE', 'Product Code'),
+                    value: get('MODEL_NAME', 'Model Name', 'Model', 'model', 'PRODUCT_CODE', 'Product Code'),
                     icon: 'bi-tag-fill',
                     highlight: true,
                 },
                 {
                     label: 'Tizen Version',
-                    value: get('TIZEN_VERSION', 'Tizen Version', 'tizen_version', 'PRODUCT_VERSION', 'Platform Version', 'OS Version'),
+                    value: get('TIZEN_VERSION', 'Tizen Version', 'tizen', 'tizen_version', 'PRODUCT_VERSION', 'Platform Version', 'OS Version'),
                     icon: 'bi-display',
                     highlight: true,
                 },
                 {
-                    label: 'Platform',
-                    value: get('Platform'),
-                    icon: 'bi-layers-fill',
-                    highlight: true,
+                    label: 'Manufacturer',
+                    value: get('MANUFACTURER', 'Manufacturer', 'manufacturer'),
+                    icon: 'bi-building',
                 },
                 {
                     label: 'Firmware',
-                    value: get('FIRMWARE_VERSION', 'Firmware', 'FIRMWARE', 'SW_VERSION', 'Build'),
+                    value: get('FIRMWARE_VERSION', 'firmware', 'Firmware', 'FIRMWARE', 'SW_VERSION', 'Build'),
                     icon: 'bi-gear-fill',
                 },
                 {
                     label: 'Resolution',
-                    value: get('SCREEN_SIZE', 'RESOLUTION', 'Resolution', 'screen_size'),
+                    value: get('SCREEN_SIZE', 'resolution', 'RESOLUTION', 'Resolution', 'screen_size'),
                     icon: 'bi-aspect-ratio-fill',
                 },
                 ...this.additionalSystemRows(systemInfo),
             ].filter(row => row.value !== '');
 
             if (this.info.length === 0) {
-                this.info = [{label: 'Model Name', value: dev.name, icon: 'bi-tag-fill'}];
+                this.info = [{label: 'Device Name', value: dev.name, icon: 'bi-tag-fill'}];
             }
         } catch (e) {
             this.error = e as Error;
