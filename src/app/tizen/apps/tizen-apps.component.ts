@@ -190,10 +190,10 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             }));
     }
 
-    private static readonly FREETV_ANY_PATTERN = /freetv/i;
+    private static readonly INSPECT_PATTERN = /freeTVpreprod|freeTVuat/i;
 
     canInspect(app: SdbAppInfo): boolean {
-        const re = TizenAppsComponent.FREETV_ANY_PATTERN;
+        const re = TizenAppsComponent.INSPECT_PATTERN;
         return re.test(app.name) || re.test(app.id) || re.test(app.tizenId ?? '') || re.test(app.runtimeId ?? '');
     }
 
