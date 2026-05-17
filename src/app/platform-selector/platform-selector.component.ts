@@ -21,7 +21,4 @@ export class PlatformSelectorComponent {
         this.router.navigate(['/tizen']);
     }
 
-    openVidaa(): void {
-        this.router.navigate(['/vidaa']);
-    }
 }
