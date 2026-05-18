@@ -1,0 +1,27 @@
+[default]
+description = "Default permissions for the ADB manager plugin"
+permissions = [
+  "allow-adb-list-devices",
+  "allow-adb-connect",
+  "allow-adb-disconnect",
+  "allow-adb-list-packages",
+  "allow-adb-get-prop",
+  "allow-adb-launch",
+  "allow-adb-force-stop",
+  "allow-adb-uninstall",
+  "allow-adb-install",
+  "allow-tizen-connect",
+  "allow-tizen-install",
+  "allow-tizen-uninstall",
+  "allow-tizen-list-apps",
+  "allow-tizen-get-device-info",
+  "allow-tizen-launch",
+  "allow-tizen-kill",
+  "allow-tizen-debug",
+  "allow-tizen-get-duid",
+  "allow-tizen-shell",
+  "allow-tizen-daemon-command",
+  "allow-tizen-get-app-version",
+  "allow-tizen-install-tizen-brew",
+  "allow-tizen-tizen-brew-device-details",
+]

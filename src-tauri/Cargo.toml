@@ -39,14 +39,20 @@ pathdiff = "0.2.3"
 libssh-rs = { version = "0.3.6", features = ["vendored"] }
 libssh-rs-sys = "0.2.6"
 flate2 = "1.1.2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 regex = "1.12.2"
 port_check = "0.3.0"
+keyring = { version = "3.6.3", features = ["apple-native", "windows-native"] }
 tauri-plugin-shell = "2.3.5"
+futures = "0.3"
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-fs = "2.4.5"
 tauri-plugin-log = "2.8.0"
 tauri-plugin-os = "2.3.2"
 tauri-plugin-http = { version = "2.5.7", default-features = false, features = ["json", "native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls"] }
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+futures-util = "0.3"
 
 [dependencies.tauri]
 version = "2.10.2"
@@ -76,7 +82,7 @@ abs-file-macro = "0.1.2"
 [features]
 # by default Tauri runs in production mode
 # when `tauri dev` runs it is executed with `cargo run --no-default-features` if `devPath` is an URL
-default = ["custom-protocol"]
+default = ["custom-protocol", "vendored-openssl"]
 # this feature is used for production builds where `devPath` points to the filesystem
 # DO NOT remove this
 custom-protocol = ["tauri/custom-protocol"]

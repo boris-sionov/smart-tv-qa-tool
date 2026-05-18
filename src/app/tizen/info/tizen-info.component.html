@@ -1,0 +1,86 @@
+<div class="info-page">
+  <div class="manager-toolbar bg-panel border-bottom">
+    <div class="device-selector-container" ngbDropdown>
+      <button class="device-dropdown-btn" ngbDropdownToggle>
+        <span class="samsung-dot">S</span>
+        <span class="device-name">{{ device ? device.name : 'No device selected' }}</span>
+        <i class="bi bi-chevron-down chevron"></i>
+      </button>
+      <div ngbDropdownMenu class="device-dropdown-menu">
+        @if (devices.length === 0) {
+          <span class="device-dropdown-empty">No devices saved</span>
+        }
+        @for (item of devices; track item.ip + ':' + item.port) {
+          <button ngbDropdownItem class="device-dropdown-item"
+                  [class.active]="device && item.ip === device.ip && item.port === device.port"
+                  (click)="selectDevice(item.ip + ':' + item.port)">
+            <i class="bi bi-check2 check-icon" [class.invisible]="!(device && item.ip === device.ip && item.port === device.port)"></i>
+            <span>{{ item.name }}</span>
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="info-content">
+    @if (!device) {
+      <div class="empty-state">
+        <div class="empty-icon">
+          <i class="bi bi-tv"></i>
+        </div>
+        <h4>No Device Selected</h4>
+        <p>Select a device from the dropdown to view its information.</p>
+      </div>
+    } @else if (loading) {
+      <div class="loading-state">
+        <div class="spinner-modern"></div>
+        <p>Loading device information...</p>
+      </div>
+    } @else if (error) {
+      <div class="error-state">
+        <div class="error-icon">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+        </div>
+        <h4>Failed to Load Device Info</h4>
+        <p>{{ error.message || 'Unable to get device info' }}</p>
+        <button class="retry-btn" (click)="loadInfo(device!)">
+          <i class="bi bi-arrow-clockwise"></i>
+          Retry
+        </button>
+      </div>
+    } @else {
+      <div class="info-hero">
+        <div class="hero-content">
+          <div class="hero-avatar samsung-avatar">
+            <span class="samsung-s">S</span>
+          </div>
+          <div class="hero-text">
+            <h1 class="hero-title">{{ device.name }}</h1>
+            <p class="hero-subtitle">
+              <i class="bi bi-circle-fill status-dot"></i>
+              Connected
+            </p>
+          </div>
+          <button class="copy-btn-hero" (click)="copyDeviceInfo()"
+                  [class.copy-success]="copySuccess"
+                  ngbTooltip="Copy Model Name & Tizen Version" placement="bottom">
+            <i class="bi" [ngClass]="copySuccess ? 'bi-check-circle-fill' : 'bi-clipboard'"></i>
+            <span>{{ copySuccess ? 'Copied!' : 'Copy Info' }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="info-section">
+        <div class="device-summary-cards">
+          @for (item of info; track item.label) {
+            <div class="summary-card">
+              <i class="bi summary-icon" [ngClass]="item.icon"></i>
+              <span class="summary-label">{{ item.label }}</span>
+              <span class="summary-value">{{ item.value || '—' }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>

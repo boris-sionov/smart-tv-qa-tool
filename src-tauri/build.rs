@@ -41,6 +41,34 @@ fn main() {
             .plugin(
                 "local-file",
                 InlinedPlugin::new().commands(&["checksum", "remove", "copy", "temp_path"]),
+            )
+            .plugin(
+                "adb-manager",
+                InlinedPlugin::new().commands(&[
+                    "adb_list_devices",
+                    "adb_connect",
+                    "adb_disconnect",
+                    "adb_list_packages",
+                    "adb_get_prop",
+                    "adb_launch",
+                    "adb_force_stop",
+                    "adb_uninstall",
+                    "adb_install",
+                    "tizen_connect",
+                    "tizen_install",
+                    "tizen_uninstall",
+                    "tizen_list_apps",
+                    "tizen_get_device_info",
+                    "tizen_launch",
+                    "tizen_kill",
+                    "tizen_debug",
+                    "tizen_get_duid",
+                    "tizen_shell",
+                    "tizen_daemon_command",
+                    "tizen_get_app_version",
+                    "tizen_install_tizen_brew",
+                    "tizen_tizen_brew_device_details",
+                ]),
             ),
     )
     .expect("failed to run tauri-build");

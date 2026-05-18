@@ -7,7 +7,7 @@ import {KeyserverHintComponent} from './add-device/keyserver-hint/keyserver-hint
 import {AppRoutingModule} from './app-routing.module';
 import {AppComponent} from './app.component';
 import {CoreModule} from './core/core.module';
-import {HomeComponent} from './home/home.component';
+import {LgComponent} from './lg/lg.component';
 import {RenewScriptComponent} from './info/renew-script/renew-script.component';
 import {SharedModule} from './shared/shared.module';
 import {UpdateDetailsComponent} from './update-details/update-details.component';
@@ -32,7 +32,7 @@ import {EnvironmentMarkerComponent} from "./core/components/environment-marker/e
 @NgModule({
     declarations: [
         AppComponent,
-        HomeComponent,
+        LgComponent,
         KeyserverHintComponent,
         ConnHintComponent,
         RenewScriptComponent,

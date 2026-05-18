@@ -1,0 +1,158 @@
+<div class="wizard-modal">
+  <div class="wizard-header">
+    <div class="header-text">
+      <h5 class="wizard-title">
+        @if (currentStep === 1) { Enable ADB on your Android TV }
+        @else { Add Android TV Device }
+      </h5>
+      <div class="step-indicator">
+        <div class="step" [class.active]="currentStep === 1" [class.complete]="currentStep > 1"><span>1</span></div>
+        <div class="step-line" [class.complete]="currentStep > 1"></div>
+        <div class="step" [class.active]="currentStep === 2"><span>2</span></div>
+      </div>
+    </div>
+    <button class="close-btn" (click)="modal.dismiss()" aria-label="Close">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <div class="wizard-body" #wizardBody>
+    @if (currentStep === 1) {
+      <div class="devmode-info">
+        <p class="devmode-intro">Follow these steps on your Android TV to enable ADB debugging.</p>
+        <div style="padding: 12px 16px; background: rgba(91, 159, 245, 0.1); border-left: 3px solid #5B9FF5; margin-bottom: 20px; border-radius: 6px; color: #A8B8CC; font-size: 13px;">
+          <i class="bi bi-info-circle" style="margin-right: 6px;"></i>
+          <span>Please scroll down to review all instructions and see the "Don't show again" option.</span>
+        </div>
+
+        <div class="devmode-section">
+          <div class="devmode-section-title">
+            <i class="bi bi-unlock-fill"></i>
+            1. Unlock Developer Options
+          </div>
+          <ul class="devmode-bullets">
+            <li>Open <strong>Settings</strong> on your TV</li>
+            <li>Go to <strong>System</strong> → <strong>About</strong>
+              (on Google TV: <strong>Device Preferences</strong> → <strong>About</strong>)
+            </li>
+            <li>Scroll down to <strong>Build</strong> (or <strong>Android TV OS build</strong>)</li>
+            <li>Click it <strong>7 times</strong> until you see "You are now a developer"</li>
+          </ul>
+        </div>
+
+        <div class="devmode-section">
+          <div class="devmode-section-title">
+            <i class="bi bi-toggle-on"></i>
+            2. Enable USB & Network Debugging
+          </div>
+          <ul class="devmode-bullets">
+            <li>Go back to <strong>Settings</strong> → <strong>System</strong> → <strong>Developer options</strong></li>
+            <li>Turn on <strong>USB debugging</strong></li>
+            <li>Turn on <strong>Network debugging</strong> (or <strong>ADB over network</strong> /
+              <strong>Wireless debugging</strong>)
+            </li>
+          </ul>
+        </div>
+
+        <div class="devmode-section">
+          <div class="devmode-section-title">
+            <i class="bi bi-router-fill"></i>
+            3. Find your TV's IP Address
+          </div>
+          <ul class="devmode-bullets">
+            <li>Open <strong>Settings</strong> → <strong>Network &amp; Internet</strong>
+              → select your active connection
+            </li>
+            <li>Note down the <strong>IP address</strong> shown</li>
+          </ul>
+        </div>
+
+        <div class="devmode-section">
+          <div class="devmode-section-title">
+            <i class="bi bi-check2-circle"></i>
+            4. Authorize this Computer
+          </div>
+          <ul class="devmode-bullets">
+            <li>The first time you connect, the TV will show an
+              <strong>"Allow USB debugging?"</strong> popup
+            </li>
+            <li>Check <strong>Always allow from this computer</strong> and press <strong>OK</strong></li>
+          </ul>
+        </div>
+
+        <div class="devmode-checkbox" style="margin-top: 24px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #A8B8CC; font-size: 13px;">
+            <input type="checkbox" [(ngModel)]="skipSetupGuide" (change)="onDontShowAgainChange()" style="cursor: pointer;">
+            <span>Don't show this again</span>
+          </label>
+        </div>
+      </div>
+    } @else {
+      <div class="form-content">
+        <div class="form-header">
+          <div class="form-icon">
+            <i class="bi bi-android2"></i>
+          </div>
+          <div>
+            <h3 class="form-title">Connect to your TV</h3>
+            <p class="form-subtitle">Enter a friendly name and the TV's IP address. ADB port 5555 is used by default.
+              <button type="button" (click)="showSetupGuide()" style="background: none; border: none; color: #5B9FF5; cursor: pointer; text-decoration: underline; font-size: 13px; padding: 0; margin-left: 4px;">
+                Show setup guide ›
+              </button>
+            </p>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="form-field-label">Device Name</label>
+            <div class="input-wrapper">
+              <i class="bi bi-tag input-icon"></i>
+              <input class="modern-input" type="text" placeholder="e.g. Living Room TV"
+                     [(ngModel)]="name" (keydown.enter)="submit()">
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="form-field-label">IP Address</label>
+            <div class="input-wrapper">
+              <i class="bi bi-router input-icon"></i>
+              <input class="modern-input" type="text" placeholder="192.168.1.100"
+                     [(ngModel)]="ip" (keydown.enter)="submit()">
+            </div>
+          </div>
+        </div>
+
+        @if (error) {
+          <div class="error-banner">
+            <i class="bi bi-exclamation-triangle-fill"></i>
+            <span>{{ error }}</span>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="wizard-footer">
+    @if (currentStep === 1) {
+      <button class="wizard-btn primary ms-auto" (click)="next()" [disabled]="!scrolledToBottom">
+        <span>Next</span>
+        <i class="bi bi-arrow-right"></i>
+      </button>
+    } @else {
+      <button class="wizard-btn secondary" (click)="back()" [disabled]="connecting">
+        <i class="bi bi-arrow-left"></i>
+        <span>Back</span>
+      </button>
+      <button class="wizard-btn primary ms-auto" (click)="submit()" [disabled]="!canSubmit">
+        @if (connecting) {
+          <span class="spinner-mini"></span>
+          <span>Connecting...</span>
+        } @else {
+          <i class="bi bi-check-lg"></i>
+          <span>Connect &amp; Save</span>
+        }
+      </button>
+    }
+  </div>
+</div>

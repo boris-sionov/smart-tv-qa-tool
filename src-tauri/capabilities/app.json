@@ -14,7 +14,18 @@
     "shell:allow-open",
     {
       "identifier": "shell:allow-execute",
-      "allow": [{"name": "zsh", "cmd": "/bin/zsh", "args": true}]
+      "allow": [
+        {
+          "name": "zsh",
+          "cmd": "/bin/zsh",
+          "args": true
+        },
+        {
+          "name": "binaries/adb",
+          "sidecar": true,
+          "args": true
+        }
+      ]
     },
     "dialog:allow-open",
     "dialog:allow-save",
@@ -25,14 +36,14 @@
     "remote-file:default",
     "dev-mode:default",
     "local-file:default",
+    "adb-manager:default",
     "log:default",
     "os:default",
     {
       "identifier": "http:default",
       "allow": [
-        {
-          "url": "https://*"
-        }
+        {"url": "https://*"},
+        {"url": "http://*"}
       ]
     }
   ]

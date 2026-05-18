@@ -133,40 +133,6 @@
               <span class="info-card-value">{{ deviceInfo.firmwareVersion || '—' }}</span>
             </div>
           </div>
-
-          @if (deviceInfo.otaId) {
-            <div class="info-card">
-              <div class="info-card-icon">
-                <i class="bi bi-fingerprint"></i>
-              </div>
-              <div class="info-card-body">
-                <span class="info-card-label">OTA ID</span>
-                <span class="info-card-value">{{ deviceInfo.otaId }}</span>
-              </div>
-            </div>
-          }
-
-          @if (deviceInfo.socName) {
-            <div class="info-card">
-              <div class="info-card-icon">
-                <i class="bi bi-cpu-fill"></i>
-              </div>
-              <div class="info-card-body">
-                <span class="info-card-label">SoC</span>
-                <span class="info-card-value">{{ deviceInfo.socName }}</span>
-              </div>
-            </div>
-          }
-
-          <div class="info-card">
-            <div class="info-card-icon">
-              <i class="bi bi-router-fill"></i>
-            </div>
-            <div class="info-card-body">
-              <span class="info-card-label">Host</span>
-              <span class="info-card-value">{{ device.host }}</span>
-            </div>
-          </div>
         </div>
       </div>
 

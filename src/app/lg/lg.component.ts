@@ -1,0 +1,127 @@
+import {Component, ElementRef, HostListener, Injector, OnInit, ViewChild} from '@angular/core';
+import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
+import {Router} from '@angular/router';
+import {Device} from '../types';
+import {DeviceManagerService} from '../core/services';
+import packageInfo from '../../../package.json';
+import {WizardComponent} from "../add-device/wizard/wizard.component";
+import {noop} from "rxjs";
+import {filter} from "rxjs/operators";
+import {isNonNull} from "../shared/operators";
+import ReleaseInfo from '../../release.json';
+import {DeviceChooserComponent} from "./device-chooser/device-chooser.component";
+import {DevicesComponent} from "../devices/devices.component";
+
+@Component({
+    selector: 'app-lg',
+    templateUrl: './lg.component.html',
+    styleUrls: ['./lg.component.scss']
+})
+export class LgComponent implements OnInit {
+
+    selectedDevice?: Device;
+    appVersion: string;
+    @ViewChild('appNav', {static: true})
+    appNav?: ElementRef<HTMLElement>;
+    appNavTooltipDirection: string = 'right';
+
+    constructor(
+        public deviceManager: DeviceManagerService,
+        private modalService: NgbModal,
+        private router: Router,
+    ) {
+        deviceManager.devices$.pipe(filter(isNonNull)).subscribe((devices) => {
+            this.selectedDevice = devices.find((device) => device.default) || devices[0];
+        });
+        this.appVersion = ReleaseInfo.version || packageInfo.version;
+    }
+
+    goBack(): void {
+        this.router.navigate(['/']);
+    }
+
+    openLg(): void {
+        this.router.navigate(['/lg']);
+    }
+
+    openAndroid(): void {
+        this.router.navigate(['/android-tv']);
+    }
+
+    openTizen(): void {
+        this.router.navigate(['/tizen']);
+    }
+
+    markDefault(device: Device): void {
+        this.deviceManager.setDefault(device.name).catch(reason => {
+            console.log(reason);
+        });
+    }
+
+    openSetupDevice(cancellable: boolean): void {
+        const ref = this.modalService.open(WizardComponent, {
+            size: 'xl', centered: true, scrollable: true,
+            injector: Injector.create({
+                providers: [
+                    {provide: 'cancellable', useValue: cancellable}
+                ]
+            }),
+        });
+        ref.result.then((device) => this.deviceManager.setDefault(device.name)).catch(noop);
+    }
+
+    defaultDragOver(event: DragEvent): void {
+        event.preventDefault();
+    }
+
+    defaultDragEnter(event: DragEvent): void {
+        const transfer = event.dataTransfer!;
+        if (transfer.items.length != 1 || transfer.items[0].kind != 'file') {
+            return;
+        }
+        event.preventDefault();
+        console.log('defaultDragEnter', event.type, transfer.items.length && transfer.items[0]);
+    }
+
+    defaultDragLeave(event: DragEvent): void {
+        const dataTransfer = event.dataTransfer!;
+        console.log('defaultDragLeave', dataTransfer.items.length && dataTransfer.items[0]);
+    }
+
+    defaultDrop(event: DragEvent): boolean {
+        console.log('defaultDrop', event);
+        event.stopPropagation();
+        event.preventDefault();
+        return false;
+    }
+
+    openDeviceChooser(): void {
+        this.modalService.open(DeviceChooserComponent, {
+            size: 'sm',
+            centered: true,
+        }).result.then((device) => this.markDefault(device)).catch(noop);
+    }
+
+    ngOnInit(): void {
+        this.updateTooltipDirection();
+    }
+
+    @HostListener('window:resize')
+    onResize(): void {
+        this.updateTooltipDirection();
+    }
+
+    private updateTooltipDirection(): void {
+        const flexDirection = this.appNav?.nativeElement?.computedStyleMap()?.get('flex-direction');
+        if (!(flexDirection instanceof CSSKeywordValue)) {
+            return;
+        }
+        this.appNavTooltipDirection = flexDirection.value === 'row' ? 'top' : 'right';
+    }
+
+    openDevices() {
+        this.modalService.open(DevicesComponent, {
+            scrollable: true
+        });
+    }
+}

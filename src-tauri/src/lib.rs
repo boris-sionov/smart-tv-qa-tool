@@ -11,7 +11,6 @@ use crate::session_manager::SessionManager;
 use crate::shell_manager::ShellManager;
 use crate::spawn_manager::SpawnManager;
 use ssh_key::PrivateKey;
-use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Builder, Manager, RunEvent, Runtime};
 
 mod app_dirs;
@@ -46,6 +45,7 @@ pub fn run() {
         .plugin(plugins::file::plugin("remote-file"))
         .plugin(plugins::devmode::plugin("dev-mode"))
         .plugin(plugins::local_file::plugin("local-file"))
+        .plugin(plugins::adb::plugin("adb-manager"))
         .manage(DeviceManager::default())
         .manage(SessionManager::default())
         .manage(SpawnManager::default())
@@ -54,11 +54,9 @@ pub fn run() {
             plugins::file::URI_SCHEME,
             plugins::file::protocol,
         )
-        .on_page_load(|wnd, payload| {
-            if payload.event() == PageLoadEvent::Started {
-                let spawns = wnd.state::<SpawnManager>();
-                spawns.clear();
-            }
+        .on_page_load(|wnd, _payload| {
+            let spawns = wnd.state::<SpawnManager>();
+            spawns.clear();
         })
         .build(tauri::generate_context!())
         .and_then(|app| {

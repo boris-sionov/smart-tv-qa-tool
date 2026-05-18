@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "freetv",
+			"path": "../../../workspace/freetv-portal-samsung-tizen-preprod-2026-04-23/freetv"
+		}
+	],
+	"settings": {}
+}

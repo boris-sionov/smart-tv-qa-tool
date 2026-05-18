@@ -2,6 +2,7 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
 import {AdbService} from '../../core/services/adb.service';
 import {AdbStateService, deviceSerial, SavedDevice} from '../adb-state.service';
+import {extractMessage} from '../../core/utils/error.utils';
 
 interface DeviceInfo {
     label: string;
@@ -81,7 +82,7 @@ export class AndroidTvInfoComponent implements OnInit, OnDestroy {
                 {label: 'IP Address', value: dev.ip, icon: 'bi-router-fill'},
             ];
         } catch (e) {
-            this.error = e as Error;
+            this.error = new Error(extractMessage(e, 'Failed to load device info'));
         } finally {
             this.loading = false;
         }

@@ -207,3 +207,21 @@ $border-color: rgba(91, 159, 245, 0.2);
     color: $primary-blue !important;
   }
 }
+
+.lg-empty-state {
+  display: flex;
+  min-height: 260px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(91, 159, 245, 0.2);
+  border-radius: 8px;
+  color: #A8B8CC;
+  background: rgba(15, 23, 43, 0.5);
+  text-align: center;
+
+  i { color: #5B9FF5; font-size: 36px; }
+  h3 { margin: 0; color: #FFFFFF; font-size: 17px; font-weight: 700; }
+  p  { margin: 0; font-size: 13px; }
+}

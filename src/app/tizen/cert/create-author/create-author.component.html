@@ -1,0 +1,105 @@
+<div class="wizard-modal">
+  <div class="wizard-header">
+    <div class="header-text">
+      <h5 class="wizard-title">Create Author Certificate</h5>
+    </div>
+    <button class="close-btn" (click)="modal.dismiss()" aria-label="Close" [disabled]="busy">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <div class="wizard-body">
+    <div class="form-content">
+      <div class="form-header">
+        <div class="form-icon">
+          <i class="bi bi-person-badge-fill"></i>
+        </div>
+        <div>
+          <h3 class="form-title">Identify yourself</h3>
+          <p class="form-subtitle">This author certificate identifies you as the developer of installed apps. Stored locally — never sent anywhere.</p>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-field-label">Author Name *</label>
+          <div class="input-wrapper">
+            <i class="bi bi-person input-icon"></i>
+            <input class="modern-input" type="text" placeholder="e.g. Boris Sionov"
+                   [(ngModel)]="name" autofocus>
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-field-label">Password *</label>
+          <div class="input-wrapper">
+            <i class="bi bi-lock input-icon"></i>
+            <input class="modern-input" type="password" placeholder="At least 8 characters"
+                   [(ngModel)]="password">
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-field-label">Confirm Password *</label>
+          <div class="input-wrapper">
+            <i class="bi bi-lock-fill input-icon"></i>
+            <input class="modern-input" type="password" placeholder="Re-type password"
+                   [(ngModel)]="passwordConfirm">
+          </div>
+          @if (!passwordsMatch) {
+            <small class="field-hint error">Passwords do not match.</small>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="form-field-label">Country (2-letter code)</label>
+          <div class="input-wrapper">
+            <i class="bi bi-geo-alt input-icon"></i>
+            <input class="modern-input" type="text" placeholder="IL" maxlength="2"
+                   [(ngModel)]="country">
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-field-label">Email (optional)</label>
+          <div class="input-wrapper">
+            <i class="bi bi-envelope input-icon"></i>
+            <input class="modern-input" type="email" placeholder="you@example.com"
+                   [(ngModel)]="email">
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label class="form-field-label">Organization (optional)</label>
+          <div class="input-wrapper">
+            <i class="bi bi-building input-icon"></i>
+            <input class="modern-input" type="text" placeholder="e.g. FreeTV"
+                   [(ngModel)]="organization">
+          </div>
+        </div>
+      </div>
+
+      @if (error) {
+        <div class="error-banner">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span>{{ error }}</span>
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="wizard-footer">
+    <button class="wizard-btn secondary" (click)="modal.dismiss()" [disabled]="busy">
+      <span>Cancel</span>
+    </button>
+    <button class="wizard-btn primary ms-auto" (click)="submit()" [disabled]="!canSubmit">
+      @if (busy) {
+        <span class="spinner-mini"></span>
+        <span>Creating...</span>
+      } @else {
+        <i class="bi bi-shield-plus"></i>
+        <span>Create Certificate</span>
+      }
+    </button>
+  </div>
+</div>

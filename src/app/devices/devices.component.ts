@@ -6,7 +6,7 @@ import {AsyncPipe} from "@angular/common";
 import {NgbCollapse, NgbModal, NgbTooltipModule} from "@ng-bootstrap/ng-bootstrap";
 import {AddDeviceModule} from "../add-device/add-device.module";
 import {InlineEditorComponent} from "./inline-editor/inline-editor.component";
-import {HomeComponent} from "../home/home.component";
+import {LgComponent} from "../lg/lg.component";
 import {RemoveConfirmation, RemoveDeviceComponent} from "../remove-device/remove-device.component";
 
 @Component({
@@ -28,7 +28,7 @@ export class DevicesComponent {
     editingDevice: Device | undefined;
 
     constructor(
-        @Optional() @Inject(HomeComponent) public home: HomeComponent,
+        @Optional() @Inject(LgComponent) public lg: LgComponent,
         public deviceManager: DeviceManagerService,
         private modals: NgbModal,
     ) {
@@ -59,6 +59,6 @@ export class DevicesComponent {
     }
 
     addDevice() {
-        this.home?.openSetupDevice(true);
+        this.lg?.openSetupDevice(true);
     }
 }

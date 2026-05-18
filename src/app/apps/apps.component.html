@@ -30,7 +30,15 @@
     </div>
   </div>
   <div class="p-3 flex-fill overflow-auto">
-    <app-installed #installedComponent [device]="device" [installed$]="packages$"></app-installed>
+    @if (!device) {
+      <div class="lg-empty-state">
+        <i class="bi bi-hdd-network"></i>
+        <h3>No device detected</h3>
+        <p>Go to <strong>Manage</strong> and add an LG device to get started.</p>
+      </div>
+    } @else {
+      <app-installed #installedComponent [device]="device" [installed$]="packages$"></app-installed>
+    }
   </div>
   <div class="stat-bar border-top bottom-0 mt-auto d-flex flex-row flex-shrink-0 align-items-center">
     <app-stat-storage-info class="ms-auto me-3 storage-info-bar" [device]="device" #storageInfo></app-stat-storage-info>

@@ -1,0 +1,52 @@
+<div class="modern-layout" (drop)="defaultDrop($event)"
+     (dragover)="defaultDragOver($event)" (dragenter)="defaultDragEnter($event)" (dragleave)="defaultDragLeave($event)">
+  <!-- Modern Top Navigation Bar -->
+  <nav class="modern-navbar">
+    <div class="navbar-container">
+      <div class="navbar-start">
+        <button class="nav-btn back-btn" (click)="goBack()" title="Change Platform">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <div class="platform-switcher" aria-label="Switch platform">
+          <button class="platform-chip active" type="button" title="LG WebOS" (click)="openLg()">
+            <span class="platform-mark lg-mark">LG</span>
+            <span>LG</span>
+          </button>
+          <button class="platform-chip" type="button" title="Android TV" (click)="openAndroid()">
+            <i class="bi bi-android2"></i>
+            <span>ATV</span>
+          </button>
+          <button class="platform-chip" type="button" title="Samsung Tizen" (click)="openTizen()">
+            <span class="platform-mark samsung-mark">S</span>
+            <span>Tizen</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="navbar-center">
+        <div class="nav-pills-horizontal">
+          <a class="nav-link-modern" routerLink="apps" routerLinkActive="active" replaceUrl title="Apps">
+            <i class="bi bi-grid"></i>
+            <span>Apps</span>
+          </a>
+          <a class="nav-link-modern" routerLink="info" routerLinkActive="active" replaceUrl title="Info">
+            <i class="bi bi-info-circle"></i>
+            <span>Info</span>
+          </a>
+          <a class="nav-link-modern" routerLink="devices" routerLinkActive="active" replaceUrl title="Manage Devices">
+            <i class="bi bi-hdd-rack"></i>
+            <span>Manage</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="navbar-end">
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main role="main" class="modern-main">
+    <router-outlet></router-outlet>
+  </main>
+</div>

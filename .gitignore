@@ -78,3 +78,6 @@ local.properties
 **/fastlane/test_output
 
 .secrets
+
+# Bundled tool binaries (platform-specific, downloaded via scripts/download-adb.sh)
+src-tauri/binaries/
