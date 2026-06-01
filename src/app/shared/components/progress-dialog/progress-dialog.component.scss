@@ -3,8 +3,11 @@ $bg-dark: #0F172B;
 $bg-light: #1a2744;
 $primary-blue: #5B9FF5;
 $accent-purple: #8B7FF5;
+$success-green: #4ADE80;
+$danger-red: #FF6B6B;
 $text-primary: #FFFFFF;
 $text-secondary: #A8B8CC;
+$text-muted: rgba(168, 184, 204, 0.4);
 $border-color: rgba(91, 159, 245, 0.2);
 
 .progress-dialog {
@@ -12,9 +15,10 @@ $border-color: rgba(91, 159, 245, 0.2);
   border-radius: 20px;
   padding: 28px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 20px;
   min-height: 100px;
+  min-width: 340px;
 }
 
 .progress-icon {
@@ -39,6 +43,12 @@ $border-color: rgba(91, 159, 245, 0.2);
   animation: spin 0.8s linear infinite;
 }
 
+.icon-failed {
+  font-size: 22px;
+  font-weight: 700;
+  color: $danger-red;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -52,8 +62,96 @@ $border-color: rgba(91, 159, 245, 0.2);
   font-size: 15px;
   font-weight: 600;
   color: $text-primary;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
   letter-spacing: -0.2px;
+}
+
+// ── Step list ──────────────────────────────────────────────────────────────
+
+.step-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: opacity 0.2s ease;
+
+  &[data-status='pending'] {
+    opacity: 0.35;
+  }
+
+  &[data-status='active'] {
+    opacity: 1;
+
+    .step-label {
+      color: $primary-blue;
+      font-weight: 600;
+    }
+  }
+
+  &[data-status='done'] {
+    opacity: 0.7;
+  }
+
+  &[data-status='failed'] {
+    opacity: 1;
+
+    .step-label {
+      color: $danger-red;
+      font-weight: 600;
+    }
+  }
+}
+
+.step-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.step-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(91, 159, 245, 0.3);
+  border-top-color: $primary-blue;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.icon-done {
+  color: $success-green;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.icon-fail {
+  color: $danger-red;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.icon-pending {
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.step-label {
+  font-size: 13px;
+  color: $text-secondary;
+  letter-spacing: -0.1px;
+  transition: color 0.2s ease;
 }
 
 // Modern progress bar
