@@ -22,6 +22,6 @@ permissions = [
   "allow-tizen-shell",
   "allow-tizen-daemon-command",
   "allow-tizen-get-app-version",
-  "allow-tizen-install-tizen-brew",
-  "allow-tizen-tizen-brew-device-details",
+  "allow-tizen-install-signed",
+  "allow-tizen-detect-studio",
 ]

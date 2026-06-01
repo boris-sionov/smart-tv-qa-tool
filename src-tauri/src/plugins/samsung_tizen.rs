@@ -1,16 +1,19 @@
-use adb_client::device::{ADBTransportMessage, MessageCommand};
-use adb_client::{ADBMessageTransport, ADBTcpDevice};
+// Minimal SDB/ADB wire protocol implementation.
+// Samsung SDB (port 26101) uses the same protocol as ADB but without RSA auth.
+// We implement just enough to open a shell service and read the response.
+
 use std::collections::HashMap;
-use std::io::Read;
-use std::net::SocketAddr;
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpStream};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::Runtime;
 
 use crate::error::Error;
+
+// ── Data types ───────────────────────────────────────────────────────────────
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct TizenAppInfo {
@@ -26,53 +29,199 @@ pub struct TizenAppInfo {
     pub app_index: Option<String>,
 }
 
-#[derive(serde::Serialize)]
+
+// ── Signed install helpers ───────────────────────────────────────────────────
+
+#[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-struct TizenBrewDetails {
-    system_info: Vec<TizenInfoEntry>,
-    daemon_error: String,
+pub struct InstallProgress {
+    pub step: String,
+    pub message: String,
+    pub percent: u8,
 }
 
-#[derive(serde::Serialize)]
-struct TizenInfoEntry {
-    key: String,
-    value: String,
-}
+/// Re-packs a double-packaged WGT by extracting only `.buildResult/` content to root.
+/// Returns (path_to_use, was_repacked). Caller must delete the temp file when done.
+fn repack_wgt(file_path: &str) -> Result<(std::path::PathBuf, bool), Error> {
+    use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions, CompressionMethod};
 
-static TIZEN_ADB_DEVICES: OnceLock<Mutex<HashMap<String, ADBTcpDevice>>> = OnceLock::new();
-static TIZEN_ADB_LOCAL_ID: AtomicU32 = AtomicU32::new(1);
+    let file = std::fs::File::open(file_path)
+        .map_err(|e| Error::new(format!("Cannot open {file_path}: {e}")))?;
+    let mut probe = ZipArchive::new(file)
+        .map_err(|e| Error::new(format!("Not a valid ZIP/WGT: {e}")))?;
 
-fn sdb_binary() -> String {
-    // On Windows use USERPROFILE; on Unix use HOME
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .unwrap_or_default();
+    let names: Vec<String> = (0..probe.len())
+        .filter_map(|i| probe.by_index(i).ok().map(|e| e.name().to_owned()))
+        .collect();
 
-    #[cfg(target_os = "windows")]
-    let candidates = [
-        format!("{home}\\tizen-studio\\tools\\sdb.exe"),
-        format!("{home}\\tizen-studio-data\\tools\\sdb.exe"),
-        "C:\\tizen-studio\\tools\\sdb.exe".to_string(),
-    ];
+    let has_buildresult = names.iter().any(|n| n == ".buildResult/config.xml");
+    let has_root_dupe   = names.iter().any(|n| n == "config.xml");
 
-    #[cfg(not(target_os = "windows"))]
-    let candidates = [
-        format!("{home}/tizen-studio/tools/sdb"),
-        format!("{home}/tizen-studio-data/tools/sdb"),
-        "/opt/tizen-studio/tools/sdb".to_string(),
-    ];
+    if !has_buildresult || !has_root_dupe {
+        return Ok((std::path::PathBuf::from(file_path), false));
+    }
 
-    for path in &candidates {
-        if std::path::Path::new(path).exists() {
-            return path.clone();
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    let temp_path = std::env::temp_dir().join(format!("wgt-repack-{ts}.wgt"));
+
+    let out_file = std::fs::File::create(&temp_path)
+        .map_err(|e| Error::new(format!("Cannot create temp file: {e}")))?;
+    let mut writer = ZipWriter::new(out_file);
+    let opts = SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Deflated);
+
+    let src_file = std::fs::File::open(file_path)
+        .map_err(|e| Error::new(format!("Cannot re-open source: {e}")))?;
+    let mut src = ZipArchive::new(src_file)
+        .map_err(|e| Error::new(format!("Cannot re-read ZIP: {e}")))?;
+
+    for i in 0..src.len() {
+        let mut entry = src.by_index(i)
+            .map_err(|e| Error::new(format!("ZIP entry {i}: {e}")))?;
+        let raw = entry.name().replace('\\', "/");
+        let Some(stripped) = raw.strip_prefix(".buildResult/") else { continue };
+        if stripped.is_empty() { continue }
+        if stripped == "author-signature.xml" || stripped == "signature1.xml" { continue }
+        if raw.ends_with('/') {
+            writer.add_directory(stripped, opts)
+                .map_err(|e| Error::new(format!("Cannot add dir {stripped}: {e}")))?;
+        } else {
+            writer.start_file(stripped, opts)
+                .map_err(|e| Error::new(format!("Cannot start file {stripped}: {e}")))?;
+            std::io::copy(&mut entry, &mut writer)
+                .map_err(|e| Error::new(format!("Cannot copy {stripped}: {e}")))?;
         }
     }
 
-    // Fall back to PATH lookup — "sdb" on Unix, "sdb.exe" on Windows
+    writer.finish()
+        .map_err(|e| Error::new(format!("Cannot finish ZIP: {e}")))?;
+
+    Ok((temp_path, true))
+}
+
+/// Signs a WGT in-place using the Tizen CLI `package` command.
+fn sign_wgt(file_path: &str, profile: &str, tizen_studio_path: &str) -> Result<(), Error> {
     #[cfg(target_os = "windows")]
-    return "sdb.exe".to_string();
+    let tizen_bin = format!(r"{tizen_studio_path}\tools\ide\bin\tizen.bat");
     #[cfg(not(target_os = "windows"))]
-    "sdb".to_string()
+    let tizen_bin = format!("{tizen_studio_path}/tools/ide/bin/tizen");
+
+    if !std::path::Path::new(&tizen_bin).exists() {
+        return Err(Error::new(format!(
+            "Tizen Studio CLI not found at {tizen_bin}. Check your certificate configuration."
+        )));
+    }
+
+    let out = Command::new(&tizen_bin)
+        .args(["package", "-t", "wgt", "-s", profile, "--", file_path])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| Error::new(format!("Failed to run tizen package: {e}")))?;
+
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+
+    if !out.status.success() || !stdout.contains("is created successfully") {
+        return Err(Error::new(format!(
+            "Signing failed (profile: {profile}):\n{stdout}\n{stderr}"
+        )));
+    }
+    Ok(())
+}
+
+/// Installs a signed WGT using the Tizen CLI.
+/// Connects SDB, installs, then disconnects — clean state every time.
+fn cli_install(serial: &str, file_path: &str, tizen_studio_path: &str) -> Result<String, Error> {
+    #[cfg(target_os = "windows")]
+    let sdb_bin   = format!(r"{tizen_studio_path}\tools\sdb.exe");
+    #[cfg(target_os = "windows")]
+    let tizen_bin = format!(r"{tizen_studio_path}\tools\ide\bin\tizen.bat");
+    #[cfg(not(target_os = "windows"))]
+    let sdb_bin   = format!("{tizen_studio_path}/tools/sdb");
+    #[cfg(not(target_os = "windows"))]
+    let tizen_bin = format!("{tizen_studio_path}/tools/ide/bin/tizen");
+
+    if !std::path::Path::new(&tizen_bin).exists() {
+        return Err(Error::new(format!("Tizen CLI not found at {tizen_bin}")));
+    }
+
+    // 1. Kill SDB server to drop any existing TizenBrew reverse connection
+    //    that would block a fresh sdb connect on port 26101
+    let _ = Command::new(&sdb_bin).args(["kill-server"]).output();
+    std::thread::sleep(Duration::from_millis(800));
+
+    // 2. Connect fresh
+    let conn = Command::new(&sdb_bin)
+        .args(["connect", serial])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| Error::new(format!("sdb connect failed: {e}")))?;
+    let conn_out = String::from_utf8_lossy(&conn.stdout).into_owned();
+    if !conn_out.contains("connected") {
+        return Err(Error::new(format!("Could not connect to {serial}: {conn_out}")));
+    }
+
+    // 3. Install
+    let result = Command::new(&tizen_bin)
+        .args(["install", "-n", file_path, "-s", serial])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+
+    // 4. Disconnect regardless of install outcome
+    let _ = Command::new(&sdb_bin).args(["disconnect", serial]).output();
+
+    let out = result.map_err(|e| Error::new(format!("tizen install failed: {e}")))?;
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    let combined = format!("{stdout}{stderr}");
+
+    if combined.contains("install completed") || combined.contains("successfully installed") {
+        Ok(combined)
+    } else {
+        Err(Error::new(combined))
+    }
+}
+
+// ── Certificate profile detection ────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TizenCertProfile {
+    pub name: String,
+    pub active: bool,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TizenStudioInfo {
+    pub path: String,
+    pub version: String,
+    pub profiles: Vec<TizenCertProfile>,
+}
+
+fn parse_cert_profiles(xml_path: &str) -> Vec<TizenCertProfile> {
+    let Ok(content) = std::fs::read_to_string(xml_path) else { return vec![] };
+    let active = regex::Regex::new(r#"<profiles[^>]+active="([^"]+)""#)
+        .unwrap()
+        .captures(&content)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_owned())
+        .unwrap_or_default();
+    regex::Regex::new(r#"<profile\s+name="([^"]+)""#)
+        .unwrap()
+        .captures_iter(&content)
+        .map(|c| {
+            let name = c[1].to_owned();
+            let is_active = name == active;
+            TizenCertProfile { active: is_active, name }
+        })
+        .collect()
 }
 
 fn sdb_serial(serial: &str) -> String {
@@ -83,268 +232,222 @@ fn sdb_serial(serial: &str) -> String {
     }
 }
 
-fn ensure_sdb_connected(serial: &str) {
-    let s = sdb_serial(serial);
-    let _ = std::process::Command::new(sdb_binary())
-        .args(["connect", &s])
-        .output();
+// ── ADB/SDB message constants ────────────────────────────────────────────────
+const CMD_CNXN: u32 = 0x4e584e43;
+const CMD_OPEN: u32 = 0x4e45504f;
+const CMD_OKAY: u32 = 0x59414b4f;
+const CMD_WRTE: u32 = 0x45545257;
+const CMD_CLSE: u32 = 0x45534c43;
+const ADB_VERSION: u32 = 0x01000000;
+const MAX_PAYLOAD: u32 = 4096;
+
+fn adb_crc32(data: &[u8]) -> u32 {
+    data.iter().fold(0u32, |acc, &b| acc.wrapping_add(b as u32))
 }
 
-fn tizen_adb_device(serial: &str) -> Result<ADBTcpDevice, Error> {
-    let addr: SocketAddr = sdb_serial(serial)
-        .parse()
-        .map_err(|e| Error::new(format!("Invalid Samsung TV address {serial}: {e}")))?;
-    ADBTcpDevice::new(addr).map_err(|e| {
-        Error::new(format!(
-            "Failed to connect to Samsung TV via TizenBrew protocol: {e}"
-        ))
-    })
+fn adb_write_msg(stream: &mut TcpStream, cmd: u32, arg0: u32, arg1: u32, data: &[u8]) -> std::io::Result<()> {
+    let len = data.len() as u32;
+    let crc = adb_crc32(data);
+    let magic = cmd ^ 0xFFFFFFFF;
+    let mut header = [0u8; 24];
+    header[0..4].copy_from_slice(&cmd.to_le_bytes());
+    header[4..8].copy_from_slice(&arg0.to_le_bytes());
+    header[8..12].copy_from_slice(&arg1.to_le_bytes());
+    header[12..16].copy_from_slice(&len.to_le_bytes());
+    header[16..20].copy_from_slice(&crc.to_le_bytes());
+    header[20..24].copy_from_slice(&magic.to_le_bytes());
+    stream.write_all(&header)?;
+    if !data.is_empty() {
+        stream.write_all(data)?;
+    }
+    Ok(())
 }
 
-fn with_tizen_adb_device<T>(
-    serial: &str,
-    mut action: impl FnMut(&mut ADBTcpDevice) -> Result<T, Error>,
-) -> Result<T, Error> {
-    let serial = sdb_serial(serial);
-    let devices = TIZEN_ADB_DEVICES.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut last_error = None;
+fn adb_read_msg(stream: &mut TcpStream) -> std::io::Result<(u32, u32, u32, Vec<u8>)> {
+    let mut header = [0u8; 24];
+    stream.read_exact(&mut header)?;
+    let cmd  = u32::from_le_bytes(header[0..4].try_into().unwrap());
+    let arg0 = u32::from_le_bytes(header[4..8].try_into().unwrap());
+    let arg1 = u32::from_le_bytes(header[8..12].try_into().unwrap());
+    let len  = u32::from_le_bytes(header[12..16].try_into().unwrap());
+    let mut payload = vec![0u8; len as usize];
+    if len > 0 {
+        stream.read_exact(&mut payload)?;
+    }
+    Ok((cmd, arg0, arg1, payload))
+}
 
-    for _ in 0..2 {
-        let mut devices = devices
-            .lock()
-            .map_err(|_| Error::new("Samsung Tizen connection lock is poisoned"))?;
-        if !devices.contains_key(&serial) {
-            devices.insert(serial.clone(), tizen_adb_device(&serial)?);
-        }
+/// Open a fresh TCP connection to the TV and perform the ADB CNXN handshake.
+fn sdb_connect(addr: &str) -> Result<TcpStream, Error> {
+    let addr: SocketAddr = addr.parse()
+        .map_err(|e| Error::new(format!("Invalid Samsung TV address: {e}")))?;
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_secs(5))
+        .map_err(|e| Error::new(format!("Cannot connect to Samsung TV {addr}: {e}")))?;
+    stream.set_read_timeout(Some(Duration::from_secs(15))).ok();
+    stream.set_write_timeout(Some(Duration::from_secs(10))).ok();
 
-        let result = action(
-            devices
-                .get_mut(&serial)
-                .expect("Samsung device was just inserted"),
-        );
-        match result {
-            Ok(value) => return Ok(value),
-            Err(e) => {
-                last_error = Some(e);
-                devices.remove(&serial);
+    // Send CNXN
+    let banner = b"host::Samsung\0";
+    adb_write_msg(&mut stream, CMD_CNXN, ADB_VERSION, MAX_PAYLOAD, banner)
+        .map_err(|e| Error::new(format!("Failed to send CNXN: {e}")))?;
+
+    // Expect CNXN back
+    let (cmd, _, _, _) = adb_read_msg(&mut stream)
+        .map_err(|e| Error::new(format!("Failed to read CNXN response: {e}")))?;
+    if cmd != CMD_CNXN {
+        return Err(Error::new(format!("Expected CNXN, got 0x{cmd:08X}")));
+    }
+
+    Ok(stream)
+}
+
+/// Run a shell command on the TV and return all output.
+/// Keeps the connection alive for the lifetime of the call.
+fn tizen_run_shell(serial: &str, command: &str) -> Result<String, Error> {
+    let addr = sdb_serial(serial);
+    let mut stream = sdb_connect(&addr)?;
+
+    let service = format!("shell:{command}\0");
+    let local_id: u32 = 1;
+
+    adb_write_msg(&mut stream, CMD_OPEN, local_id, 0, service.as_bytes())
+        .map_err(|e| Error::new(format!("OPEN failed: {e}")))?;
+
+    // Wait for OKAY (stream accepted)
+    let (cmd, remote_id, _, _) = adb_read_msg(&mut stream)
+        .map_err(|e| Error::new(format!("Failed to read OPEN response: {e}")))?;
+    if cmd != CMD_OKAY {
+        return Err(Error::new(format!("Shell open rejected (got 0x{cmd:08X})")));
+    }
+
+    // Read WRTE packets until CLSE
+    let mut output = Vec::new();
+    loop {
+        let (cmd, _, _, payload) = adb_read_msg(&mut stream)
+            .map_err(|e| Error::new(format!("Failed to read shell data: {e}")))?;
+        match cmd {
+            CMD_WRTE => {
+                output.extend_from_slice(&payload);
+                // Acknowledge each WRTE
+                adb_write_msg(&mut stream, CMD_OKAY, local_id, remote_id, &[])
+                    .map_err(|e| Error::new(format!("OKAY ack failed: {e}")))?;
             }
+            CMD_CLSE | _ => break,
         }
     }
 
-    Err(last_error.unwrap_or_else(|| Error::new("Samsung Tizen command failed")))
-}
-
-fn tizen_run_shell(serial: &str, command: &str) -> Result<String, Error> {
-    with_tizen_adb_device(serial, |device| {
-        tizen_run_adb_service(device, &format!("shell:{command}\0")).map_err(|e| {
-            Error::new(format!(
-                "Samsung Tizen shell command failed ({command}): {e}"
-            ))
-        })
-    })
+    Ok(String::from_utf8_lossy(&output).into_owned())
 }
 
 fn tizen_run_daemon_command(serial: &str, command: &str) -> Result<String, Error> {
-    with_tizen_adb_device(serial, |device| {
-        tizen_run_adb_service(device, command)
-            .map_err(|e| Error::new(format!("Samsung daemon command failed ({command}): {e}")))
-    })
+    tizen_run_shell(serial, command)
 }
 
-fn tizen_run_adb_service(device: &mut ADBTcpDevice, service: &str) -> Result<String, Error> {
-    let local_id = TIZEN_ADB_LOCAL_ID.fetch_add(1, Ordering::Relaxed);
-    device
-        .inner_mut()
-        .get_transport_mut()
-        .write_message(ADBTransportMessage::new(
-            MessageCommand::Open,
-            local_id,
-            0,
-            service.as_bytes(),
-        ))
-        .map_err(|e| {
-            Error::new(format!(
-                "Failed to open Samsung ADB service {service:?}: {e}"
-            ))
-        })?;
+/// Push a local file to the TV using ADB sync protocol over the SDB connection.
+/// The sync byte-stream is fragmented into ≤4096 byte WRTE packets as required by the protocol.
+fn tizen_push_file(serial: &str, local_path: &str, remote_path: &str) -> Result<(), Error> {
+    use std::io::Read as _;
+    const FRAG: usize = MAX_PAYLOAD as usize; // 4096 — max WRTE payload
+    const DATA_CHUNK: usize = 32768;           // sync DATA payload size
 
-    let response = device
-        .inner_mut()
-        .get_transport_mut()
-        .read_message_with_timeout(Duration::from_secs(10))
-        .map_err(|e| {
-            Error::new(format!(
-                "Failed to read Samsung ADB service open response: {e}"
-            ))
-        })?;
-    if response.header().command() != MessageCommand::Okay {
-        return Err(Error::new(format!(
-            "ADB request failed - wrong command {}",
-            response.header().command()
-        )));
+    let addr = sdb_serial(serial);
+    let mut stream = sdb_connect(&addr)?;
+
+    // Open sync: service
+    adb_write_msg(&mut stream, CMD_OPEN, 1, 0, b"sync:\0")
+        .map_err(|e| Error::new(format!("sync OPEN failed: {e}")))?;
+    let (cmd, remote_id, _, _) = adb_read_msg(&mut stream)
+        .map_err(|e| Error::new(format!("sync OPEN response: {e}")))?;
+    if cmd != CMD_OKAY {
+        return Err(Error::new("sync service rejected".to_owned()));
+    }
+
+    /// Send raw bytes as WRTE packets, fragmenting to FRAG-sized pieces.
+    /// Reads one OKAY ack per WRTE sent.
+    fn send_bytes(stream: &mut TcpStream, local_id: u32, remote_id: u32, data: &[u8]) -> std::io::Result<()> {
+        let mut offset = 0;
+        while offset < data.len() {
+            let end = (offset + FRAG).min(data.len());
+            adb_write_msg(stream, CMD_WRTE, local_id, remote_id, &data[offset..end])?;
+            let _ = adb_read_msg(stream); // consume OKAY ack
+            offset = end;
+        }
+        Ok(())
+    }
+
+    // SEND,<remote_path>,<mode>
+    let send_arg = format!("{remote_path},33188"); // 33188 = 0o100644
+    let mut send_hdr = Vec::with_capacity(8 + send_arg.len());
+    send_hdr.extend_from_slice(b"SEND");
+    send_hdr.extend_from_slice(&(send_arg.len() as u32).to_le_bytes());
+    send_hdr.extend_from_slice(send_arg.as_bytes());
+    send_bytes(&mut stream, 1, remote_id, &send_hdr)
+        .map_err(|e| Error::new(format!("sync SEND failed: {e}")))?;
+
+    // Stream file in DATA chunks
+    let mut file = std::fs::File::open(local_path)
+        .map_err(|e| Error::new(format!("Cannot open {local_path}: {e}")))?;
+    let mut raw = vec![0u8; DATA_CHUNK];
+    loop {
+        let n = file.read(&mut raw)
+            .map_err(|e| Error::new(format!("File read error: {e}")))?;
+        if n == 0 { break; }
+        let mut data_pkt = Vec::with_capacity(8 + n);
+        data_pkt.extend_from_slice(b"DATA");
+        data_pkt.extend_from_slice(&(n as u32).to_le_bytes());
+        data_pkt.extend_from_slice(&raw[..n]);
+        send_bytes(&mut stream, 1, remote_id, &data_pkt)
+            .map_err(|e| Error::new(format!("DATA send failed: {e}")))?;
+    }
+
+    // DONE + timestamp
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs() as u32;
+    let mut done_pkt = [0u8; 8];
+    done_pkt[0..4].copy_from_slice(b"DONE");
+    done_pkt[4..8].copy_from_slice(&ts.to_le_bytes());
+    send_bytes(&mut stream, 1, remote_id, &done_pkt)
+        .map_err(|e| Error::new(format!("sync DONE failed: {e}")))?;
+
+    // Read final OKAY/FAIL from the TV
+    let _ = adb_read_msg(&mut stream);
+    Ok(())
+}
+
+/// Run a shell command with a timeout — used for debug port detection.
+fn tizen_run_shell_for(serial: &str, command: &str, timeout: Duration) -> Result<String, Error> {
+    let addr = sdb_serial(serial);
+    let mut stream = sdb_connect(&addr)?;
+    stream.set_read_timeout(Some(timeout)).ok();
+
+    let service = format!("shell:{command}\0");
+    let local_id: u32 = 1;
+    adb_write_msg(&mut stream, CMD_OPEN, local_id, 0, service.as_bytes())
+        .map_err(|e| Error::new(format!("OPEN failed: {e}")))?;
+
+    let (cmd, remote_id, _, _) = adb_read_msg(&mut stream)
+        .map_err(|e| Error::new(format!("Failed to read OPEN response: {e}")))?;
+    if cmd != CMD_OKAY {
+        return Err(Error::new(format!("Shell open rejected (got 0x{cmd:08X})")));
     }
 
     let mut output = Vec::new();
-    loop {
-        let response = device
-            .inner_mut()
-            .get_transport_mut()
-            .read_message_with_timeout(Duration::from_secs(30))
-            .map_err(|e| Error::new(format!("Failed to read Samsung ADB service response: {e}")))?;
-        if response.header().command() != MessageCommand::Write {
-            return Ok(String::from_utf8_lossy(&output).into_owned());
-        }
-        output.extend_from_slice(response.payload());
-        device
-            .inner_mut()
-            .get_transport_mut()
-            .write_message(ADBTransportMessage::new(
-                MessageCommand::Okay,
-                response.header().arg1(),
-                response.header().arg0(),
-                &[],
-            ))
-            .map_err(|e| {
-                Error::new(format!(
-                    "Failed to acknowledge Samsung ADB service response: {e}"
-                ))
-            })?;
-    }
-}
-
-fn tizen_capability(serial: &str) -> Result<String, Error> {
-    ensure_sdb_connected(serial);
-    let s = sdb_serial(serial);
-    let out = std::process::Command::new(sdb_binary())
-        .args(["-s", &s, "capability"])
-        .output()
-        .map_err(|e| Error::new(format!("Failed to run sdb capability: {e}")))?;
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_owned();
-        return Err(Error::new(format!("sdb capability failed: {stderr}")));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-}
-
-fn tizen_run_sdb_shell(serial: &str, args: &[&str]) -> Result<String, Error> {
-    ensure_sdb_connected(serial);
-    let s = sdb_serial(serial);
-    let out = std::process::Command::new(sdb_binary())
-        .arg("-s")
-        .arg(&s)
-        .arg("shell")
-        .args(args)
-        .output()
-        .map_err(|e| Error::new(format!("Failed to run sdb shell {}: {e}", args.join(" "))))?;
-
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_owned();
-        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_owned();
-        let detail = if stderr.is_empty() { stdout } else { stderr };
-        return Err(Error::new(format!(
-            "sdb shell {} failed: {detail}",
-            args.join(" ")
-        )));
-    }
-
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-}
-
-fn tizen_run_sdb_shell_strings(serial: &str, args: &[String]) -> Result<String, Error> {
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    tizen_run_sdb_shell(serial, &arg_refs)
-}
-
-fn tizen_run_sdb_shell_for(
-    serial: &str,
-    args: &[String],
-    timeout: Duration,
-) -> Result<String, Error> {
-    ensure_sdb_connected(serial);
-    let s = sdb_serial(serial);
-    let mut child = Command::new(sdb_binary())
-        .arg("-s")
-        .arg(&s)
-        .arg("shell")
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| Error::new(format!("Failed to run sdb shell {}: {e}", args.join(" "))))?;
-
-    let mut stdout = child.stdout.take().expect("stdout is piped");
-    let mut stderr = child.stderr.take().expect("stderr is piped");
-    let stdout_reader = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = stdout.read_to_end(&mut buf);
-        buf
-    });
-    let stderr_reader = std::thread::spawn(move || {
-        let mut buf = Vec::new();
-        let _ = stderr.read_to_end(&mut buf);
-        buf
-    });
-
     let deadline = Instant::now() + timeout;
-    let status = loop {
-        if let Some(status) = child.try_wait().map_err(|e| {
-            Error::new(format!(
-                "Failed to wait for sdb shell {}: {e}",
-                args.join(" ")
-            ))
-        })? {
-            break Some(status);
-        }
-        if Instant::now() >= deadline {
-            let _ = child.kill();
-            let _ = child.wait();
-            break None;
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    };
-
-    let stdout = stdout_reader.join().unwrap_or_default();
-    let stderr = stderr_reader.join().unwrap_or_default();
-    let stdout = String::from_utf8_lossy(&stdout).into_owned();
-    let stderr = String::from_utf8_lossy(&stderr).trim().to_owned();
-
-    if let Some(status) = status {
-        if !status.success() {
-            let detail = if stderr.is_empty() {
-                stdout.trim().to_owned()
-            } else {
-                stderr
-            };
-            return Err(Error::new(format!(
-                "sdb shell {} failed: {detail}",
-                args.join(" ")
-            )));
-        }
-    }
-
-    Ok(stdout)
-}
-
-/// Read model name from `sdb devices` — the 3rd tab-separated column for the matching serial.
-/// Example line: `192.168.50.180:26101\tdevice    \tUE43BU8000UXSQ`
-fn tizen_model_from_devices(serial: &str) -> Option<String> {
-    ensure_sdb_connected(serial);
-    let s = sdb_serial(serial);
-    let out = std::process::Command::new(sdb_binary())
-        .args(["devices"])
-        .output()
-        .ok()?;
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    for line in stdout.lines() {
-        let cols: Vec<&str> = line.splitn(3, '\t').collect();
-        if cols.len() >= 3 && cols[0].trim() == s {
-            let model = cols[2].trim().to_owned();
-            if !model.is_empty() {
-                return Some(model);
+    loop {
+        if Instant::now() >= deadline { break; }
+        match adb_read_msg(&mut stream) {
+            Ok((CMD_WRTE, _, _, payload)) => {
+                output.extend_from_slice(&payload);
+                let _ = adb_write_msg(&mut stream, CMD_OKAY, local_id, remote_id, &[]);
             }
+            Ok((CMD_CLSE, _, _, _)) | Err(_) => break,
+            Ok(_) => {}
         }
     }
-    None
+
+    Ok(String::from_utf8_lossy(&output).into_owned())
 }
 
 fn parse_tizen_app_list(output: &str) -> Vec<TizenAppInfo> {
@@ -453,34 +556,13 @@ fn extract_tizen_app_id(file_path: &str) -> Result<String, Error> {
     ))
 }
 
-fn parse_ini_entries(text: &str) -> Vec<TizenInfoEntry> {
-    text.lines()
-        .filter_map(|line| {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('[') || line.starts_with('#') {
-                return None;
-            }
-            let (k, v) = line.split_once('=')?;
-            let k = k.trim().to_owned();
-            let v = v.trim().to_owned();
-            if k.is_empty() || v.is_empty() {
-                None
-            } else {
-                Some(TizenInfoEntry { key: k, value: v })
-            }
-        })
-        .collect()
-}
 
 #[tauri::command]
 async fn tizen_connect(serial: String) -> Result<String, Error> {
-    let serial = sdb_serial(&serial);
-    let devices = TIZEN_ADB_DEVICES.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut devices = devices
-        .lock()
-        .map_err(|_| Error::new("Samsung Tizen connection lock is poisoned"))?;
-    devices.insert(serial.clone(), tizen_adb_device(&serial)?);
-    Ok(format!("Connected to {serial}"))
+    let addr = sdb_serial(&serial);
+    // Test connection by performing the CNXN handshake
+    sdb_connect(&addr)?;
+    Ok(format!("Connected to {addr}"))
 }
 
 #[tauri::command]
@@ -513,28 +595,18 @@ async fn tizen_get_prop(serial: String, prop: String) -> Result<String, Error> {
 
 #[tauri::command]
 async fn tizen_get_device_info(serial: String) -> Result<serde_json::Value, Error> {
-    let capability = tizen_capability(&serial).unwrap_or_default();
-    let mut tizen_version = String::new();
-    let mut vendor = String::new();
-    for line in capability.lines() {
-        if let Some(v) = line.strip_prefix("platform_version:") {
-            tizen_version = v.trim().to_owned();
-        } else if let Some(v) = line.strip_prefix("vendor_name:") {
-            vendor = v.trim().to_owned();
-        }
-    }
-
-    // Primary model source: sdb devices (3rd column). Always works, even when shell is restricted.
-    let model = tizen_model_from_devices(&serial).unwrap_or_default();
-
-    // Try /etc/info.ini as supplemental source (may be empty on restricted TVs)
     let ini = tizen_run_shell(&serial, "0 cat /etc/info.ini").unwrap_or_default();
+    let mut model = String::new();
+    let mut manufacturer = String::new();
+    let mut fw_version = String::new();
     let mut manufacturer = String::new();
     let mut fw_version = String::new();
     for line in ini.lines() {
         let line = line.trim();
         let lower = line.to_lowercase();
-        if lower.starts_with("manufacturer=") {
+        if lower.starts_with("model_name=") {
+            model = line[11..].trim().to_owned();
+        } else if lower.starts_with("manufacturer=") {
             manufacturer = line[13..].trim().to_owned();
         } else if lower.starts_with("sw_version=") {
             fw_version = line[11..].trim().to_owned();
@@ -542,17 +614,9 @@ async fn tizen_get_device_info(serial: String) -> Result<serde_json::Value, Erro
     }
 
     if manufacturer.is_empty() {
-        manufacturer = if !vendor.is_empty() {
-            vendor
-        } else {
-            "Samsung".to_owned()
-        };
+        manufacturer = "Samsung".to_owned();
     }
-    let os_version = if !tizen_version.is_empty() {
-        tizen_version
-    } else {
-        fw_version
-    };
+    let os_version = fw_version;
 
     Ok(serde_json::json!({
         "model": model,
@@ -563,7 +627,7 @@ async fn tizen_get_device_info(serial: String) -> Result<serde_json::Value, Erro
 
 #[tauri::command]
 async fn tizen_list_apps(serial: String) -> Result<Vec<TizenAppInfo>, Error> {
-    let out = tizen_run_sdb_shell(&serial, &["0", "vd_applist"])?;
+    let out = tizen_run_shell(&serial, "0 vd_applist")?;
     let apps = parse_tizen_app_list(&out);
     if !apps.is_empty() {
         return Ok(apps);
@@ -577,24 +641,39 @@ async fn tizen_list_apps(serial: String) -> Result<Vec<TizenAppInfo>, Error> {
 
 #[tauri::command]
 async fn tizen_install(serial: String, file_path: String) -> Result<String, Error> {
-    let app_id = extract_tizen_app_id(&file_path)?;
+    let lower = file_path.to_lowercase();
+    let is_tpk = lower.ends_with(".tpk");
+    let is_tmg = lower.ends_with(".tmg");
+
     let file_name = std::path::Path::new(&file_path)
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "app.wgt".to_string());
-    let remote_path = format!("/opt/usr/apps/tmp/{file_name}");
 
-    let s = sdb_serial(&serial);
-    let push_out = std::process::Command::new(sdb_binary())
-        .args(["-s", &s, "push", &file_path, &remote_path])
-        .output()
-        .map_err(|e| Error::new(format!("sdb push failed: {e}")))?;
-    if !push_out.status.success() {
-        let stderr = String::from_utf8_lossy(&push_out.stderr);
-        return Err(Error::new(format!("sdb push failed: {stderr}")));
+    // All packages land in the same temp dir so widget.license is a sibling
+    let remote_dir  = "/opt/usr/apps/tmp";
+    let remote_path = format!("{remote_dir}/{file_name}");
+
+    tizen_push_file(&serial, &file_path, &remote_path)?;
+
+    if is_tmg {
+        // Push widget.license from the same local directory if it exists
+        let local_dir   = std::path::Path::new(&file_path).parent().unwrap_or(std::path::Path::new("."));
+        let license_path = local_dir.join("widget.license");
+        if license_path.exists() {
+            let remote_license = format!("{remote_dir}/widget.license");
+            tizen_push_file(&serial, license_path.to_string_lossy().as_ref(), &remote_license)?;
+        }
+        let app_id = extract_tizen_app_id(&file_path)
+            .unwrap_or_else(|_| file_name.trim_end_matches(".tmg").to_owned());
+        tizen_run_shell(&serial, &format!("0 vd_appinstall {app_id} {remote_path}"))
+    } else if is_tpk {
+        tizen_run_shell(&serial, &format!("0 pkgcmd -i -t tpk -p {remote_path}"))
+    } else {
+        // .wgt — standard web app
+        let app_id = extract_tizen_app_id(&file_path)?;
+        tizen_run_shell(&serial, &format!("0 vd_appinstall {app_id} {remote_path}"))
     }
-
-    tizen_run_shell(&serial, &format!("0 vd_appinstall {app_id} {remote_path}"))
 }
 
 #[tauri::command]
@@ -642,18 +721,14 @@ async fn tizen_uninstall(
 
     let mut errors = Vec::new();
     for command in commands {
-        let serial_for_uninstall = serial.clone();
-        let command_for_uninstall = command.clone();
-        let command_label = command.join(" ");
-        let task = tokio::task::spawn_blocking(move || {
-            tizen_run_sdb_shell_strings(&serial_for_uninstall, &command_for_uninstall)
-        });
+        let cmd_str = command.join(" ");
+        let serial2 = serial.clone();
+        let task = tokio::task::spawn_blocking(move || tizen_run_shell(&serial2, &cmd_str));
         match tokio::time::timeout(Duration::from_secs(20), task).await {
             Ok(Ok(Ok(out))) => return Ok(out),
-            Ok(Ok(Err(e))) if e.to_string().contains("closed") => return Ok("closed".to_owned()),
-            Ok(Ok(Err(e))) => errors.push(format!("{command_label}: {e}")),
-            Ok(Err(e)) => errors.push(format!("{command_label}: task failed: {e}")),
-            Err(_) => errors.push(format!("{command_label}: timed out")),
+            Ok(Ok(Err(e))) => errors.push(e.to_string()),
+            Ok(Err(e)) => errors.push(format!("task failed: {e}")),
+            Err(_) => errors.push("timed out".to_owned()),
         }
     }
 
@@ -665,37 +740,23 @@ async fn tizen_uninstall(
 
 #[tauri::command]
 async fn tizen_launch(serial: String, app_id: String) -> Result<String, Error> {
-    tizen_run_sdb_shell(&serial, &["0", "execute", &app_id])
-        .or_else(|_| tizen_run_sdb_shell(&serial, &["0", "was_execute", &app_id]))
+    tizen_run_shell(&serial, &format!("0 execute {app_id}"))
+        .or_else(|_| tizen_run_shell(&serial, &format!("0 was_execute {app_id}")))
 }
 
 #[tauri::command]
 async fn tizen_kill(serial: String, app_id: String) -> Result<String, Error> {
-    let mut errors = Vec::new();
-    for args in [
-        vec!["0", "was_kill", &app_id],
-        vec!["0", "execute", "0", "kill", &app_id],
-        vec!["0", "kill", &app_id],
+    for cmd in [
+        format!("0 was_kill {app_id}"),
+        format!("0 execute 0 kill {app_id}"),
     ] {
-        let serial_for_kill = serial.clone();
-        let command_for_kill: Vec<String> = args.iter().map(|arg| arg.to_string()).collect();
-        let command_label = args.join(" ");
-        let task = tokio::task::spawn_blocking(move || {
-            tizen_run_sdb_shell_strings(&serial_for_kill, &command_for_kill)
-        });
-        match tokio::time::timeout(Duration::from_secs(8), task).await {
-            Ok(Ok(Ok(out))) => return Ok(out),
-            Ok(Ok(Err(e))) if e.to_string().contains("closed") => return Ok("closed".to_owned()),
-            Ok(Ok(Err(e))) => errors.push(format!("{command_label}: {e}")),
-            Ok(Err(e)) => errors.push(format!("{command_label}: task failed: {e}")),
-            Err(_) => errors.push(format!("{command_label}: timed out")),
+        // tizen_run_shell opens a fresh TCP connection per call.
+        // Killing an app sends CLSE which breaks the read loop and returns Ok.
+        if let Ok(out) = tizen_run_shell(&serial, &cmd) {
+            return Ok(out);
         }
     }
-
-    Err(Error::new(format!(
-        "Failed to kill {app_id}.\n{}",
-        errors.join("\n")
-    )))
+    Err(Error::new(format!("Failed to kill {app_id}")))
 }
 
 #[tauri::command]
@@ -782,27 +843,23 @@ async fn tizen_debug(
     let mut errors = Vec::new();
     let mut out = String::new();
     for command in commands {
-        let serial_for_debug = serial.clone();
-        let command_for_debug = command.clone();
+        let cmd_str = command.join(" ");
+        let serial2 = serial.clone();
+        let cmd_str2 = cmd_str.clone();
         let task = tokio::task::spawn_blocking(move || {
-            tizen_run_sdb_shell_for(
-                &serial_for_debug,
-                &command_for_debug,
-                Duration::from_secs(6),
-            )
+            tizen_run_shell_for(&serial2, &cmd_str2, Duration::from_secs(6))
         });
-        let command_label = command.join(" ");
         match tokio::time::timeout(Duration::from_secs(8), task).await {
             Ok(Ok(Ok(output))) => {
                 out = output;
                 if !out.trim().is_empty() {
                     break;
                 }
-                errors.push(format!("{command_label}: no output"));
+                errors.push(format!("{cmd_str}: no output"));
             }
-            Ok(Ok(Err(e))) => errors.push(format!("{command_label}: {e}")),
-            Ok(Err(e)) => errors.push(format!("{command_label}: task failed: {e}")),
-            Err(_) => errors.push(format!("{command_label}: timed out")),
+            Ok(Ok(Err(e))) => errors.push(format!("{cmd_str}: {e}")),
+            Ok(Err(e)) => errors.push(format!("{cmd_str}: task failed: {e}")),
+            Err(_) => errors.push(format!("{cmd_str}: timed out")),
         }
     }
 
@@ -864,104 +921,199 @@ async fn tizen_daemon_command(serial: String, command: String) -> Result<String,
     tizen_run_daemon_command(&serial, &command)
 }
 
-#[tauri::command]
-async fn tizen_install_tizen_brew(serial: String, file_path: String) -> Result<String, Error> {
-    let pkg_name = std::path::Path::new(&file_path)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "package.wgt".to_string());
-    let remote_path = format!("/tmp/{pkg_name}");
 
-    let s = sdb_serial(&serial);
-    let push_out = std::process::Command::new(sdb_binary())
-        .args(["-s", &s, "push", &file_path, &remote_path])
-        .output()
-        .map_err(|e| Error::new(format!("sdb push failed: {e}")))?;
-    if !push_out.status.success() {
-        let stderr = String::from_utf8_lossy(&push_out.stderr);
-        return Err(Error::new(format!("sdb push failed: {stderr}")));
+#[tauri::command]
+async fn tizen_install_signed(
+    serial: String,
+    file_path: String,
+    cert_profile: String,
+    tizen_studio_path: String,
+    on_progress: tauri::ipc::Channel<InstallProgress>,
+) -> Result<String, Error> {
+    macro_rules! emit {
+        ($step:expr, $msg:expr, $pct:expr) => {
+            let _ = on_progress.send(InstallProgress {
+                step: $step.to_owned(),
+                message: $msg.to_owned(),
+                percent: $pct,
+            });
+        };
     }
 
-    let app_id = extract_tizen_app_id(&file_path).ok();
-    let install_cmd = if let Some(ref id) = app_id {
-        format!("0 vd_appinstall {id} {remote_path}")
-    } else {
-        format!("0 vd_appinstall {remote_path}")
-    };
+    #[cfg(target_os = "windows")]
+    let sdb_bin   = format!(r"{tizen_studio_path}\tools\sdb.exe");
+    #[cfg(target_os = "windows")]
+    let tizen_bin = format!(r"{tizen_studio_path}\tools\ide\bin\tizen.bat");
+    #[cfg(not(target_os = "windows"))]
+    let sdb_bin   = format!("{tizen_studio_path}/tools/sdb");
+    #[cfg(not(target_os = "windows"))]
+    let tizen_bin = format!("{tizen_studio_path}/tools/ide/bin/tizen");
 
-    tizen_run_shell(&serial, &install_cmd).map_err(|e| {
-        Error::new(format!(
-            "Install failed: {e}\nMake sure TizenBrew is installed on the TV."
-        ))
-    })
+    if !std::path::Path::new(&tizen_bin).exists() {
+        return Err(Error::new(format!("Tizen CLI not found at {tizen_bin}")));
+    }
+
+    // Step 1 — Graceful disconnect so the TV's SDB daemon cleans up immediately,
+    //           then kill the local server to drop any lingering TizenBrew tunnel.
+    emit!("disconnecting", "Disconnecting from TizenBrew…", 5);
+    let sdb1 = sdb_bin.clone();
+    let ser1 = serial.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        // Graceful disconnect tells the TV daemon to release the session now.
+        let _ = Command::new(&sdb1).args(["disconnect", &ser1]).output();
+        // Kill local server so it starts fresh on the next connect call.
+        let _ = Command::new(&sdb1).args(["kill-server"]).output();
+    }).await;
+
+    // Step 2 — Short wait for the TV daemon to finish cleanup
+    emit!("waiting", "Waiting for port to release…", 15);
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+    // Step 3 — Connect fresh via SDB (retry up to 4 times, 1.5 s apart)
+    emit!("connecting", "Connecting with SDB…", 25);
+    const MAX_ATTEMPTS: u8 = 4;
+    let mut last_err = String::new();
+    let mut connected = false;
+    for attempt in 1..=MAX_ATTEMPTS {
+        if attempt > 1 {
+            let msg = format!("Connecting with SDB… (attempt {attempt}/{MAX_ATTEMPTS})");
+            emit!("connecting", &msg, 25);
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+        }
+        let sdb_c = sdb_bin.clone();
+        let ser_c = serial.clone();
+        let out = tokio::task::spawn_blocking(move || {
+            Command::new(&sdb_c)
+                .args(["connect", &ser_c])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output()
+        }).await.map_err(|e| Error::new(format!("sdb connect task: {e}")))?
+          .map_err(|e| Error::new(format!("sdb connect failed: {e}")))?;
+
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+        let combined = format!("{stdout}{stderr}");
+        if combined.contains("connected") {
+            connected = true;
+            break;
+        }
+        last_err = combined;
+    }
+    if !connected {
+        return Err(Error::new(format!("Could not connect to {serial}: {last_err}")));
+    }
+    emit!("connected", "Connection established", 35);
+
+    // Step 4 — Repack + Sign (building)
+    emit!("building", "Checking package structure…", 42);
+    let (work_path, was_repacked) = tokio::task::spawn_blocking({
+        let fp = file_path.clone();
+        move || repack_wgt(&fp)
+    }).await.map_err(|e| Error::new(format!("repack task: {e}")))??;
+
+    let work_str = work_path.to_string_lossy().into_owned();
+    emit!("building", "Signing package…", 55);
+
+    let sign_result = tokio::task::spawn_blocking({
+        let wp = work_str.clone();
+        let profile = cert_profile.clone();
+        let studio = tizen_studio_path.clone();
+        move || sign_wgt(&wp, &profile, &studio)
+    }).await.map_err(|e| Error::new(format!("sign task: {e}")));
+
+    let sign_ok = match sign_result {
+        Err(ref e) => {
+            if was_repacked { let _ = std::fs::remove_file(&work_path); }
+            return Err(Error::new(e.to_string()));
+        }
+        Ok(Err(ref e)) => {
+            if was_repacked { let _ = std::fs::remove_file(&work_path); }
+            return Err(Error::new(e.to_string()));
+        }
+        Ok(Ok(v)) => v,
+    };
+    drop(sign_ok);
+
+    // Step 5 — Install via tizen CLI
+    emit!("installing", "Installing on device…", 68);
+    let sdb_disc = sdb_bin.clone();
+    let serial_d = serial.clone();
+    let install_result = tokio::task::spawn_blocking({
+        let tb = tizen_bin.clone();
+        let wp = work_str.clone();
+        let s  = serial.clone();
+        move || {
+            let out = Command::new(&tb)
+                .args(["install", "-n", &wp, "-s", &s])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output();
+            // Disconnect regardless of outcome
+            let _ = Command::new(&sdb_disc).args(["disconnect", &serial_d]).output();
+            out
+        }
+    }).await.map_err(|e| Error::new(format!("install task: {e}")));
+
+    if was_repacked {
+        let _ = std::fs::remove_file(&work_path);
+    }
+
+    let raw = install_result?
+        .map_err(|e| Error::new(format!("tizen install failed: {e}")))?;
+    let stdout = String::from_utf8_lossy(&raw.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&raw.stderr).into_owned();
+    let combined = format!("{stdout}{stderr}");
+
+    if combined.contains("install completed") || combined.contains("successfully installed") {
+        emit!("done", "Installation complete", 100);
+        Ok(combined)
+    } else {
+        Err(Error::new(combined))
+    }
 }
 
 #[tauri::command]
-async fn tizen_tizen_brew_device_details(serial: String) -> Result<TizenBrewDetails, Error> {
-    let mut entries: Vec<TizenInfoEntry> = Vec::new();
-    let mut daemon_error = String::new();
+async fn tizen_detect_studio(home_dir: String) -> Result<TizenStudioInfo, Error> {
+    let home = if home_dir.is_empty() {
+        std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .unwrap_or_default()
+    } else {
+        home_dir.clone()
+    };
 
-    // Model name from sdb devices is the most reliable source (works even on restricted shells)
-    if let Some(model) = tizen_model_from_devices(&serial) {
-        entries.push(TizenInfoEntry {
-            key: "model_name".to_owned(),
-            value: model,
-        });
+    let candidates = vec![
+        format!("{home}/tizen-studio"),
+        format!("{home}/.local/share/tizen-studio"),
+        "/opt/tizen-studio".to_owned(),
+    ];
+
+    for path in &candidates {
+        #[cfg(target_os = "windows")]
+        let tizen_bin = format!(r"{path}\tools\ide\bin\tizen.bat");
+        #[cfg(not(target_os = "windows"))]
+        let tizen_bin = format!("{path}/tools/ide/bin/tizen");
+
+        if !std::path::Path::new(&tizen_bin).exists() {
+            continue;
+        }
+
+        let version = std::fs::read_to_string(format!("{path}/sdk.version"))
+            .unwrap_or_default()
+            .lines()
+            .find_map(|l| l.strip_prefix("TIZEN_SDK_VERSION=").map(str::to_owned))
+            .unwrap_or_else(|| "unknown".to_owned());
+
+        let profiles_path = format!("{home}/tizen-studio-data/profile/profiles.xml");
+        let profiles = parse_cert_profiles(&profiles_path);
+
+        return Ok(TizenStudioInfo { path: path.clone(), version, profiles });
     }
 
-    match tizen_run_shell(&serial, "0 cat /etc/info.ini") {
-        Ok(ini) => {
-            let ini_entries = parse_ini_entries(&ini);
-            // Merge ini entries, but don't overwrite model_name if already set from sdb devices
-            let has_model = entries
-                .iter()
-                .any(|e| e.key.eq_ignore_ascii_case("model_name"));
-            for entry in ini_entries {
-                if has_model && entry.key.eq_ignore_ascii_case("model_name") {
-                    continue;
-                }
-                entries.push(entry);
-            }
-        }
-        Err(e) => {
-            daemon_error = format!("sdb shell 0 cat /etc/info.ini failed: {e}");
-        }
-    }
-
-    match tizen_capability(&serial) {
-        Ok(cap) => {
-            for line in cap.lines() {
-                if let Some(colon) = line.find(':') {
-                    let raw_key = line[..colon].trim();
-                    let value = line[colon + 1..].trim().to_owned();
-                    if raw_key.is_empty() || value.is_empty() {
-                        continue;
-                    }
-                    let key = match raw_key {
-                        "platform_version" => "TIZEN_VERSION".to_owned(),
-                        "cpu_arch" => "CPU_ARCH".to_owned(),
-                        "profile_name" => "PROFILE".to_owned(),
-                        "sdk_version" => "SDK_VERSION".to_owned(),
-                        other => other.replace('_', " ").to_uppercase(),
-                    };
-                    entries.push(TizenInfoEntry { key, value });
-                }
-            }
-        }
-        Err(e) => {
-            let cap_err = format!("sdb capability failed: {e}");
-            if daemon_error.is_empty() {
-                daemon_error = cap_err;
-            } else {
-                daemon_error.push_str(&format!(" | {cap_err}"));
-            }
-        }
-    }
-
-    Ok(TizenBrewDetails {
-        system_info: entries,
-        daemon_error,
-    })
+    Err(Error::new(
+        "Tizen Studio not found. Install it from developer.samsung.com/tizenstudio",
+    ))
 }
 
 pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
@@ -980,8 +1132,8 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             tizen_get_duid,
             tizen_get_app_version,
             tizen_daemon_command,
-            tizen_install_tizen_brew,
-            tizen_tizen_brew_device_details,
+            tizen_detect_studio,
+            tizen_install_signed,
         ])
         .build()
 }

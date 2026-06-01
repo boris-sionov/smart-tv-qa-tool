@@ -1,6 +1,10 @@
 <div class="progress-dialog">
   <div class="progress-icon">
-    <div class="spinner"></div>
+    @if (hasFailed) {
+      <div class="icon-failed">✕</div>
+    } @else {
+      <div class="spinner"></div>
+    }
   </div>
   <div class="progress-content">
     <div class="progress-message">
@@ -10,11 +14,36 @@
         Please wait...
       }
     </div>
-    <ngb-progressbar type="info" [value]="progress ?? 100" [max]="100" [striped]="progress === undefined"
-                     [animated]="progress === undefined || progress > 0" class="modern-progress mt-2"></ngb-progressbar>
+
+    @if (steps.length > 0) {
+      <ul class="step-list">
+        @for (step of steps; track step.key) {
+          <li class="step-item" [attr.data-status]="stepStatus(step)">
+            <span class="step-icon">
+              @switch (stepStatus(step)) {
+                @case ('done')   { <span class="icon-done">✓</span> }
+                @case ('active') { <span class="step-spinner"></span> }
+                @case ('failed') { <span class="icon-fail">✕</span> }
+                @default         { <span class="icon-pending">○</span> }
+              }
+            </span>
+            <span class="step-label">{{ step.label }}</span>
+          </li>
+        }
+      </ul>
+    } @else {
+      <ngb-progressbar type="info" [value]="progress ?? 100" [max]="100"
+                       [striped]="progress === undefined"
+                       [animated]="progress === undefined || progress > 0"
+                       class="modern-progress mt-2">
+      </ngb-progressbar>
+    }
+
     @if (secondaryProgress !== undefined) {
-      <ngb-progressbar type="info" [value]="secondaryProgress" [max]="100" [striped]="isNaN(secondaryProgress)"
-                       [animated]="secondaryProgress > 0" class="modern-progress mt-2">
+      <ngb-progressbar type="info" [value]="secondaryProgress" [max]="100"
+                       [striped]="isNaN(secondaryProgress)"
+                       [animated]="secondaryProgress > 0"
+                       class="modern-progress mt-2">
       </ngb-progressbar>
     }
   </div>

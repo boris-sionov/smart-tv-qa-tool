@@ -43,6 +43,10 @@ fn main() {
                 InlinedPlugin::new().commands(&["checksum", "remove", "copy", "temp_path"]),
             )
             .plugin(
+                "lg-remote",
+                InlinedPlugin::new().commands(&["press_button"]),
+            )
+            .plugin(
                 "adb-manager",
                 InlinedPlugin::new().commands(&[
                     "adb_list_devices",
@@ -66,8 +70,8 @@ fn main() {
                     "tizen_shell",
                     "tizen_daemon_command",
                     "tizen_get_app_version",
-                    "tizen_install_tizen_brew",
-                    "tizen_tizen_brew_device_details",
+                    "tizen_install_signed",
+                    "tizen_detect_studio",
                 ]),
             ),
     )

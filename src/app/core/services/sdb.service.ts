@@ -1,5 +1,6 @@
 import {Injectable} from '@angular/core';
-import {invoke} from '@tauri-apps/api/core';
+import {Channel, invoke} from '@tauri-apps/api/core';
+import {homeDir} from '@tauri-apps/api/path';
 import {open as showOpenDialog} from '@tauri-apps/plugin-dialog';
 import {DeviceProvider, DeviceInfo, Platform, PlatformApp, PlatformDevice} from '../models/device-provider.interface';
 
@@ -19,6 +20,23 @@ export interface SdbAppInfo {
 export interface TizenInfoEntry {
     key: string;
     value: string;
+}
+
+export interface InstallProgress {
+    step: 'disconnecting' | 'waiting' | 'connecting' | 'connected' | 'building' | 'installing' | 'done';
+    message: string;
+    percent: number;
+}
+
+export interface TizenCertProfile {
+    name: string;
+    active: boolean;
+}
+
+export interface TizenStudioInfo {
+    path: string;
+    version: string;
+    profiles: TizenCertProfile[];
 }
 
 interface RawTizenAppInfo {
@@ -85,18 +103,6 @@ export class SdbService implements DeviceProvider {
         const s = this.normalizeSerial(serial);
         return invoke<string>('plugin:adb-manager|tizen_get_app_version', {serial: s, appId})
             .catch(() => '');
-    }
-
-    async installViaTizenBrew(serial: string, filePath: string): Promise<string> {
-        const s = this.normalizeSerial(serial);
-        return invoke<string>('plugin:adb-manager|tizen_install_tizen_brew', {serial: s, filePath});
-    }
-
-    async getTizenBrewDeviceDetails(serial: string): Promise<{systemInfo: TizenInfoEntry[], daemonError: string}> {
-        const s = this.normalizeSerial(serial);
-        return invoke<{systemInfo: TizenInfoEntry[], daemonError: string}>(
-            'plugin:adb-manager|tizen_tizen_brew_device_details', {serial: s}
-        ).catch(() => ({systemInfo: [], daemonError: 'TizenBrew daemon not available'}));
     }
 
     async listApps(serial: string): Promise<PlatformApp[]> {
@@ -187,6 +193,26 @@ export class SdbService implements DeviceProvider {
         return [];
     }
 
+    async installSigned(
+        serial: string,
+        filePath: string,
+        certProfile: string,
+        studioPath: string,
+        onProgress?: (p: InstallProgress) => void,
+    ): Promise<string> {
+        const s = this.normalizeSerial(serial);
+        const ch = new Channel<InstallProgress>();
+        if (onProgress) ch.onmessage = onProgress;
+        return invoke<string>('plugin:adb-manager|tizen_install_signed', {
+            serial: s, filePath, certProfile, tizenStudioPath: studioPath, onProgress: ch,
+        });
+    }
+
+    async detectTizenStudio(): Promise<TizenStudioInfo> {
+        const home = await homeDir().catch(() => '');
+        return invoke<TizenStudioInfo>('plugin:adb-manager|tizen_detect_studio', {homeDir: home});
+    }
+
     async isTizenCliAvailable(): Promise<boolean> {
         return false;
     }
@@ -228,7 +254,7 @@ export class SdbService implements DeviceProvider {
 
     async openWgtChooser(): Promise<string | null> {
         return showOpenDialog({
-            filters: [{name: 'Tizen package', extensions: ['tpk', 'wgt']}],
+            filters: [{name: 'Tizen package', extensions: ['wgt', 'tmg', 'tpk']}],
             multiple: false,
         });
     }
