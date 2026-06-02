@@ -81,3 +81,16 @@ local.properties
 
 # Bundled tool binaries (platform-specific, downloaded via scripts/download-adb.sh)
 src-tauri/binaries/
+
+# Build artifacts / test packages — never commit these
+*.wgt
+*.apk
+*.ipk
+*.tpk
+
+# VS Code local history plugin
+.history/
+
+# Session notes and temp plan files
+SESSION_SUMMARY_*.md
+WGT-INSTALL-PLAN.md
