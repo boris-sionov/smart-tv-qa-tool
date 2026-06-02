@@ -1,83 +1,68 @@
 name: Bug Report
-description: Something within the app is not working as expected (files, app installation, etc...)
+description: Something within the app is not working as expected
 type: Bug
 body:
   - type: markdown
     attributes:
       value: |
-        ## Computer/Mobile Device Information
-        Please provide information about the device you are using to run Dev Manager.
-        We need this information to reproduce the issue.
+        ## Your Computer
+        Please provide information about the machine running **Smart TV QA Tool**.
   - type: dropdown
     attributes:
-      label: Device Type
-      description: What type of device are you using to run Dev Manager?
+      label: Operating System
       options:
-        - 'Windows'
         - 'macOS'
+        - 'Windows'
         - 'Linux'
-        - 'Android'
     validations:
       required: true
   - type: input
     attributes:
-      label: Dev Manager Version
-      description: What is the version of Dev Manager you are using?
-      placeholder: "Example: 1.99.8"
+      label: Smart TV QA Tool Version
+      placeholder: "Example: 1.0.0"
     validations:
       required: true
+
   - type: markdown
     attributes:
       value: |
-        ## webOS Device Information
-        Please provide information about the device (TV, monitor, etc...) you are using.
-  - type: input
-    attributes:
-      label: Model
-      description: What is the model of your webOS device?
-      placeholder: "Example: OLEDG4"
-    validations:
-      required: true
-  - type: input
-    attributes:
-      label: webOS Version
-      description: What is the webOS version of your device? Please don't confuse with the firmware version (XX.YY.ZZ).
-      placeholder: "Example: webOS 4.5.3"
-    validations:
-      required: true
+        ## TV Device
+        Which TV platform is affected?
   - type: dropdown
     attributes:
-      label: Rooted
-      description: Is your webOS device rooted?
+      label: Platform
       options:
-        - 'Yes'
-        - 'No (with Dev Mode)'
+        - 'Samsung Tizen'
+        - 'Android TV'
+        - 'LG WebOS'
+        - 'Other / Not platform-specific'
     validations:
       required: true
+  - type: input
+    attributes:
+      label: TV Model / Firmware Version
+      placeholder: "Example: Samsung QE55Q80C, Tizen 7.0"
+
   - type: markdown
     attributes:
       value: |
-        ## Issue Information
-        Please provide information about the issue you are experiencing.
-        This information is important to help us understand the issue.
+        ## Issue
   - type: textarea
     attributes:
       label: Bug Description
-      description: What kind of incorrect behavior did you see?
-      placeholder: "Example: I can't install apps on TV with Dev Manager."
+      description: What happened? What did you expect to happen?
+      placeholder: "Example: Clicking Install WGT shows an error after the 'Connecting with SDB' step."
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Reproduction Steps
-      description: Can you reproduce the issue? If so, please share below as steps.
+      label: Steps to Reproduce
       placeholder: |
-        Example:
-        1. Open Dev Manager
-        2. Select "Available" section in Apps
-        3. Click on "Install" button of an app
+        1. Open the app
+        2. Select Samsung Tizen
+        3. Click Install WGT
+        4. ...
   - type: textarea
     attributes:
-      label: Expected Behavior
-      description: What is the correct behavior do you think?
-      placeholder: "The app should be installed on the TV."
+      label: Additional Context
+      description: Logs, screenshots, or anything else that might help.

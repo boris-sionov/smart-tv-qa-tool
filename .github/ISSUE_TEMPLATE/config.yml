@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Request A New App
-    url: https://github.com/webosbrew/apps-repo/issues/new/choose
-    about: For requests and suggestions for new apps, create issue in webosbrew/apps-repo
-  - name: Report Issue of An App
-    url: https://repo.webosbrew.org/
-    about: For reporting issues of an app, visit the app's page in webosbrew/apps-repo, and follow the link to the app's issue tracker
+  - name: Samsung Tizen Developer Docs
+    url: https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html
+    about: Official Samsung Tizen Studio setup guide
+  - name: LG WebOS Developer Docs
+    url: https://webostv.developer.lge.com/develop/getting-started/developer-mode-app
+    about: Official LG WebOS developer mode setup guide
+  - name: Android TV ADB Guide
+    url: https://developer.android.com/tools/adb
+    about: Android Debug Bridge (ADB) documentation

@@ -1,4 +1,4 @@
-name: 'Build Test'
+name: Build Verify
 
 on:
   push:
@@ -7,54 +7,40 @@ on:
   pull_request:
     branches:
       - main
-
   workflow_dispatch:
-    inputs:
-      runner-type:
-        type: choice
-        description: 'The type of runner to use'
-        required: true
-        default: 'ubuntu-24.04'
-        options:
-          - 'ubuntu-24.04'
-          - 'ubuntu-24.04-arm'
-          - 'macos-latest'
-      build-for:
-        type: choice
-        description: 'The target to build for'
-        required: true
-        default: 'desktop'
-        options:
-          - 'desktop'
-          - 'android'
+
 env:
-  ANDROID_NDK_VERSION: '26.3.11579264'
   NODE_VERSION: '20.x'
 
 jobs:
-  build-desktop:
-    if: ${{ !github.event.inputs.build-for || github.event.inputs.build-for == 'desktop' }}
-    runs-on: ${{ github.event.inputs.runner-type || 'ubuntu-24.04' }}
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-24.04, macos-latest, windows-latest ]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Required Packages
-        if: ${{ runner.os == 'Linux' }}
+      - name: Install Required Packages (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential curl wget file libssl-dev libayatana-appindicator3-dev \
-            librsvg2-dev libwebkit2gtk-4.1-0=2.44.0-2 libwebkit2gtk-4.1-dev=2.44.0-2 \
+          sudo apt-get install -y build-essential curl wget file libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libwebkit2gtk-4.1-0=2.44.0-2 libwebkit2gtk-4.1-dev=2.44.0-2 \
             libjavascriptcoregtk-4.1-0=2.44.0-2 libjavascriptcoregtk-4.1-dev=2.44.0-2 \
             gir1.2-javascriptcoregtk-4.1=2.44.0-2 gir1.2-webkit2-4.1=2.44.0-2
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Rust Project
+      - name: Cache Rust
         uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: ${{ runner.os }}-${{ github.event.inputs.runner-type }}-rust
           workspaces: src-tauri
 
       - name: Setup Node.js
@@ -66,27 +52,5 @@ jobs:
       - name: Install NPM Dependencies
         run: npm ci
 
-      - name: Setup JDK
-        uses: actions/setup-java@v4
-        if: github.event.inputs.build-for == 'android'
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Setup Android SDK
-        if: github.event.inputs.build-for == 'android'
-        uses: android-actions/setup-android@v3
-        with:
-          packages: "build-tools;34.0.0 ndk;${{ env.ANDROID_NDK_VERSION }} platforms;android-34"
-
-      - name: Add NDK to PATH
-        if: github.event.inputs.build-for == 'android'
-        shell: bash
-        run: |
-          echo ${NDK_HOME}/toolchains/llvm/prebuilt/*/bin >> $GITHUB_PATH
-        env:
-          NDK_HOME: "${{ env.ANDROID_HOME }}/ndk/${{ env.ANDROID_NDK_VERSION }}"
-
-      - name: Build for Desktop
+      - name: Build
         run: npm run build -- --features=vendored-openssl
-
