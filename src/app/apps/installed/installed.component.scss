@@ -173,8 +173,8 @@ $text-muted: #A8B8CC;
 }
 
 .app-actions {
-  display: grid;
-  grid-template-columns: repeat(4, auto);
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 8px;
 }
