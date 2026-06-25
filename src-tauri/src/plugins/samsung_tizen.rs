@@ -558,7 +558,7 @@ fn extract_tizen_app_id(file_path: &str) -> Result<String, Error> {
 
 
 #[tauri::command]
-async fn tizen_connect(serial: String) -> Result<String, Error> {
+pub(crate) async fn tizen_connect(serial: String) -> Result<String, Error> {
     let addr = sdb_serial(&serial);
     // Test connection by performing the CNXN handshake
     sdb_connect(&addr)?;
@@ -566,12 +566,12 @@ async fn tizen_connect(serial: String) -> Result<String, Error> {
 }
 
 #[tauri::command]
-async fn tizen_shell(serial: String, command: String) -> Result<String, Error> {
+pub(crate) async fn tizen_shell(serial: String, command: String) -> Result<String, Error> {
     tizen_run_shell(&serial, &command)
 }
 
 #[tauri::command]
-async fn tizen_get_prop(serial: String, prop: String) -> Result<String, Error> {
+pub(crate) async fn tizen_get_prop(serial: String, prop: String) -> Result<String, Error> {
     let ini = tizen_run_shell(&serial, "0 cat /etc/info.ini").unwrap_or_default();
     let key = match prop.as_str() {
         "ro.product.model" | "model" => "model_name",
@@ -594,7 +594,7 @@ async fn tizen_get_prop(serial: String, prop: String) -> Result<String, Error> {
 }
 
 #[tauri::command]
-async fn tizen_get_device_info(serial: String) -> Result<serde_json::Value, Error> {
+pub(crate) async fn tizen_get_device_info(serial: String) -> Result<serde_json::Value, Error> {
     let ini = tizen_run_shell(&serial, "0 cat /etc/info.ini").unwrap_or_default();
     let mut model = String::new();
     let mut manufacturer = String::new();
@@ -626,7 +626,7 @@ async fn tizen_get_device_info(serial: String) -> Result<serde_json::Value, Erro
 }
 
 #[tauri::command]
-async fn tizen_list_apps(serial: String) -> Result<Vec<TizenAppInfo>, Error> {
+pub(crate) async fn tizen_list_apps(serial: String) -> Result<Vec<TizenAppInfo>, Error> {
     let out = tizen_run_shell(&serial, "0 vd_applist")?;
     let apps = parse_tizen_app_list(&out);
     if !apps.is_empty() {
@@ -640,7 +640,7 @@ async fn tizen_list_apps(serial: String) -> Result<Vec<TizenAppInfo>, Error> {
 }
 
 #[tauri::command]
-async fn tizen_install(serial: String, file_path: String) -> Result<String, Error> {
+pub(crate) async fn tizen_install(serial: String, file_path: String) -> Result<String, Error> {
     let lower = file_path.to_lowercase();
     let is_tpk = lower.ends_with(".tpk");
     let is_tmg = lower.ends_with(".tmg");
@@ -677,7 +677,7 @@ async fn tizen_install(serial: String, file_path: String) -> Result<String, Erro
 }
 
 #[tauri::command]
-async fn tizen_uninstall(
+pub(crate) async fn tizen_uninstall(
     serial: String,
     app_id: String,
     runtime_id: Option<String>,
@@ -739,13 +739,13 @@ async fn tizen_uninstall(
 }
 
 #[tauri::command]
-async fn tizen_launch(serial: String, app_id: String) -> Result<String, Error> {
+pub(crate) async fn tizen_launch(serial: String, app_id: String) -> Result<String, Error> {
     tizen_run_shell(&serial, &format!("0 execute {app_id}"))
         .or_else(|_| tizen_run_shell(&serial, &format!("0 was_execute {app_id}")))
 }
 
 #[tauri::command]
-async fn tizen_kill(serial: String, app_id: String) -> Result<String, Error> {
+pub(crate) async fn tizen_kill(serial: String, app_id: String) -> Result<String, Error> {
     for cmd in [
         format!("0 was_kill {app_id}"),
         format!("0 execute 0 kill {app_id}"),
@@ -760,7 +760,7 @@ async fn tizen_kill(serial: String, app_id: String) -> Result<String, Error> {
 }
 
 #[tauri::command]
-async fn tizen_debug(
+pub(crate) async fn tizen_debug(
     serial: String,
     app_id: String,
     #[allow(non_snake_case)] runtimeId: Option<String>,
@@ -893,7 +893,7 @@ async fn tizen_debug(
 }
 
 #[tauri::command]
-async fn tizen_get_duid(serial: String) -> Result<String, Error> {
+pub(crate) async fn tizen_get_duid(serial: String) -> Result<String, Error> {
     for cmd in &["0 duid", "0 /usr/bin/duid", "0 getprop _duid"] {
         if let Ok(out) = tizen_run_shell(&serial, cmd) {
             let t = out.trim().to_owned();
@@ -906,7 +906,7 @@ async fn tizen_get_duid(serial: String) -> Result<String, Error> {
 }
 
 #[tauri::command]
-async fn tizen_get_app_version(serial: String, app_id: String) -> Result<String, Error> {
+pub(crate) async fn tizen_get_app_version(serial: String, app_id: String) -> Result<String, Error> {
     let out = tizen_run_shell(&serial, &format!("0 pkginfo --pkg {app_id}"))?;
     regex::Regex::new(r"(?mi)^Version:\s*(.+)")
         .unwrap()
@@ -917,13 +917,13 @@ async fn tizen_get_app_version(serial: String, app_id: String) -> Result<String,
 }
 
 #[tauri::command]
-async fn tizen_daemon_command(serial: String, command: String) -> Result<String, Error> {
+pub(crate) async fn tizen_daemon_command(serial: String, command: String) -> Result<String, Error> {
     tizen_run_daemon_command(&serial, &command)
 }
 
 
 #[tauri::command]
-async fn tizen_install_signed(
+pub(crate) async fn tizen_install_signed(
     serial: String,
     file_path: String,
     cert_profile: String,
@@ -1074,7 +1074,7 @@ async fn tizen_install_signed(
 }
 
 #[tauri::command]
-async fn tizen_detect_studio(home_dir: String) -> Result<TizenStudioInfo, Error> {
+pub(crate) async fn tizen_detect_studio(home_dir: String) -> Result<TizenStudioInfo, Error> {
     let home = if home_dir.is_empty() {
         std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
@@ -1116,6 +1116,143 @@ async fn tizen_detect_studio(home_dir: String) -> Result<TizenStudioInfo, Error>
     ))
 }
 
+// ── Samsung SmartTV Remote Control (WebSocket, port 8001) ────────────────────
+
+fn b64_encode(input: &[u8]) -> String {
+    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in input.chunks(3) {
+        let b0 = chunk[0] as usize;
+        let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
+        let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
+        out.push(T[b0 >> 2] as char);
+        out.push(T[((b0 & 3) << 4) | (b1 >> 4)] as char);
+        out.push(if chunk.len() > 1 { T[((b1 & 0xf) << 2) | (b2 >> 6)] as char } else { '=' });
+        out.push(if chunk.len() > 2 { T[b2 & 0x3f] as char } else { '=' });
+    }
+    out
+}
+
+#[derive(serde::Deserialize)]
+struct TizenPressKeyArgs {
+    ip: String,
+    key: String,
+    token: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct TizenPressKeyResult {
+    token: Option<String>,
+}
+
+#[tauri::command]
+async fn tizen_press_key(args: TizenPressKeyArgs) -> Result<TizenPressKeyResult, Error> {
+    use futures_util::{SinkExt, StreamExt};
+    use tokio::time::timeout;
+    use tokio_tungstenite::{connect_async, tungstenite::Message};
+
+    let url = format!(
+        "ws://{}:8001/api/v2/channels/samsung.remote.control",
+        args.ip
+    );
+
+    let (mut ws, _) = timeout(
+        std::time::Duration::from_secs(5),
+        connect_async(&url),
+    )
+    .await
+    .map_err(|_| Error::new("timeout connecting to TV remote (port 8001)"))?
+    .map_err(|e| Error::new(format!("ws connect: {e}")))?;
+
+    // Samsung requires the app name base64-encoded and token "0" when unknown
+    let name_b64 = b64_encode(b"SmartTVQATool");
+    let token = args.token.as_deref().unwrap_or("0");
+    let connect_msg = serde_json::json!({
+        "method": "ms.channel.connect",
+        "params": {
+            "name": name_b64,
+            "token": token
+        }
+    });
+    ws.send(Message::Text(connect_msg.to_string()))
+        .await
+        .map_err(|e| Error::new(format!("send connect: {e}")))?;
+
+    // Wait for connect acknowledgement.
+    // Some TV models: keep WebSocket open while showing the pairing dialog, then confirm.
+    // Other models: send ms.channel.unauthorized, close, and wait for a reconnect after user approves.
+    let mut got_unauthorized = false;
+    let mut new_token: Option<String> = None;
+    loop {
+        let msg = timeout(std::time::Duration::from_secs(60), ws.next())
+            .await
+            .map_err(|_| Error::new(
+                "Timed out waiting for TV authorization (60s).\n\nCheck the TV screen — a pairing dialog may have appeared. Approve it, then press the button again."
+            ))?;
+
+        let msg = match msg {
+            Some(m) => m,
+            None => {
+                // TV closed the connection — this is normal after ms.channel.unauthorized.
+                // Samsung's flow: send unauthorized, close, wait for user to accept on TV, then reconnect.
+                return if got_unauthorized {
+                    Err(Error::new(
+                        "A pairing request was sent to the TV.\n\nIf a dialog appeared on screen, approve it and press the button again. The key will be sent after authorization."
+                    ))
+                } else {
+                    Err(Error::new("TV closed the connection unexpectedly."))
+                };
+            }
+        };
+
+        let text = match msg.map_err(|e| Error::new(format!("ws read: {e}")))? {
+            Message::Text(t) => t,
+            _ => continue,
+        };
+        let v: serde_json::Value = match serde_json::from_str(&text) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let method = v.get("method").and_then(|m| m.as_str()).unwrap_or("");
+        let event = v.get("event").and_then(|e| e.as_str()).unwrap_or("");
+        if method == "ms.channel.connect" || event == "ms.channel.connect" {
+            new_token = v.pointer("/params/token")
+                .or_else(|| v.pointer("/data/token"))
+                .and_then(|t| t.as_str())
+                .filter(|t| !t.is_empty() && *t != "0")
+                .map(String::from);
+            break;
+        }
+        if event == "ms.channel.unauthorized" {
+            got_unauthorized = true;
+            continue;
+        }
+        if method == "ms.error" {
+            return Err(Error::new(format!("TV returned error: {text}")));
+        }
+    }
+
+    let key_msg = serde_json::json!({
+        "method": "ms.remote.control",
+        "params": {
+            "Cmd": "Click",
+            "DataOfCmd": args.key,
+            "Option": "false",
+            "TypeOfRemote": "SendRemoteKey"
+        }
+    });
+    ws.send(Message::Text(key_msg.to_string()))
+        .await
+        .map_err(|e| Error::new(format!("send key: {e}")))?;
+
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    let _ = ws.close(None).await;
+
+    Ok(TizenPressKeyResult {
+        token: new_token.or(args.token),
+    })
+}
+
 pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
     Builder::new(name)
         .invoke_handler(tauri::generate_handler![
@@ -1134,6 +1271,16 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             tizen_daemon_command,
             tizen_detect_studio,
             tizen_install_signed,
+            tizen_press_key,
+            super::adb::adb_list_devices,
+            super::adb::adb_connect,
+            super::adb::adb_disconnect,
+            super::adb::adb_list_packages,
+            super::adb::adb_get_prop,
+            super::adb::adb_launch,
+            super::adb::adb_force_stop,
+            super::adb::adb_uninstall,
+            super::adb::adb_install,
         ])
         .build()
 }

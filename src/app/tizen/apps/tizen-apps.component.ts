@@ -8,6 +8,7 @@ import {MessageDialogComponent} from '../../shared/components/message-dialog/mes
 import {ProgressDialogComponent, ProgressStep} from '../../shared/components/progress-dialog/progress-dialog.component';
 import {tizenSerial, TizenDevice, TizenStateService} from '../tizen-state.service';
 import {TizenWizardComponent} from '../wizard/tizen-wizard.component';
+import {TizenRemoteService} from '../../core/services/tizen-remote.service';
 
 @Component({
     selector: 'app-tizen-apps',
@@ -32,7 +33,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         return !!this.serial && !this.certProfile && !this.certBannerDismissed;
     }
 
-    constructor(private sdb: SdbService, private state: TizenStateService, private modalService: NgbModal) {}
+    constructor(private sdb: SdbService, private state: TizenStateService, private modalService: NgbModal, private tizenRemote: TizenRemoteService) {}
 
     ngOnInit(): void {
         this.devices = this.state.getSavedDevices();
@@ -116,6 +117,20 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         (ref.componentInstance as TizenWizardComponent).startStep = 3;
         await ref.result.catch(() => {});
         // Banner re-evaluates via certProfile getter automatically
+    }
+
+    async pressDown(): Promise<void> {
+        if (!this.selected) return;
+        try {
+            await this.tizenRemote.pressKey(this.selected, 'KEY_DOWN');
+        } catch (e) {
+            MessageDialogComponent.open(this.modalService, {
+                title: 'Remote DOWN failed',
+                message: (e as Error).message ?? String(e),
+                error: e as Error,
+                positive: 'Close',
+            });
+        }
     }
 
     async installWgt(): Promise<void> {

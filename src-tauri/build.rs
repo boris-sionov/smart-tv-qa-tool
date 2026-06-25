@@ -72,6 +72,7 @@ fn main() {
                     "tizen_get_app_version",
                     "tizen_install_signed",
                     "tizen_detect_studio",
+                    "tizen_press_key",
                 ]),
             ),
     )

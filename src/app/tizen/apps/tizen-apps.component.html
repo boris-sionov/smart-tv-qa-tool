@@ -22,6 +22,10 @@
     </div>
 
     <div class="install-btn-container toolbar-actions">
+      <button class="btn btn-warning text-nowrap me-2" (click)="pressDown()" [disabled]="!selected"
+              title="Send DOWN remote key" style="height:42px;">
+        <i class="bi bi-arrow-down-circle me-2"></i>Test DOWN
+      </button>
       <button class="btn btn-primary text-nowrap install-btn" (click)="installWgt()"
               [disabled]="!serial || installing">
         @if (installing) {
