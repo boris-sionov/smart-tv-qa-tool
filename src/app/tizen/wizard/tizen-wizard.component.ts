@@ -13,6 +13,7 @@ const DEFAULT_PORT = 26101;
     styleUrls: ['./tizen-wizard.component.scss'],
 })
 export class TizenWizardComponent implements OnInit {
+    startStep: number = 1;
     currentStep: 1 | 2 = 1;
 
     name = '';

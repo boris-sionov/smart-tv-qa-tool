@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Smart TV QA Tool — v1.0.0
 
-A unified Tauri 2 (Rust backend) + Angular 17 desktop application for managing apps across Samsung Tizen, Android TV, and LG WebOS Smart TVs.
+A unified Tauri 2 (Rust backend) + Angular 18 desktop application for managing apps across Samsung Tizen, Android TV, and LG WebOS Smart TVs.
 
 ---
 

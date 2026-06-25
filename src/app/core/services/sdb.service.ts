@@ -169,6 +169,24 @@ export class SdbService implements DeviceProvider {
     // Device info helpers
     // -----------------------------------------------------------------------
 
+    async getTizenBrewDeviceDetails(serial: string): Promise<{systemInfo: TizenInfoEntry[]}> {
+        const s = this.normalizeSerial(serial);
+        try {
+            const raw = await this.shell(s, 'cat /etc/info.ini');
+            const systemInfo: TizenInfoEntry[] = raw
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && line.includes('='))
+                .map(line => {
+                    const eqIdx = line.indexOf('=');
+                    return {key: line.substring(0, eqIdx).trim(), value: line.substring(eqIdx + 1).trim()};
+                });
+            return {systemInfo};
+        } catch {
+            return {systemInfo: []};
+        }
+    }
+
     async getDeviceDuid(serial: string): Promise<string> {
         const s = this.normalizeSerial(serial);
         return invoke<string>('plugin:adb-manager|tizen_get_duid', {serial: s});
