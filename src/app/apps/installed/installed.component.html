@@ -49,15 +49,24 @@
                 <i class="bi bi-search"></i>
                 <span>Inspect</span>
               </button>
-              <button class="app-action secondary" type="button" aria-label="Change Icon"
-                      (click)="parent.changeAppIcon(pkg)">
-                <i class="bi bi-image"></i>
-                <span>Change Icon</span>
-              </button>
-              <button class="app-action primary" type="button" aria-label="Launch"
+<button class="app-action primary" type="button" aria-label="Launch"
                       (click)="parent.launchApp(pkg.id)">
                 <i class="bi bi-play-fill"></i>
                 <span>Launch</span>
+              </button>
+              <button class="app-action secondary" type="button" aria-label="Kill"
+                      (click)="parent.killApp(pkg.id)">
+                <i class="bi bi-stop-fill"></i>
+                <span>Kill</span>
+              </button>
+              <button class="app-action secondary" type="button"
+                      [class.danger]="parent.stressRunningId === pkg.id"
+                      [attr.aria-label]="parent.stressRunningId === pkg.id ? 'Stop stress test' : 'Stress test'"
+                      [title]="parent.stressRunningId === pkg.id ? parent.stressStatus : '20× launch (wait 30s) → kill (wait 10s)'"
+                      (click)="parent.openStressPrompt(pkg.id)">
+                <i class="bi" [class.bi-arrow-repeat]="parent.stressRunningId !== pkg.id"
+                              [class.bi-x-octagon]="parent.stressRunningId === pkg.id"></i>
+                <span>{{ parent.stressRunningId === pkg.id ? 'Stop' : 'Stress' }}</span>
               </button>
               <button class="app-action danger" type="button" aria-label="Remove"
                       (click)="parent.removePackage(pkg)">

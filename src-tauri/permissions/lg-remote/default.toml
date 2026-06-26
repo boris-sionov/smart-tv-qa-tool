@@ -1,0 +1,5 @@
+[default]
+description = "Default permissions for the LG SSAP remote plugin"
+permissions = [
+  "allow-press-button",
+]

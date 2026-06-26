@@ -3,6 +3,8 @@ import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {noop, Observable, Subscription} from 'rxjs';
 import {Device, PackageInfo, RawPackageInfo} from '../types';
 import {AppManagerService, DeviceManagerService, RepositoryItem} from '../core/services';
+import {LgRemoteService} from '../core/services/lg-remote.service';
+import {fetch as tauriFetch} from '@tauri-apps/plugin-http';
 import {RemoteFileService} from '../core/services/remote-file.service';
 import {MessageDialogComponent} from '../shared/components/message-dialog/message-dialog.component';
 import {ProgressDialogComponent} from '../shared/components/progress-dialog/progress-dialog.component';
@@ -38,6 +40,7 @@ export class AppsComponent implements OnInit, OnDestroy {
         private modalService: NgbModal,
         private appManager: AppManagerService,
         private fileService: RemoteFileService,
+        private lgRemote: LgRemoteService,
     ) {
     }
 
@@ -98,6 +101,266 @@ export class AppsComponent implements OnInit, OnDestroy {
     launchApp(id: string): void {
         if (!this.device) return;
         this.appManager.launch(this.device, id).then(noop);
+    }
+
+    killApp(id: string): void {
+        if (!this.device) return;
+        this.appManager.close(this.device, id).then(noop);
+    }
+
+    stressRunningId: string | null = null;
+    stressStatus: string = '';
+    stressPassCount = 0;
+    stressFailCount = 0;
+    stressResults: Array<{cycle: number, pass: boolean, timestamp: string, title: string, channel: string, type: string, label: string, buttons: string[]}> = [];
+    stressFinishedFor: string | null = null;
+    stressCountdown = 0;
+    stressPhase: '' | 'after-launch' | 'after-kill' = '';
+    stressTotalRemaining = 0;
+    private stressAbort = false;
+    private stressCurrentCycle = 0;
+    private stressTotalCycles = 0;
+    private stressAfterLaunchSec = 0;
+    private stressAfterKillSec = 0;
+    private readonly READINESS_SELECTOR = 'h1.metadata__title';
+
+    stressPromptForId: string | null = null;
+    stressPromptCycles = 2;
+
+    openStressPrompt(id: string): void {
+        if (this.stressRunningId === id) {
+            this.stressAbort = true;
+            return;
+        }
+        if (!this.device || this.stressRunningId) return;
+        this.stressPromptCycles = 2;
+        this.stressPromptForId = id;
+    }
+
+    confirmStressPrompt(): void {
+        const id = this.stressPromptForId;
+        const cycles = Math.max(1, Math.floor(this.stressPromptCycles || 0));
+        this.stressPromptForId = null;
+        if (id) this.toggleStressTest(id, cycles);
+    }
+
+    cancelStressPrompt(): void {
+        this.stressPromptForId = null;
+    }
+
+    async toggleStressTest(id: string, cycles = 2, afterLaunchMs = 30_000, afterKillMs = 10_000): Promise<void> {
+        if (this.stressRunningId === id) {
+            this.stressAbort = true;
+            return;
+        }
+        if (!this.device || this.stressRunningId) return;
+        this.stressRunningId = id;
+        this.stressAbort = false;
+        this.stressPassCount = 0;
+        this.stressFailCount = 0;
+        this.stressResults = [];
+        this.stressFinishedFor = id;
+        this.stressTotalCycles = cycles;
+        this.stressAfterLaunchSec = Math.ceil(afterLaunchMs / 1000);
+        this.stressAfterKillSec = Math.ceil(afterKillMs / 1000);
+        const host = this.device.host;
+        try {
+            // Pre-flight: kill any running instance of this app before starting
+            this.stressStatus = 'Pre-flight: closing app if running…';
+            console.log(`[Stress] ${this.stressStatus}`);
+            await this.appManager.close(this.device, id).catch(e => console.warn('[Stress] preflight close', e));
+            await this.stressWait(3000);
+
+            for (let i = 1; i <= cycles; i++) {
+                if (this.stressAbort) break;
+                this.stressCurrentCycle = i;
+                this.stressStatus = `Cycle ${i}/${cycles}: launching`;
+                console.log(`[Stress] ${this.stressStatus}`);
+                await this.appManager.launch(this.device, id).catch(e => console.error('[Stress] launch', e));
+                this.stressPhase = 'after-launch';
+                if (await this.stressWait(afterLaunchMs)) break;
+
+                const check = await this.checkTvElement(host, this.READINESS_SELECTOR)
+                    .catch(e => { console.warn('[Stress] check failed:', e); return {found: false, title: '', channel: '', type: '', label: '', buttons: [] as string[]}; });
+                const friendlyType = this.toFriendlyType(check.type);
+                if (check.found) this.stressPassCount++; else this.stressFailCount++;
+                this.stressResults.push({cycle: i, pass: check.found, title: check.title, channel: check.channel, type: friendlyType, label: check.label, buttons: check.buttons, timestamp: new Date().toLocaleTimeString()});
+                console.log(`[Stress] Cycle ${i}/${cycles}: ${check.found ? `✅ [${friendlyType || '?'}] "${check.title}" buttons=[${check.buttons.join(', ')}]` : '❌ MISSING'} (pass ${this.stressPassCount} / fail ${this.stressFailCount})`);
+
+                this.stressStatus = `Cycle ${i}/${cycles}: ${check.found ? 'PASS' : 'FAIL'} → killing`;
+                console.log(`[Stress] ${this.stressStatus}`);
+                await this.appManager.close(this.device, id).catch(e => console.error('[Stress] kill', e));
+                this.stressPhase = 'after-kill';
+                if (i < cycles && await this.stressWait(afterKillMs)) break;
+            }
+            this.stressStatus = this.stressAbort
+                ? `Stopped (pass ${this.stressPassCount} / fail ${this.stressFailCount})`
+                : `Done (pass ${this.stressPassCount} / fail ${this.stressFailCount})`;
+            console.log(`[Stress] ${this.stressStatus}`);
+        } finally {
+            this.stressRunningId = null;
+            this.stressCountdown = 0;
+            this.stressPhase = '';
+            this.stressTotalRemaining = 0;
+        }
+    }
+
+    private toFriendlyType(raw: string): string {
+        if (!raw) return '';
+        return raw.toUpperCase() === 'PROGRAMME' ? 'Live' : 'VOD';
+    }
+
+    formatDuration(secs: number): string {
+        if (secs <= 0) return '0s';
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        const parts: string[] = [];
+        if (h) parts.push(`${h}h`);
+        if (m || h) parts.push(`${m}m`);
+        parts.push(`${s}s`);
+        return parts.join(' ');
+    }
+
+    private computeStressTotalRemaining(): number {
+        if (!this.stressRunningId) return 0;
+        const cyclesAfterThis = this.stressTotalCycles - this.stressCurrentCycle;
+        const perCycleSec = this.stressAfterLaunchSec + this.stressAfterKillSec;
+        let remaining = this.stressCountdown;
+        if (this.stressPhase === 'after-launch') {
+            // still need to kill + wait afterKill in current cycle
+            remaining += this.stressAfterKillSec;
+        }
+        remaining += cyclesAfterThis * perCycleSec;
+        return remaining;
+    }
+
+    clearStressResults(): void {
+        this.stressResults = [];
+        this.stressFinishedFor = null;
+        this.stressStatus = '';
+    }
+
+    private async isAppRunning(host: string, appId: string): Promise<boolean> {
+        try {
+            const resp = await tauriFetch(`http://${host}:9998/json`, {method: 'GET'});
+            if (!resp.ok) return false;
+            const targets: Array<{type?: string, url?: string, title?: string}> = await resp.json();
+            const hit = targets.some(t =>
+                t.type === 'page' &&
+                ((t.url ?? '').includes(appId) || (t.title ?? '').includes(appId) || (t.url ?? '').includes('/media/developer/apps/usr/palm/applications/' + appId))
+            );
+            console.log(`[Stress] isAppRunning(${appId}) → ${hit}`);
+            return hit;
+        } catch (e) {
+            console.warn('[Stress] isAppRunning probe failed:', e);
+            return false;
+        }
+    }
+
+    private async checkTvElement(host: string, selector: string): Promise<{found: boolean, title: string, channel: string, type: string, label: string, buttons: string[]}> {
+        const resp = await tauriFetch(`http://${host}:9998/json`, {method: 'GET'});
+        if (!resp.ok) throw new Error(`devtools /json HTTP ${resp.status}`);
+        const targets: Array<{webSocketDebuggerUrl?: string, type?: string, url?: string, title?: string}> = await resp.json();
+        console.log('[Stress] CDP targets:', targets.map(t => ({type: t.type, title: t.title, url: t.url})));
+
+        const candidates = targets.filter(t => t.type === 'page' && !!t.webSocketDebuggerUrl);
+        for (const target of candidates) {
+            try {
+                const result = await this.cdpEvalInTarget(target.webSocketDebuggerUrl!, selector);
+                console.log(`[Stress] target ${target.url} → found=${result.found}, type="${result.type}", title="${result.title}", label="${result.label}", channel="${result.channel}", buttons=${JSON.stringify(result.buttons)}`);
+                if (result.found) return {found: true, title: result.title, channel: result.channel, type: result.type, label: result.label, buttons: result.buttons};
+            } catch (e) {
+                console.warn(`[Stress] target ${target.url} eval failed:`, e);
+            }
+        }
+        return {found: false, title: '', channel: '', type: '', label: '', buttons: []};
+    }
+
+    private cdpEvalInTarget(wsUrl: string, selector: string): Promise<{found: boolean, count: number, title: string, channel: string, type: string, label: string, buttons: string[]}> {
+        return new Promise((resolve, reject) => {
+            const ws = new WebSocket(wsUrl);
+            const timeout = setTimeout(() => { ws.close(); reject(new Error('CDP timeout')); }, 5000);
+            const expression = `(() => {
+                const sel = ${JSON.stringify(selector)};
+                const all = document.querySelectorAll(sel);
+                const first = all[0];
+                const channelEl = document.querySelector('.metadata__channel-name');
+                const labelEl = document.querySelector('.metadata__item-label');
+                const wrap = document.querySelector('.metadata.wrapper__details');
+                const typeClass = wrap ? Array.from(wrap.classList).find(c => c.indexOf('metadata--') === 0) : '';
+                const type = typeClass ? typeClass.replace('metadata--', '') : '';
+                const buttons = Array.from(document.querySelectorAll('.section__bullets .button__title'))
+                    .map(b => (b.textContent || '').trim())
+                    .filter(t => t.length > 0);
+                return {
+                    found: all.length > 0,
+                    count: all.length,
+                    title: first ? (first.textContent || '').trim() : '',
+                    channel: channelEl ? (channelEl.textContent || '').trim() : '',
+                    label: labelEl ? (labelEl.textContent || '').trim() : '',
+                    type: type,
+                    buttons: buttons,
+                    readyState: document.readyState,
+                    bodyTags: document.body ? document.body.children.length : 0,
+                };
+            })()`;
+            ws.onopen = () => ws.send(JSON.stringify({
+                id: 1, method: 'Runtime.evaluate',
+                params: {expression, returnByValue: true, awaitPromise: false}
+            }));
+            ws.onmessage = (ev) => {
+                clearTimeout(timeout);
+                try {
+                    const data = JSON.parse(ev.data);
+                    const v = data?.result?.result?.value;
+                    if (!v) {
+                        console.warn('[Stress] CDP raw response:', data);
+                        resolve({found: false, count: 0, title: '', channel: '', type: '', label: '', buttons: []});
+                    } else {
+                        console.log('[Stress] CDP page state:', v);
+                        resolve({found: v.found, count: v.count, title: v.title, channel: v.channel, type: v.type, label: v.label, buttons: v.buttons || []});
+                    }
+                } catch (e) {
+                    reject(e);
+                } finally {
+                    ws.close();
+                }
+            };
+            ws.onerror = () => { clearTimeout(timeout); reject(new Error('CDP ws error')); };
+        });
+    }
+
+    private stressWait(ms: number): Promise<boolean> {
+        return new Promise(resolve => {
+            const step = 250;
+            let elapsed = 0;
+            this.stressCountdown = Math.ceil(ms / 1000);
+            const timer = setInterval(() => {
+                elapsed += step;
+                this.stressCountdown = Math.max(0, Math.ceil((ms - elapsed) / 1000));
+                this.stressTotalRemaining = this.computeStressTotalRemaining();
+                if (this.stressAbort) {
+                    clearInterval(timer);
+                    this.stressCountdown = 0;
+                    resolve(true);
+                } else if (elapsed >= ms) {
+                    clearInterval(timer);
+                    this.stressCountdown = 0;
+                    resolve(false);
+                }
+            }, step);
+        });
+    }
+
+    async pressDown(): Promise<void> {
+        if (!this.device) return;
+        try {
+            await this.lgRemote.pressButton(this.device, 'DOWN');
+            console.log('[Remote] DOWN sent');
+        } catch (e) {
+            console.error('[Remote] DOWN failed:', e);
+        }
     }
 
     inspectApp(): void {

@@ -137,6 +137,16 @@ export class AppManagerService {
         }, true);
     }
 
+    async close(device: Device, appId: string): Promise<void> {
+        await this.luna.call(device, 'luna://com.webos.applicationManager/dev/closeByAppId', {id: appId}, true)
+            .catch(e => {
+                if (e instanceof LunaUnknownMethodError) {
+                    return this.luna.call(device, 'luna://com.webos.service.applicationManager/closeByAppId', {id: appId}, true);
+                }
+                throw e;
+            });
+    }
+
     async checkIncompatibility(device: Device, item: RepositoryItem): Promise<IncompatibleReason[] | null> {
         return Promise.all([
             this.deviceManager.getDeviceInfo(device).catch(() => undefined),
