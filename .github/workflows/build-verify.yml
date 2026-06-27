@@ -52,5 +52,14 @@ jobs:
       - name: Install NPM Dependencies
         run: npm ci
 
+      - name: Download ADB binary (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: bash scripts/download-adb.sh
+
+      - name: Download ADB binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/download-adb.ps1
+
       - name: Build
         run: npm run build -- --features=vendored-openssl
