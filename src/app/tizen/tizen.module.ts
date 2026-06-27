@@ -10,8 +10,6 @@ import {TizenDevicesComponent} from './devices/tizen-devices.component';
 import {TizenInfoComponent} from './info/tizen-info.component';
 import {TizenComponent} from './tizen.component';
 import {TizenWizardComponent} from './wizard/tizen-wizard.component';
-import {CreateAuthorCertComponent} from './cert/create-author/create-author.component';
-import {CreateProfileComponent} from './cert/create-profile/create-profile.component';
 
 const routes: Routes = [
     {
@@ -33,8 +31,6 @@ const routes: Routes = [
         TizenInfoComponent,
         TizenDevicesComponent,
         TizenWizardComponent,
-        CreateAuthorCertComponent,
-        CreateProfileComponent,
     ],
     imports: [
         CommonModule,
