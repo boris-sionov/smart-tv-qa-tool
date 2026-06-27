@@ -13,6 +13,8 @@ export function tizenSerial(device: TizenDevice): string {
 
 const STORAGE_KEY = 'smart-tv-qa-tizen-devices';
 const SELECTED_STORAGE_KEY = 'smart-tv-qa-tizen-selected-device';
+const CERT_PROFILE_KEY = 'smart-tv-qa-tizen-cert-profile';
+const STUDIO_PATH_KEY = 'smart-tv-qa-tizen-studio-path';
 
 @Injectable({providedIn: 'root'})
 export class TizenStateService {
@@ -52,6 +54,22 @@ export class TizenStateService {
             localStorage.removeItem(SELECTED_STORAGE_KEY);
         }
         this.selected$.next(device);
+    }
+
+    getCertProfile(): string | null {
+        return localStorage.getItem(CERT_PROFILE_KEY);
+    }
+
+    setCertProfile(profile: string): void {
+        localStorage.setItem(CERT_PROFILE_KEY, profile);
+    }
+
+    getStudioPath(): string | null {
+        return localStorage.getItem(STUDIO_PATH_KEY);
+    }
+
+    setStudioPath(path: string): void {
+        localStorage.setItem(STUDIO_PATH_KEY, path);
     }
 
     private getLastSelectedDevice(): TizenDevice | null {
