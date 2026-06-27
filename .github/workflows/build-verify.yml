@@ -54,3 +54,24 @@ jobs:
 
       - name: Build
         run: npm run build -- --features=vendored-openssl
+
+      - name: Collect Artifacts
+        uses: tj-actions/glob@v22
+        id: glob
+        with:
+          separator: "\n"
+          read-gitignore: false
+          files: |
+            target/**/bundle/deb/*.deb
+            target/**/bundle/rpm/*.rpm
+            target/**/bundle/appimage/*.AppImage
+            target/**/bundle/msi/*.msi
+            target/**/bundle/nsis/*.exe
+            target/**/bundle/dmg/*.dmg
+
+      - name: Upload Artifacts
+        if: steps.glob.outputs.paths != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-package
+          path: ${{ steps.glob.outputs.paths }}
