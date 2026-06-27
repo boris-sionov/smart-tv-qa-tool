@@ -54,12 +54,16 @@ jobs:
 
       - name: Download ADB binary (Linux / macOS)
         if: runner.os != 'Windows'
-        run: bash scripts/download-adb.sh
+        run: |
+          mkdir -p src-tauri/binaries
+          bash scripts/download-adb.sh
 
       - name: Download ADB binary (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: powershell -ExecutionPolicy Bypass -File scripts/download-adb.ps1
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
+          powershell -ExecutionPolicy Bypass -File scripts/download-adb.ps1
 
       - name: Build
         run: npm run build -- --features=vendored-openssl
