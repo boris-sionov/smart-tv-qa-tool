@@ -87,5 +87,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
           powershell -ExecutionPolicy Bypass -File scripts/download-sdb.ps1
 
+      - name: Copy binaries for ARM64 cross-compile (Windows)
+        if: matrix.rust-target == 'aarch64-pc-windows-msvc'
+        shell: pwsh
+        run: |
+          Copy-Item src-tauri\binaries\adb-x86_64-pc-windows-msvc.exe `
+                    src-tauri\binaries\adb-aarch64-pc-windows-msvc.exe
+          Copy-Item src-tauri\binaries\sdb-x86_64-pc-windows-msvc.exe `
+                    src-tauri\binaries\sdb-aarch64-pc-windows-msvc.exe
+
       - name: Build
         run: npm run build -- --features=vendored-openssl${{ matrix.rust-target && format(' --target {0}', matrix.rust-target) || '' }}
