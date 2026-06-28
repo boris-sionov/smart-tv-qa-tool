@@ -8,8 +8,8 @@ use std::net::{SocketAddr, TcpStream};
 use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use tauri::plugin::{Builder, TauriPlugin};
-use tauri::Runtime;
+use tauri::{AppHandle, plugin::{Builder, TauriPlugin}, Runtime};
+use tauri_plugin_shell::ShellExt;
 
 use crate::error::Error;
 
@@ -923,7 +923,8 @@ pub(crate) async fn tizen_daemon_command(serial: String, command: String) -> Res
 
 
 #[tauri::command]
-pub(crate) async fn tizen_install_signed(
+pub(crate) async fn tizen_install_signed<R: Runtime>(
+    app: AppHandle<R>,
     serial: String,
     file_path: String,
     cert_profile: String,
@@ -941,11 +942,7 @@ pub(crate) async fn tizen_install_signed(
     }
 
     #[cfg(target_os = "windows")]
-    let sdb_bin   = format!(r"{tizen_studio_path}\tools\sdb.exe");
-    #[cfg(target_os = "windows")]
     let tizen_bin = format!(r"{tizen_studio_path}\tools\ide\bin\tizen.bat");
-    #[cfg(not(target_os = "windows"))]
-    let sdb_bin   = format!("{tizen_studio_path}/tools/sdb");
     #[cfg(not(target_os = "windows"))]
     let tizen_bin = format!("{tizen_studio_path}/tools/ide/bin/tizen");
 
@@ -956,14 +953,12 @@ pub(crate) async fn tizen_install_signed(
     // Step 1 — Graceful disconnect so the TV's SDB daemon cleans up immediately,
     //           then kill the local server to drop any lingering TizenBrew tunnel.
     emit!("disconnecting", "Disconnecting from TizenBrew…", 5);
-    let sdb1 = sdb_bin.clone();
-    let ser1 = serial.clone();
-    let _ = tokio::task::spawn_blocking(move || {
-        // Graceful disconnect tells the TV daemon to release the session now.
-        let _ = Command::new(&sdb1).args(["disconnect", &ser1]).output();
-        // Kill local server so it starts fresh on the next connect call.
-        let _ = Command::new(&sdb1).args(["kill-server"]).output();
-    }).await;
+    if let Ok(cmd) = app.shell().sidecar("sdb") {
+        let _ = cmd.args(["disconnect", &serial]).output().await;
+    }
+    if let Ok(cmd) = app.shell().sidecar("sdb") {
+        let _ = cmd.args(["kill-server"]).output().await;
+    }
 
     // Step 2 — Short wait for the TV daemon to finish cleanup
     emit!("waiting", "Waiting for port to release…", 15);
@@ -980,16 +975,12 @@ pub(crate) async fn tizen_install_signed(
             emit!("connecting", &msg, 25);
             tokio::time::sleep(Duration::from_millis(1500)).await;
         }
-        let sdb_c = sdb_bin.clone();
-        let ser_c = serial.clone();
-        let out = tokio::task::spawn_blocking(move || {
-            Command::new(&sdb_c)
-                .args(["connect", &ser_c])
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output()
-        }).await.map_err(|e| Error::new(format!("sdb connect task: {e}")))?
-          .map_err(|e| Error::new(format!("sdb connect failed: {e}")))?;
+        let out = app.shell().sidecar("sdb")
+            .map_err(|e| Error::new(format!("sdb sidecar: {e}")))?
+            .args(["connect", &serial])
+            .output()
+            .await
+            .map_err(|e| Error::new(format!("sdb connect failed: {e}")))?;
 
         let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
@@ -1037,23 +1028,23 @@ pub(crate) async fn tizen_install_signed(
 
     // Step 5 — Install via tizen CLI
     emit!("installing", "Installing on device…", 68);
-    let sdb_disc = sdb_bin.clone();
     let serial_d = serial.clone();
     let install_result = tokio::task::spawn_blocking({
         let tb = tizen_bin.clone();
         let wp = work_str.clone();
         let s  = serial.clone();
         move || {
-            let out = Command::new(&tb)
+            Command::new(&tb)
                 .args(["install", "-n", &wp, "-s", &s])
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
-                .output();
-            // Disconnect regardless of outcome
-            let _ = Command::new(&sdb_disc).args(["disconnect", &serial_d]).output();
-            out
+                .output()
         }
     }).await.map_err(|e| Error::new(format!("install task: {e}")));
+    // Disconnect regardless of install outcome
+    if let Ok(cmd) = app.shell().sidecar("sdb") {
+        let _ = cmd.args(["disconnect", &serial_d]).output().await;
+    }
 
     if was_repacked {
         let _ = std::fs::remove_file(&work_path);
@@ -1114,6 +1105,30 @@ pub(crate) async fn tizen_detect_studio(home_dir: String) -> Result<TizenStudioI
     Err(Error::new(
         "Tizen Studio not found. Install it from developer.samsung.com/tizenstudio",
     ))
+}
+
+#[tauri::command]
+pub(crate) async fn tizen_open_certificate_manager(studio_path: String) -> Result<(), Error> {
+    #[cfg(target_os = "windows")]
+    let bin = format!(r"{studio_path}\tools\certificate-manager\certificate-manager.exe");
+    #[cfg(not(target_os = "windows"))]
+    let bin = format!("{studio_path}/tools/certificate-manager/certificate-manager");
+    std::process::Command::new(&bin)
+        .spawn()
+        .map_err(|e| Error::new(format!("Failed to open Certificate Manager: {e}")))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) async fn tizen_open_device_manager(studio_path: String) -> Result<(), Error> {
+    #[cfg(target_os = "windows")]
+    let bin = format!(r"{studio_path}\tools\device-manager\bin\device-manager.exe");
+    #[cfg(not(target_os = "windows"))]
+    let bin = format!("{studio_path}/tools/device-manager/bin/device-manager");
+    std::process::Command::new(&bin)
+        .spawn()
+        .map_err(|e| Error::new(format!("Failed to open Device Manager: {e}")))?;
+    Ok(())
 }
 
 // ── Samsung SmartTV Remote Control (WebSocket, port 8001) ────────────────────
@@ -1272,6 +1287,8 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             tizen_detect_studio,
             tizen_install_signed,
             tizen_press_key,
+            tizen_open_certificate_manager,
+            tizen_open_device_manager,
             super::adb::adb_list_devices,
             super::adb::adb_connect,
             super::adb::adb_disconnect,

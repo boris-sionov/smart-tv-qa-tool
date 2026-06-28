@@ -73,6 +73,8 @@ fn main() {
                     "tizen_install_signed",
                     "tizen_detect_studio",
                     "tizen_press_key",
+                    "tizen_open_certificate_manager",
+                    "tizen_open_device_manager",
                 ]),
             ),
     )

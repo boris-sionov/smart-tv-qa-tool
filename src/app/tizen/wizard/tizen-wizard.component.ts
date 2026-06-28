@@ -123,6 +123,32 @@ export class TizenWizardComponent implements OnInit {
         this.modal.close(null);
     }
 
+    async openCertificateManager(): Promise<void> {
+        try {
+            const studioPath = this.state.getStudioPath() || (await this.sdb.detectTizenStudio().catch(() => null))?.path;
+            if (!studioPath) {
+                this.error = 'Tizen Studio not found. Install it from developer.samsung.com/tizenstudio';
+                return;
+            }
+            await this.sdb.openCertificateManager(studioPath);
+        } catch (e) {
+            this.error = extractMessage(e, 'Failed to open Certificate Manager');
+        }
+    }
+
+    async openDeviceManager(): Promise<void> {
+        try {
+            const studioPath = this.state.getStudioPath() || (await this.sdb.detectTizenStudio().catch(() => null))?.path;
+            if (!studioPath) {
+                this.error = 'Tizen Studio not found. Install it from developer.samsung.com/tizenstudio';
+                return;
+            }
+            await this.sdb.openDeviceManager(studioPath);
+        } catch (e) {
+            this.error = extractMessage(e, 'Failed to open Device Manager');
+        }
+    }
+
     get certTitle(): string {
         return this.startStep === 3 ? 'Signing Certificate' : 'Set Up Signing Certificate';
     }

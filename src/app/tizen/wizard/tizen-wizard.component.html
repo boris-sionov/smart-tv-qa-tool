@@ -53,8 +53,7 @@
           <div class="cert-instructions">
             <div class="cert-instructions-title">Don't have a certificate yet?</div>
             <ol class="cert-steps">
-              <li>Open <strong>Tizen Studio → Tools → Certificate Manager</strong></li>
-              <li>Click <strong>+</strong> → choose <strong>Samsung</strong></li>
+              <li>Open Certificate Manager below, click <strong>+</strong> → choose <strong>Samsung</strong></li>
               <li>In the <em>Distributor</em> step click<br>
                 <strong>"Get DUIDs from Connected Devices"</strong>
                 <em>(TV must be reachable)</em></li>
@@ -62,6 +61,16 @@
                 in your <strong>SamsungCertificate</strong> folder</li>
               <li>Come back and click <strong>Browse…</strong> below</li>
             </ol>
+            <div class="cert-tool-btns">
+              <button class="wizard-btn secondary small" (click)="openCertificateManager()">
+                <i class="bi bi-shield-lock"></i>
+                <span>Open Certificate Manager</span>
+              </button>
+              <button class="wizard-btn secondary small" (click)="openDeviceManager()">
+                <i class="bi bi-display"></i>
+                <span>Open Device Manager</span>
+              </button>
+            </div>
           </div>
         }
 

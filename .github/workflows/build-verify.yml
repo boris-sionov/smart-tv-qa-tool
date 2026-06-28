@@ -74,5 +74,18 @@ jobs:
           New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
           powershell -ExecutionPolicy Bypass -File scripts/download-adb.ps1
 
+      - name: Download SDB binary (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p src-tauri/binaries
+          bash scripts/download-sdb.sh
+
+      - name: Download SDB binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
+          powershell -ExecutionPolicy Bypass -File scripts/download-sdb.ps1
+
       - name: Build
         run: npm run build -- --features=vendored-openssl${{ matrix.rust-target && format(' --target {0}', matrix.rust-target) || '' }}

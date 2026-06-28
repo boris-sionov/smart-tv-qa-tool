@@ -1,45 +1,26 @@
 # Download the SDB (Smart Development Bridge) binary from Samsung's Tizen SDK
-# and install it to %USERPROFILE%\tizen-studio\tools\sdb.exe
-# (the default location the app looks in on Windows).
-#
-# Run this once before using Samsung Tizen features.
-# If download fails, install Tizen Studio from:
-#   https://developer.samsung.com/tizen/overview.html
+# and place it in src-tauri/binaries/ with the correct Tauri sidecar naming convention.
+# Run this once before `npm run build` on Windows.
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File scripts\download-sdb.ps1
 
 $ErrorActionPreference = "Stop"
 
-$InstallDir = Join-Path $env:USERPROFILE "tizen-studio\tools"
-$Dst        = Join-Path $InstallDir "sdb.exe"
+$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+$BinDir     = Join-Path $ScriptDir "..\src-tauri\binaries"
 $TmpDir     = Join-Path $env:TEMP "sdb-download-$(Get-Random)"
 $ZipPath    = Join-Path $TmpDir "sdb.zip"
-$Url        = "https://download.tizen.org/sdk/tizenstudio/official/binary/sdb_4.2.12_windows.zip"
+$Url        = "https://download.tizen.org/sdk/tizenstudio/official/binary/sdb_4.2.36_windows-64.zip"
 
-New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-New-Item -ItemType Directory -Force -Path $TmpDir     | Out-Null
+New-Item -ItemType Directory -Force -Path $BinDir  | Out-Null
+New-Item -ItemType Directory -Force -Path $TmpDir  | Out-Null
 
 Write-Host "Downloading SDB from $Url ..."
-
-try {
-    Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
-} catch {
-    Write-Host ""
-    Write-Host "ERROR: Download failed."
-    Write-Host ""
-    Write-Host "Please install Tizen Studio manually:"
-    Write-Host "  https://developer.samsung.com/tizen/overview.html"
-    Write-Host ""
-    Write-Host "After installing, SDB will be at:"
-    Write-Host "  %USERPROFILE%\tizen-studio\tools\sdb.exe"
-    Remove-Item -Recurse -Force $TmpDir -ErrorAction SilentlyContinue
-    exit 1
-}
+Invoke-WebRequest -Uri $Url -OutFile $ZipPath -UseBasicParsing
 
 Write-Host "Extracting ..."
 Expand-Archive -Path $ZipPath -DestinationPath $TmpDir -Force
 
-# Find sdb.exe inside the extracted archive
 $SdbSrc = Get-ChildItem -Recurse -Path $TmpDir -Filter "sdb.exe" | Select-Object -First 1 -ExpandProperty FullName
 
 if (-not $SdbSrc) {
@@ -48,12 +29,12 @@ if (-not $SdbSrc) {
     exit 1
 }
 
+$Dst = Join-Path $BinDir "sdb-x86_64-pc-windows-msvc.exe"
 Copy-Item -Path $SdbSrc -Destination $Dst -Force
 Remove-Item -Recurse -Force $TmpDir
 
 Write-Host ""
-Write-Host "Done! SDB installed at: $Dst"
+Write-Host "Done! SDB binary placed at:"
+Write-Host "  $Dst"
 Write-Host ""
-Write-Host "Verify with:  & `"$Dst`" version"
-Write-Host ""
-Write-Host "You can now use Samsung Tizen features in the app."
+Write-Host "You can now run: npm run build"

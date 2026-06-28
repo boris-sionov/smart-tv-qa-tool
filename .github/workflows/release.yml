@@ -71,6 +71,27 @@ jobs:
           New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
           powershell -ExecutionPolicy Bypass -File scripts/download-adb.ps1
 
+      - name: Download SDB binary (Linux)
+        if: startsWith(matrix.target, 'linux')
+        run: |
+          mkdir -p src-tauri/binaries
+          bash scripts/download-sdb.sh
+
+      - name: Download SDB binary (macOS universal)
+        if: matrix.target == 'macos'
+        run: |
+          mkdir -p src-tauri/binaries
+          bash scripts/download-sdb.sh
+          cp src-tauri/binaries/sdb-aarch64-apple-darwin \
+             src-tauri/binaries/sdb-x86_64-apple-darwin
+
+      - name: Download SDB binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
+          powershell -ExecutionPolicy Bypass -File scripts/download-sdb.ps1
+
       - name: Build (Windows x64)
         if: matrix.target == 'windows-x64'
         run: |
