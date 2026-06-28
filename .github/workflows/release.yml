@@ -15,7 +15,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: windows
+          - target: windows-x64
+            os: windows-latest
+          - target: windows-arm64
             os: windows-latest
           - target: linux-x86_64
             os: ubuntu-24.04
@@ -56,12 +58,31 @@ jobs:
       - name: Install NPM Dependencies
         run: npm ci
 
-      - name: Build (Windows)
-        if: matrix.target == 'windows'
+      - name: Download ADB binary (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p src-tauri/binaries
+          bash scripts/download-adb.sh
+
+      - name: Download ADB binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
+          powershell -ExecutionPolicy Bypass -File scripts/download-adb.ps1
+
+      - name: Build (Windows x64)
+        if: matrix.target == 'windows-x64'
         run: |
           rustup target add i686-pc-windows-msvc
           npm run build -- --features=vendored-openssl --target x86_64-pc-windows-msvc
           npm run build -- --features=vendored-openssl --target i686-pc-windows-msvc
+
+      - name: Build (Windows ARM64)
+        if: matrix.target == 'windows-arm64'
+        run: |
+          rustup target add aarch64-pc-windows-msvc
+          npm run build -- --features=vendored-openssl --target aarch64-pc-windows-msvc
 
       - name: Build (Linux)
         if: startsWith(matrix.target, 'linux')
@@ -82,11 +103,12 @@ jobs:
           separator: "\n"
           read-gitignore: false
           files: |
-            target/**/bundle/deb/*.deb
-            target/**/bundle/rpm/*.rpm
-            target/**/bundle/appimage/*.AppImage
-            target/**/bundle/msi/*.msi
-            target/**/bundle/dmg/*.dmg
+            src-tauri/target/**/bundle/deb/*.deb
+            src-tauri/target/**/bundle/rpm/*.rpm
+            src-tauri/target/**/bundle/appimage/*.AppImage
+            src-tauri/target/**/bundle/msi/*.msi
+            src-tauri/target/**/bundle/nsis/*.exe
+            src-tauri/target/**/bundle/dmg/*.dmg
 
       - name: Upload Artifact (snapshot)
         uses: actions/upload-artifact@v4
