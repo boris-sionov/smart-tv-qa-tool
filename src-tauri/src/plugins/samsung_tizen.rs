@@ -10,6 +10,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, plugin::{Builder, TauriPlugin}, Runtime};
 use tauri_plugin_shell::ShellExt;
+extern crate native_tls;
 
 use crate::error::Error;
 
@@ -1131,7 +1132,7 @@ pub(crate) async fn tizen_open_device_manager(studio_path: String) -> Result<(),
     Ok(())
 }
 
-// ── Samsung SmartTV Remote Control (WebSocket, port 8001) ────────────────────
+// ── Samsung SmartTV Remote Control (WebSocket, port 8002 wss) ────────────────
 
 fn b64_encode(input: &[u8]) -> String {
     const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -1164,38 +1165,44 @@ struct TizenPressKeyResult {
 async fn tizen_press_key(args: TizenPressKeyArgs) -> Result<TizenPressKeyResult, Error> {
     use futures_util::{SinkExt, StreamExt};
     use tokio::time::timeout;
-    use tokio_tungstenite::{connect_async, tungstenite::Message};
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    use tokio_tungstenite::tungstenite::Message;
+    use tokio_tungstenite::{connect_async_tls_with_config, Connector};
 
-    let url = format!(
-        "ws://{}:8001/api/v2/channels/samsung.remote.control",
-        args.ip
-    );
+    // Name must be a URL query param, NOT in a JSON body. Token too, when available.
+    let name_b64 = b64_encode(b"SmartTVQATool");
+    let url = match args.token.as_deref().filter(|t| !t.is_empty()) {
+        Some(token) => format!(
+            "wss://{}:8002/api/v2/channels/samsung.remote.control?name={}&token={}",
+            args.ip, name_b64, token
+        ),
+        None => format!(
+            "wss://{}:8002/api/v2/channels/samsung.remote.control?name={}",
+            args.ip, name_b64
+        ),
+    };
+
+    let tls = native_tls::TlsConnector::builder()
+        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_hostnames(true)
+        .build()
+        .map_err(|e| Error::new(format!("tls build: {e}")))?;
+    let connector = Connector::NativeTls(tls);
+
+    let request = url
+        .into_client_request()
+        .map_err(|e| Error::new(format!("bad url: {e}")))?;
 
     let (mut ws, _) = timeout(
         std::time::Duration::from_secs(5),
-        connect_async(&url),
+        connect_async_tls_with_config(request, None, false, Some(connector)),
     )
     .await
-    .map_err(|_| Error::new("timeout connecting to TV remote (port 8001)"))?
+    .map_err(|_| Error::new("timeout connecting to TV remote (port 8002)"))?
     .map_err(|e| Error::new(format!("ws connect: {e}")))?;
 
-    // Samsung requires the app name base64-encoded and token "0" when unknown
-    let name_b64 = b64_encode(b"SmartTVQATool");
-    let token = args.token.as_deref().unwrap_or("0");
-    let connect_msg = serde_json::json!({
-        "method": "ms.channel.connect",
-        "params": {
-            "name": name_b64,
-            "token": token
-        }
-    });
-    ws.send(Message::Text(connect_msg.to_string()))
-        .await
-        .map_err(|e| Error::new(format!("send connect: {e}")))?;
-
-    // Wait for connect acknowledgement.
-    // Some TV models: keep WebSocket open while showing the pairing dialog, then confirm.
-    // Other models: send ms.channel.unauthorized, close, and wait for a reconnect after user approves.
+    // No connect message to send — the URL query params carry everything.
+    // Wait for ms.channel.connect (sent immediately with valid token, or after user approves pairing).
     let mut got_unauthorized = false;
     let mut new_token: Option<String> = None;
     loop {
@@ -1208,8 +1215,6 @@ async fn tizen_press_key(args: TizenPressKeyArgs) -> Result<TizenPressKeyResult,
         let msg = match msg {
             Some(m) => m,
             None => {
-                // TV closed the connection — this is normal after ms.channel.unauthorized.
-                // Samsung's flow: send unauthorized, close, wait for user to accept on TV, then reconnect.
                 return if got_unauthorized {
                     Err(Error::new(
                         "A pairing request was sent to the TV.\n\nIf a dialog appeared on screen, approve it and press the button again. The key will be sent after authorization."
@@ -1228,11 +1233,11 @@ async fn tizen_press_key(args: TizenPressKeyArgs) -> Result<TizenPressKeyResult,
             Ok(v) => v,
             Err(_) => continue,
         };
-        let method = v.get("method").and_then(|m| m.as_str()).unwrap_or("");
         let event = v.get("event").and_then(|e| e.as_str()).unwrap_or("");
-        if method == "ms.channel.connect" || event == "ms.channel.connect" {
-            new_token = v.pointer("/params/token")
-                .or_else(|| v.pointer("/data/token"))
+        if event == "ms.channel.connect" {
+            // Token is in data.token (some models) or data.clients[0].attributes.token
+            new_token = v.pointer("/data/token")
+                .or_else(|| v.pointer("/data/clients/0/attributes/token"))
                 .and_then(|t| t.as_str())
                 .filter(|t| !t.is_empty() && *t != "0")
                 .map(String::from);
@@ -1242,7 +1247,7 @@ async fn tizen_press_key(args: TizenPressKeyArgs) -> Result<TizenPressKeyResult,
             got_unauthorized = true;
             continue;
         }
-        if method == "ms.error" {
+        if event == "ms.error" || v.get("method").and_then(|m| m.as_str()) == Some("ms.error") {
             return Err(Error::new(format!("TV returned error: {text}")));
         }
     }
