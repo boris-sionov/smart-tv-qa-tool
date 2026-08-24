@@ -43,6 +43,13 @@ impl SessionManager {
         }
     }
 
+    pub fn disconnect(&self, name: &str) {
+        self.pools
+            .lock()
+            .expect("Failed to lock SessionManager::pools")
+            .remove(name);
+    }
+
     fn pool(&self, device: Device) -> DeviceConnectionPool {
         if device.new {
             return DeviceConnectionPool::new(device, self.get_ssh_dir());

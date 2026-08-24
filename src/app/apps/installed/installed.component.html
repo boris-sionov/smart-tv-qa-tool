@@ -1,55 +1,105 @@
-@let installed = installed$ | async;
 @if (installedError) {
   <app-error-card title="Unable to get installed apps" [error]="installedError" (retry)="loadPackages()">
   </app-error-card>
-} @else if (installed) {
+} @else if (packages) {
+  @let visible = visiblePackages ?? [];
   <section class="installed-shell">
     <div class="installed-header">
       <div class="installed-heading">
         <div class="installed-kicker">LG webOS</div>
-        <h2>Installed Apps</h2>
+        <!-- Constant heading: the scope switch already says which list this is, and a title that
+             changes width makes the whole header shuffle on every toggle. -->
+        <h2>Apps</h2>
       </div>
-      <div class="installed-count">
-        <i class="bi bi-grid-3x3-gap-fill"></i>
-        <span>{{ installed.length }}</span>
+      <div class="installed-tools">
+        <div class="scope-switch" role="group" aria-label="App list scope">
+          <button type="button" class="scope-option" [class.active]="scope === 'developer'"
+                  title="Only apps sideloaded in developer mode"
+                  (click)="setScope('developer')">
+            <i class="bi bi-code-slash"></i>
+            <span>Developer</span>
+          </button>
+          <button type="button" class="scope-option" [class.active]="scope === 'apps'"
+                  title="The brands QA tracks — same list as the Samsung and Android TV pages"
+                  (click)="setScope('apps')">
+            <i class="bi bi-star"></i>
+            <span>Apps</span>
+          </button>
+        </div>
+        <div class="installed-search">
+          <i class="bi bi-search"></i>
+          <input type="search" placeholder="Filter by name or ID" [(ngModel)]="search"
+                 aria-label="Filter apps">
+        </div>
+        <div class="installed-count" [title]="packages.length + ' apps on this TV'">
+          <i class="bi bi-grid-3x3-gap-fill"></i>
+          <span>{{ visible.length }}@if (visible.length !== packages.length) {/{{ packages.length }}}</span>
+        </div>
+        <button class="app-action secondary" type="button" aria-label="Reload apps" title="Reload apps"
+                (click)="loadPackages()">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
       </div>
     </div>
 
-    @if (installed.length === 0) {
+    @if (visible.length === 0) {
       <div class="installed-empty">
         <i class="bi bi-inbox"></i>
         <h3>No Apps Found</h3>
-        <p>No developer apps were returned by this TV.</p>
+        @if (search) {
+          <p>No app matches “{{ search }}”.</p>
+        } @else if (scope === 'apps' && packages.length > 0) {
+          <p>None of the tracked apps are installed on this TV — it reported {{ packages.length }}
+            other apps.</p>
+        } @else if (scope === 'developer') {
+          <p>No developer apps were returned by this TV. Switch to <strong>Apps</strong> to see the
+            store-installed ones too.</p>
+        } @else {
+          <p>This TV returned no apps at all.</p>
+        }
       </div>
     } @else {
       <div class="installed-list">
-        @for (pkg of installed; track pkg.id) {
-          <article class="installed-app-row">
+        @for (pkg of visible; track pkg.id) {
+          <article class="installed-app-row" [class.foreign-app]="!isDeveloperApp(pkg)">
             <div class="app-identity">
               <div class="app-icon-frame">
                 <!--suppress AngularNgOptimizedImage -->
                 <img class="app-icon" [src]="(iconCache.get(pkg.id) ?? pkg.iconUri) | trustUri" [alt]="pkg.title"
+                     loading="lazy"
                      style="display:none"
                      (load)="$any($event.target).style.display='block'; $any($event.target).nextElementSibling.style.display='none'"
                      (error)="$any($event.target).style.display='none'; $any($event.target).nextElementSibling.style.display='flex'">
                 <div class="app-icon-placeholder">STV</div>
               </div>
               <div class="app-copy">
-                <div class="app-title">{{ pkg.title }}</div>
+                <div class="app-title">
+                  <span class="app-title-text">{{ pkg.title }}</span>
+                  <span class="source-pill source-{{ badgeClass(pkg) }}">{{ badgeLabel(pkg) }}</span>
+                  @if (scope !== 'developer' && pkg.visible === false) {
+                    <span class="source-pill" title="Hidden from the TV's own launcher">Hidden</span>
+                  }
+                </div>
                 <div class="app-meta">
-                  <span class="version-pill">v{{ pkg.version }}</span>
+                  @if (htmlVersions.get(pkg.id)) {
+                    <span class="version-pill">v{{ htmlVersions.get(pkg.id) }}</span>
+                  } @else if (pkg.version) {
+                    <span class="version-pill">v{{ pkg.version }}</span>
+                  }
                   <span class="package-id">{{ pkg.id }}</span>
                 </div>
               </div>
             </div>
 
             <div class="app-actions">
-              <button class="app-action secondary" type="button" aria-label="Inspect"
-                      (click)="parent.inspectApp()">
-                <i class="bi bi-search"></i>
-                <span>Inspect</span>
-              </button>
-<button class="app-action primary" type="button" aria-label="Launch"
+              @if (isDeveloperApp(pkg)) {
+                <button class="app-action secondary" type="button" aria-label="Inspect"
+                        (click)="parent.inspectApp()">
+                  <i class="bi bi-search"></i>
+                  <span>Inspect</span>
+                </button>
+              }
+              <button class="app-action primary" type="button" aria-label="Launch"
                       (click)="parent.launchApp(pkg.id)">
                 <i class="bi bi-play-fill"></i>
                 <span>Launch</span>
@@ -68,11 +118,13 @@
                               [class.bi-x-octagon]="parent.stressRunningId === pkg.id"></i>
                 <span>{{ parent.stressRunningId === pkg.id ? 'Stop' : 'Stress' }}</span>
               </button>
-              <button class="app-action danger" type="button" aria-label="Remove"
-                      (click)="parent.removePackage(pkg)">
-                <i class="bi bi-trash"></i>
-                <span>Remove</span>
-              </button>
+              @if (isDeveloperApp(pkg)) {
+                <button class="app-action danger" type="button" aria-label="Remove"
+                        (click)="parent.removePackage(pkg)">
+                  <i class="bi bi-trash"></i>
+                  <span>Remove</span>
+                </button>
+              }
             </div>
           </article>
         }
@@ -80,5 +132,7 @@
     }
   </section>
 } @else {
-  <app-loading-card></app-loading-card>
+  <app-loading-card [text]="scope === 'developer'
+      ? 'Loading installed apps...'
+      : 'Loading apps — if the TV shows a pairing prompt, accept it with the remote.'"></app-loading-card>
 }

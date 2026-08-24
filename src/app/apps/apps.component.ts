@@ -18,6 +18,14 @@ import {StatStorageInfoComponent} from "../shared/components/stat-storage-info/s
 import {DetailsComponent} from "./details/details.component";
 import {InstalledComponent} from "./installed/installed.component";
 
+/**
+ * - `developer`: only what was sideloaded in dev mode (dev/listApps over SSH)
+ * - `apps`: every app on the TV, narrowed to the brands QA tracks
+ */
+export type AppsScope = 'developer' | 'apps';
+
+const APPS_SCOPE_KEY = 'smart-tv-qa-lg-apps-scope';
+
 @Component({
     selector: 'app-apps',
     templateUrl: './apps.component.html',
@@ -28,6 +36,7 @@ export class AppsComponent implements OnInit, OnDestroy {
     packages$?: Observable<PackageInfo[] | null>;
     device: Device | null = null;
     devices$?: Observable<Device[]|null>;
+    appsScope: AppsScope = AppsComponent.restoreScope();
 
     @ViewChild('storageInfo') storageInfo?: StatStorageInfoComponent;
     @ViewChild('installedComponent') installedComponent?: InstalledComponent;
@@ -67,12 +76,25 @@ export class AppsComponent implements OnInit, OnDestroy {
     loadPackages(): void {
         const device = this.device;
         if (!device) return;
+        const all = this.appsScope !== 'developer';
         this.packagesSubscription?.unsubscribe();
-        this.packages$ = this.appManager.packages$(device);
+        this.packages$ = all ? this.appManager.allPackages$(device) : this.appManager.packages$(device);
         this.packagesSubscription = this.packages$.subscribe({
             next: noop, error: noop
         });
-        this.appManager.load(device).catch(noop);
+        (all ? this.appManager.loadAll(device) : this.appManager.load(device)).catch(noop);
+    }
+
+    setAppsScope(scope: AppsScope): void {
+        if (this.appsScope === scope) return;
+        this.appsScope = scope;
+        localStorage.setItem(APPS_SCOPE_KEY, scope);
+        this.loadPackages();
+    }
+
+    private static restoreScope(): AppsScope {
+        // Default to the filtered list, like the Samsung and Android TV pages.
+        return localStorage.getItem(APPS_SCOPE_KEY) === 'developer' ? 'developer' : 'apps';
     }
 
     async openInstallChooser(): Promise<void> {
@@ -387,7 +409,7 @@ export class AppsComponent implements OnInit, OnDestroy {
             await this.fileService.put(this.device, iconPath, path);
 
             component.update('Reloading apps...', 90);
-            await this.appManager.load(this.device);
+            await this.appManager.refresh(this.device);
             this.installedComponent?.forceReloadIcon(pkg.id);
         } catch (e) {
             MessageDialogComponent.open(this.modalService, {

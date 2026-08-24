@@ -35,6 +35,7 @@ export class InfoComponent implements OnInit, OnDestroy {
     homebrewRepoManifest?: RepositoryItem;
     homebrewRepoHasUpdate: boolean = false;
     infoError: any;
+    loading = false;
     copySuccess = false;
     deviceSubscription!: Subscription;
     infoSubscription?: Subscription;
@@ -83,14 +84,16 @@ export class InfoComponent implements OnInit, OnDestroy {
         const device = this.device;
         if (!device) return;
         this.infoError = null;
+        this.loading = true;
         this.infoSubscription?.unsubscribe();
         this.infoSubscription = fromPromise(this.deviceManager.getDeviceInfo(device)).subscribe({
             next: (info) => {
                 this.deviceInfo = info;
-                this.loadDevModeInfo(device).then(noop);
+                this.loadDevModeInfo(device).then(noop).finally(() => this.loading = false);
             },
             error: (e) => {
                 this.infoError = e;
+                this.loading = false;
             }
         });
     }
@@ -99,6 +102,7 @@ export class InfoComponent implements OnInit, OnDestroy {
         const device = this.device;
         if (!device) return;
         await this.deviceManager.extendDevMode(device);
+        this.devMode.invalidateStatus(device.name);
         await this.loadDevModeInfo(device);
     }
 

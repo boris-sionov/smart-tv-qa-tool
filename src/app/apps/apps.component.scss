@@ -21,6 +21,12 @@ $border-color: rgba(91, 159, 245, 0.2);
   }
 }
 
+// Keep the scrollbar's space reserved, so switching to a shorter list doesn't shift the
+// whole page sideways when the scrollbar disappears.
+.apps-scroll {
+  scrollbar-gutter: stable;
+}
+
 // Manager Toolbar
 .manager-toolbar {
   background: rgba(15, 23, 43, 0.6) !important;

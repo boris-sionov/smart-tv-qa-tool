@@ -23,8 +23,19 @@ export declare interface RawPackageInfo {
   icon: string;
 }
 
+/**
+ * Where an app lives on the TV:
+ * - `developer`: sideloaded into /media/developer (dev mode)
+ * - `store`: installed from LG Content Store into /media/cryptofs
+ * - `system`: preloaded by LG in /usr/palm
+ */
+export type PackageSource = 'developer' | 'store' | 'system';
+
 export declare interface PackageInfo extends RawPackageInfo {
   iconUri?: string;
+  source?: PackageSource;
+  /** `false` for the system stubs the TV's own launcher hides — most of /usr/palm/applications. */
+  visible?: boolean;
 }
 
 export declare interface StorageInfo {
