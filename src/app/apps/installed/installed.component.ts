@@ -7,6 +7,7 @@ import {RemoteFileService} from "../../core/services/remote-file.service";
 import {IconCacheService} from "../../core/services/icon-cache.service";
 import {LgHostedAppVersionService} from "../../core/services/lg-hosted-app-version.service";
 import {appEnvironment, isKnownApp, isPriorityApp} from "../../shared/known-apps";
+import {Buffer} from "buffer";
 
 @Component({
     selector: 'app-installed',
@@ -49,10 +50,9 @@ export class InstalledComponent implements OnDestroy {
                 const strings: string[] = pkgs?.map((pkg) => pkg.id) ?? [];
                 this.appsRepo.showApps(...strings).then(apps => this.repoPackages = apps);
                 // Only the apps that end up on screen — the raw list holds the TV's whole inventory.
-                this.scoped?.forEach(pkg => {
-                    void this.loadIconOnce(pkg);
-                    this.resolveHtmlVersion(pkg);
-                });
+                const scoped = this.scoped ?? [];
+                void this.loadIcons(scoped);
+                scoped.forEach(pkg => this.resolveHtmlVersion(pkg));
             },
             error: (error) => {
                 console.log('installed apps', error);
@@ -182,6 +182,40 @@ export class InstalledComponent implements OnDestroy {
         return [...new Set(candidates)];
     }
 
+    /**
+     * Fetches every missing icon in one SSH command.
+     *
+     * Reading them one at a time is an SFTP round trip per row, which is what made opening the
+     * list feel slow — a list of twenty apps spent seconds waiting on latency for a few hundred
+     * kilobytes. Anything the batch cannot produce falls back to the per-file read.
+     */
+    private async loadIcons(packages: PackageInfo[]): Promise<void> {
+        const device = this.parent.device;
+        if (!device) return;
+        const pending = packages.filter(pkg => !this.iconCache.has(pkg.id));
+        if (!pending.length) return;
+
+        const candidates = new Map(pending.map(pkg => [pkg.id, this.iconCandidates(pkg)] as const));
+        const files = await this.fileService
+            .readMany(device, Array.from(candidates.values()).flat())
+            .catch((e) => {
+                console.warn('installed: batch icon read failed, falling back to per-file reads', e);
+                return new Map<string, Buffer>();
+            });
+
+        const missed: PackageInfo[] = [];
+        for (const pkg of pending) {
+            const path = candidates.get(pkg.id)?.find(candidate => files.get(candidate)?.length);
+            const buffer = path && files.get(path);
+            if (!path || !buffer) {
+                missed.push(pkg);
+                continue;
+            }
+            await this.storeIcon(pkg.id, path, buffer);
+        }
+        await Promise.all(missed.map(pkg => this.loadIconOnce(pkg)));
+    }
+
     private async loadIconOnce(pkg: PackageInfo): Promise<void> {
         if (this.iconCache.has(pkg.id)) return;
         const device = this.parent.device;
@@ -191,16 +225,20 @@ export class InstalledComponent implements OnDestroy {
             const buffer = await this.fileService.read(device, path, undefined, 'buffer')
                 .catch(() => null);
             if (!buffer?.length) continue;
-            const type = /\.jpe?g$/i.test(path) ? 'image/jpeg'
-                : /\.gif$/i.test(path) ? 'image/gif'
-                    : /\.webp$/i.test(path) ? 'image/webp' : 'image/png';
-            const dataUri = await new Promise<string>((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result as string);
-                reader.readAsDataURL(new Blob([buffer], {type}));
-            });
-            this.ngZone.run(() => this.iconCache.set(pkg.id, dataUri));
+            await this.storeIcon(pkg.id, path, buffer);
             return;
         }
+    }
+
+    private async storeIcon(pkgId: string, path: string, buffer: Buffer): Promise<void> {
+        const type = /\.jpe?g$/i.test(path) ? 'image/jpeg'
+            : /\.gif$/i.test(path) ? 'image/gif'
+                : /\.webp$/i.test(path) ? 'image/webp' : 'image/png';
+        const dataUri = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(new Blob([buffer], {type}));
+        });
+        this.ngZone.run(() => this.iconCache.set(pkgId, dataUri));
     }
 }
