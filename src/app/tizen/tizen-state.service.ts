@@ -1,5 +1,6 @@
 import {Injectable} from '@angular/core';
 import {BehaviorSubject} from 'rxjs';
+import {SdbAppInfo} from '../core/services/sdb.service';
 
 export interface TizenDevice {
     name: string;
@@ -16,9 +17,27 @@ const SELECTED_STORAGE_KEY = 'smart-tv-qa-tizen-selected-device';
 const STUDIO_PATH_KEY = 'smart-tv-qa-tizen-studio-path';
 const CERT_PROFILE_KEY = 'smart-tv-qa-tizen-cert-profile';
 
+export interface TizenAppsCache {
+    apps: SdbAppInfo[];
+    versions: Map<string, string>;
+}
+
 @Injectable({providedIn: 'root'})
 export class TizenStateService {
     selected$ = new BehaviorSubject<TizenDevice | null>(this.getLastSelectedDevice());
+    private appsCache = new Map<string, TizenAppsCache>();
+
+    getCachedApps(serial: string): TizenAppsCache | null {
+        return this.appsCache.get(serial) ?? null;
+    }
+
+    setCachedApps(serial: string, cache: TizenAppsCache): void {
+        this.appsCache.set(serial, cache);
+    }
+
+    invalidateApps(serial: string): void {
+        this.appsCache.delete(serial);
+    }
 
     getSavedDevices(): TizenDevice[] {
         try {

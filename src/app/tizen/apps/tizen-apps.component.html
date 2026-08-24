@@ -22,9 +22,9 @@
     </div>
 
     <div class="install-btn-container toolbar-actions">
-      <button class="btn btn-warning text-nowrap me-2" (click)="pressDown()" [disabled]="!selected"
-              title="Send DOWN remote key" style="height:42px;">
-        <i class="bi bi-arrow-down-circle me-2"></i>Test DOWN
+      <button class="btn btn-secondary text-nowrap me-2" (click)="openRemote()" [disabled]="!selected"
+              title="Open remote control" style="height:42px;">
+        <i class="bi bi-controller me-2"></i>Remote
       </button>
       <button class="btn btn-primary text-nowrap install-btn" (click)="installWgt()"
               [disabled]="!serial || installing">
@@ -83,66 +83,6 @@
           </button>
         </div>
 
-        @if (stressFinishedFor && (stressResults.length > 0 || stressRunningId)) {
-          <div class="stress-results-panel">
-            <div class="stress-results-header">
-              <div>
-                <h3>Stress Test Results</h3>
-                <div class="stress-results-sub">
-                  {{ stressFinishedFor }} — {{ stressStatus }}
-                  @if (stressRunningId && stressCountdown > 0) {
-                    <span class="stress-countdown">
-                      <i class="bi bi-stopwatch me-1"></i>
-                      next {{ stressPhase === 'after-launch' ? 'kill' : 'launch' }} in {{ stressCountdown }}s
-                    </span>
-                    <span class="stress-countdown stress-countdown--total">
-                      <i class="bi bi-hourglass-split me-1"></i>
-                      total left: {{ formatDuration(stressTotalRemaining) }}
-                    </span>
-                  }
-                </div>
-              </div>
-              <button class="btn btn-sm btn-outline-light" (click)="clearStressResults()">
-                <i class="bi bi-x-lg me-1"></i>Close
-              </button>
-            </div>
-            <div class="stress-results-summary">
-              <span class="badge bg-success me-2">Pass: {{ stressPassCount }}</span>
-              <span class="badge bg-danger">Fail: {{ stressFailCount }}</span>
-            </div>
-            <table class="stress-results-table">
-              <thead>
-                <tr><th>Cycle</th><th>Type</th><th>Label</th><th>Program Title</th><th>Channel</th><th>Buttons</th><th>Result</th></tr>
-              </thead>
-              <tbody>
-                @for (r of stressResults; track r.cycle) {
-                  <tr [class.row-pass]="r.pass" [class.row-fail]="!r.pass">
-                    <td>{{ r.cycle }}</td>
-                    <td><span class="type-badge type-{{ r.type || 'unknown' }}">{{ r.type || '—' }}</span></td>
-                    <td>{{ r.label || '—' }}</td>
-                    <td>{{ r.title || '—' }}</td>
-                    <td>{{ r.channel || '—' }}</td>
-                    <td>
-                      @if (r.buttons && r.buttons.length) {
-                        @for (b of r.buttons; track b) {
-                          <span class="btn-chip">{{ b }}</span>
-                        }
-                      } @else { — }
-                    </td>
-                    <td>
-                      @if (r.pass) {
-                        <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>FOUND</span>
-                      } @else {
-                        <span class="text-danger"><i class="bi bi-x-circle-fill me-1"></i>MISSING</span>
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
-
         <div class="tizen-app-list">
           @for (app of filteredApps!; track app.id) {
             <article class="tizen-app-row">
@@ -168,18 +108,6 @@
                       <i class="bi bi-search"></i>
                     }
                     <span>Inspect</span>
-                  </button>
-                  <button class="app-action secondary" type="button" aria-label="Stress test"
-                          [class.stress-active]="stressRunningId === (app.runtimeId || app.id)"
-                          (click)="openStressPrompt(app)"
-                          [disabled]="!!stressRunningId && stressRunningId !== (app.runtimeId || app.id)">
-                    @if (stressRunningId === (app.runtimeId || app.id)) {
-                      <span class="spinner-mini"></span>
-                      <span>Stop</span>
-                    } @else {
-                      <i class="bi bi-arrow-repeat"></i>
-                      <span>Stress</span>
-                    }
                   </button>
                 }
                 <button class="app-action primary" type="button" aria-label="Launch" (click)="launchApp(app)">
@@ -207,22 +135,4 @@
     }
   </div>
 
-  @if (stressPromptForId) {
-    <div class="stress-prompt-backdrop" (click)="cancelStressPrompt()">
-      <div class="stress-prompt" (click)="$event.stopPropagation()">
-        <h3>Stress Test</h3>
-        <p>Launch/kill cycles for:</p>
-        <code class="stress-prompt-id">{{ stressPromptForId }}</code>
-        <label>
-          Number of cycles
-          <input type="number" min="1" step="1" [(ngModel)]="stressPromptCycles"
-                 (keydown.enter)="confirmStressPrompt()" autofocus>
-        </label>
-        <div class="stress-prompt-actions">
-          <button class="btn btn-secondary" (click)="cancelStressPrompt()">Cancel</button>
-          <button class="btn btn-primary" (click)="confirmStressPrompt()">Start</button>
-        </div>
-      </div>
-    </div>
-  }
 </div>

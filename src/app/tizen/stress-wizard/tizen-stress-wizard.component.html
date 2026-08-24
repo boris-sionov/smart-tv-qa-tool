@@ -1,0 +1,200 @@
+<div class="stress-wizard">
+
+  <!-- Header -->
+  <div class="wizard-header">
+    <div class="wizard-title">
+      <i class="bi bi-arrow-repeat me-2"></i>Stress Test
+    </div>
+    <div class="wizard-steps">
+      <span class="step-dot" [class.active]="step >= 1" [class.done]="step > 1">1</span>
+      <span class="step-line" [class.done]="step > 1"></span>
+      <span class="step-dot" [class.active]="step >= 2" [class.done]="step > 2">2</span>
+      <span class="step-line" [class.done]="step > 2"></span>
+      <span class="step-dot" [class.active]="step >= 3">3</span>
+    </div>
+    @if (step < 3 || !running) {
+      <button class="wizard-close" (click)="modal.dismiss()" aria-label="Close">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    }
+  </div>
+
+  <!-- Step 1: Choose app -->
+  @if (step === 1) {
+    <div class="wizard-body">
+      <div class="step-label">Choose an app to test</div>
+      <p class="step-sub">Only WGT-installed apps are available for stress testing.</p>
+
+      @if (apps.length === 0) {
+        <div class="empty-apps">
+          <i class="bi bi-inbox"></i>
+          <span>No WGT apps found on this device.</span>
+        </div>
+      } @else {
+        <div class="app-picker">
+          @for (app of apps; track app.id) {
+            <button class="app-pick-row" [class.selected]="selectedApp?.id === app.id"
+                    (click)="selectedApp = app">
+              <div class="app-pick-check">
+                @if (selectedApp?.id === app.id) {
+                  <i class="bi bi-check-circle-fill"></i>
+                } @else {
+                  <i class="bi bi-circle"></i>
+                }
+              </div>
+              <div class="app-pick-info">
+                <div class="app-pick-name">{{ app.name }}</div>
+                <div class="app-pick-id">{{ app.tizenId || app.id }}</div>
+              </div>
+            </button>
+          }
+        </div>
+      }
+    </div>
+    <div class="wizard-footer">
+      <button class="wiz-btn secondary" (click)="modal.dismiss()">Cancel</button>
+      <button class="wiz-btn primary" (click)="nextStep()" [disabled]="!selectedApp">
+        Next <i class="bi bi-arrow-right ms-1"></i>
+      </button>
+    </div>
+  }
+
+  <!-- Step 2: Choose cycles -->
+  @if (step === 2) {
+    <div class="wizard-body">
+      <div class="step-label">Configure test</div>
+      <p class="step-sub">
+        Testing <strong>{{ selectedApp?.name }}</strong>
+        <span class="app-id-pill">{{ selectedApp?.tizenId || selectedApp?.id }}</span>
+      </p>
+
+      <div class="cycles-field">
+        <label class="field-label" for="cycleCount">Number of cycles</label>
+        <div class="cycles-row">
+          <button class="cycles-adj" (click)="cycles = cycles > 1 ? cycles - 1 : 1">
+            <i class="bi bi-dash"></i>
+          </button>
+          <input id="cycleCount" type="number" min="1" step="1" [(ngModel)]="cycles"
+                 class="cycles-input" (keydown.enter)="nextStep()">
+          <button class="cycles-adj" (click)="cycles = cycles + 1">
+            <i class="bi bi-plus"></i>
+          </button>
+        </div>
+        <div class="cycles-hint">
+          Estimated duration: ~{{ formatDuration(cycles * 40) }}
+        </div>
+      </div>
+    </div>
+    <div class="wizard-footer">
+      <button class="wiz-btn secondary" (click)="prevStep()">
+        <i class="bi bi-arrow-left me-1"></i>Back
+      </button>
+      <button class="wiz-btn primary" (click)="nextStep()">
+        <i class="bi bi-play-fill me-1"></i>Start Test
+      </button>
+    </div>
+  }
+
+  <!-- Step 3: Live results -->
+  @if (step === 3) {
+    <div class="wizard-body results-body">
+      <!-- Status bar -->
+      <div class="stress-status-bar">
+        <div class="stress-status-text">
+          @if (running) {
+            <span class="spinner-mini me-2"></span>
+          } @else {
+            <i class="bi bi-check-circle-fill text-success me-2"></i>
+          }
+          {{ stressStatus }}
+        </div>
+        <div class="stress-timers">
+          @if (running && stressCountdown > 0) {
+            <span class="countdown-pill">
+              <i class="bi bi-stopwatch me-1"></i>
+              next {{ stressPhase === 'after-launch' ? 'kill' : 'launch' }} in {{ stressCountdown }}s
+            </span>
+            <span class="countdown-pill total">
+              <i class="bi bi-hourglass-split me-1"></i>
+              ~{{ formatDuration(stressTotalRemaining) }} left
+            </span>
+          }
+        </div>
+      </div>
+
+      <!-- Summary badges -->
+      <div class="results-summary">
+        <span class="summary-badge pass">
+          <i class="bi bi-check-circle-fill me-1"></i>Pass: {{ stressPassCount }}
+        </span>
+        <span class="summary-badge fail">
+          <i class="bi bi-x-circle-fill me-1"></i>Fail: {{ stressFailCount }}
+        </span>
+      </div>
+
+      <!-- Results table -->
+      @if (stressResults.length > 0) {
+        <div class="results-scroll">
+          <table class="results-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Type</th>
+                <th>Label</th>
+                <th>Title</th>
+                <th>Channel</th>
+                <th>Buttons</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of stressResults; track r.cycle) {
+                <tr [class.row-pass]="r.pass" [class.row-fail]="!r.pass">
+                  <td>{{ r.cycle }}</td>
+                  <td>
+                    <span class="type-badge type-{{ r.type || 'unknown' }}">{{ r.type || '—' }}</span>
+                  </td>
+                  <td>{{ r.label || '—' }}</td>
+                  <td class="title-cell">{{ r.title || '—' }}</td>
+                  <td>{{ r.channel || '—' }}</td>
+                  <td>
+                    @if (r.buttons && r.buttons.length) {
+                      @for (b of r.buttons; track b) {
+                        <span class="btn-chip">{{ b }}</span>
+                      }
+                    } @else { — }
+                  </td>
+                  <td>
+                    @if (r.pass) {
+                      <span class="result-found"><i class="bi bi-check-circle-fill me-1"></i>FOUND</span>
+                    } @else {
+                      <span class="result-miss"><i class="bi bi-x-circle-fill me-1"></i>MISSING</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else if (running) {
+        <div class="results-waiting">
+          <span class="spinner-mini large me-3"></span>
+          Waiting for first cycle to complete…
+        </div>
+      }
+    </div>
+
+    <div class="wizard-footer">
+      @if (running) {
+        <button class="wiz-btn danger" (click)="stopTest()">
+          <i class="bi bi-stop-fill me-1"></i>Stop
+        </button>
+      } @else {
+        <button class="wiz-btn secondary" (click)="modal.dismiss()">
+          <i class="bi bi-check me-1"></i>Close
+        </button>
+      }
+    </div>
+  }
+
+</div>
