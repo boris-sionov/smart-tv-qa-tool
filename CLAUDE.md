@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-# Smart TV QA Tool — v1.0.0
+# Smart TV QA Tool
 
-A unified Tauri 2 (Rust backend) + Angular 17 desktop application for managing apps across Samsung Tizen, Android TV, and LG WebOS Smart TVs.
+A unified **Tauri 2** (Rust backend) + **Angular 18.2** desktop application for managing apps across Samsung Tizen, Android TV, and LG WebOS Smart TVs. Requires Node 20+ and Rust 1.92+.
 
 ---
 
@@ -19,18 +19,52 @@ npm run setup:win       # Windows (PowerShell)
 
 # Development
 npm run start           # Tauri dev server with Angular hot-reload (port 4281)
-npm run build           # Production build
+npm run build           # Production build (bumps the build number first — see Versioning)
 
 # Angular CLI — use npm run ng, NOT npx ng (wrapper sets required Tauri env vars)
 npm run ng -- generate component foo
-npm run ng -- test                              # all unit tests (Karma + Jasmine)
-npm run ng -- test --include='**/foo.spec.ts'  # single spec file
+npm run ng -- test --browsers=Tauri                            # unit tests (Karma + Jasmine)
+npm run ng -- test --browsers=Tauri --include='**/foo.spec.ts' # single spec file
+
+# Rust tests
+cargo test -p devman
 ```
 
-**Build outputs:**
-- macOS: `src-tauri/target/release/bundle/dmg/Smart TV QA Tool_1.0.0_x64.dmg`
-- Windows: `.../msi/Smart_TV_QA_Tool_1.0.0_x64.msi`
-- Linux: `.../deb/smart-tv-qa-tool_1.0.0_amd64.deb`
+Karma does not use Chrome — `scripts/karma-tauri-launcher.js` registers a `Tauri` launcher that
+runs the specs inside a real Tauri window (so `invoke()` works). `autoWatch` is on and
+`singleRun` is false by default; add `--watch=false` for one-shot runs.
+
+**Build outputs** land in the *workspace* target dir at the repo root (`Cargo.toml` declares a
+workspace whose only member is `src-tauri`), **not** `src-tauri/target/`:
+- macOS: `target/release/bundle/dmg/Smart TV QA Tool_<version>_aarch64.dmg`
+- Windows: `target/release/bundle/msi/*.msi`, `.../nsis/*.exe`
+- Linux: `target/release/bundle/deb/*.deb`, `.../rpm/*.rpm`, `.../appimage/*.AppImage`
+
+---
+
+## Versioning & Build Number
+
+`package.json` `version` is the single source of semver — `src-tauri/tauri.conf.json` reads it via
+`"version": "../package.json"`. Bundle filenames come from it.
+
+The build number is separate and generated:
+
+| File | Role |
+|------|------|
+| `scripts/build-info.js` | Generator. `--bump` increments, `--force` always increments |
+| `src/build-info.json` | Generated **and committed** — holds the counter, commit, branch, timestamp |
+| `src/app/core/build-info.ts` | Typed accessor: `BUILD_INFO`, `APP_VERSION` (`"1.0.0 (build 12)"`) |
+
+Wiring: `prebuild` runs `build-info.js --bump` before every `npm run build`; `prestart` refreshes
+(without bumping) before `npm run start`. The bump is conditional — it only fires when HEAD moved
+or the tree is dirty (ignoring `src/build-info.json` itself), so building the same clean commit
+twice keeps the same number. That's why CI's double `npm run build` on Windows x64 doesn't inflate it.
+
+`APP_VERSION` is displayed in the platform-selector footer, the LG sidebar, and LG → More → Version.
+
+Do **not** confuse this with `src/release.json` (`{version: ""}`), a fork leftover consumed only by
+`src/main.ts` to gate Sentry: empty version ⇒ Sentry disabled and release reported as `local`. Leave
+it empty for local builds.
 
 ---
 
@@ -38,7 +72,9 @@ npm run ng -- test --include='**/foo.spec.ts'  # single spec file
 
 ### Two Parallel Architectures (Important)
 
-The codebase is mid-migration. **Android TV and Tizen** use the new `DeviceProvider` abstraction. **LG WebOS** still uses the original SSH-based architecture from the upstream `webosbrew/dev-manager-desktop` fork and is NOT wired into `DeviceProviderFactory`.
+The codebase is mid-migration. **Android TV and Tizen** use the new `DeviceProvider` abstraction.
+**LG WebOS** still uses the original SSH-based architecture from the upstream
+`webosbrew/dev-manager-desktop` fork and is NOT wired into `DeviceProviderFactory`.
 
 ```
 Angular UI
@@ -54,7 +90,27 @@ Angular UI
             └── Rust plugins: remote-command, remote-shell, remote-file, dev-mode, lg-remote
 ```
 
-**Key insight about the Rust plugin:** Both ADB (Android TV) and Tizen SDB commands live in `src-tauri/src/plugins/samsung_tizen.rs`, which is registered in `lib.rs` as `plugin("adb-manager")`. The file `src-tauri/src/plugins/adb.rs` is a helper module imported by `samsung_tizen.rs`, not a separate registered plugin. All calls from Angular to either ADB or Tizen go through `invoke('plugin:adb-manager|...')`.
+`DeviceProviderFactory.get()` **throws** for `webos` — check `supports(platform)` first in any
+code path that may see all three platforms.
+
+### Rust Plugin Registration (`src-tauri/src/lib.rs`)
+
+| Registered name | Module | Serves |
+|-----------------|--------|--------|
+| `device-manager` | `plugins/device.rs` | LG device store |
+| `remote-command` | `plugins/cmd.rs` | LG SSH exec / Luna |
+| `remote-shell` | `plugins/shell.rs` | LG PTY shells |
+| `remote-file` | `plugins/file.rs` | LG SFTP |
+| `dev-mode` | `plugins/devmode.rs` | LG dev-mode token |
+| `local-file` | `plugins/local_file.rs` | Host filesystem |
+| `adb-manager` | `plugins/samsung_tizen.rs` | **Both** Android TV ADB *and* Tizen SDB |
+| `lg-remote` | `plugins/lg_remote.rs` | LG remote-control keys |
+
+**Key insight:** `plugins/adb.rs` is a helper module imported by `samsung_tizen.rs`, not a separately
+registered plugin. Every ADB *and* Tizen call from Angular goes through `invoke('plugin:adb-manager|...')`.
+
+Cargo package name is still `devman` and the binary `webos-dev-manager` (fork leftovers) — the
+product name `Smart TV QA Tool` comes from `tauri.conf.json`.
 
 ### Route Structure
 
@@ -91,11 +147,14 @@ interface DeviceProvider {
 }
 ```
 
-Resolve providers via `DeviceProviderFactory.get(platform)` — never import `AdbService` or `SdbService` directly in UI components.
+Resolve providers via `DeviceProviderFactory.get(platform)` — never import `AdbService` or
+`SdbService` directly in UI components.
 
 ### Service Base Classes
 
-All Angular services that call Rust extend `BackendClient` (`src/app/core/services/backend-client.ts`). It wraps `invoke()` with `NgZone.run()` re-entry (so Tauri promise resolutions trigger Angular CD) and normalises Rust errors into typed `BackendError` / `IOError` / `ExecutionError`.
+All Angular services that call Rust extend `BackendClient` (`src/app/core/services/backend-client.ts`).
+It wraps `invoke()` with `NgZone.run()` re-entry (so Tauri promise resolutions trigger Angular CD)
+and normalises Rust errors into typed `BackendError` / `IOError` / `ExecutionError`.
 
 ```typescript
 class MyService extends BackendClient {
@@ -104,23 +163,29 @@ class MyService extends BackendClient {
 }
 ```
 
-For bidirectional streaming (PTY, log tails) use `EventChannel` (`src/app/core/event-channel.ts`). The Rust side opens a channel token; events flow via `token:rx` / `token:tx` / `token:closed` Tauri events. Used by `RemoteShellService` for WebOS PTY shells.
+For bidirectional streaming (PTY, log tails) use `EventChannel` (`src/app/core/event-channel.ts`).
+The Rust side opens a channel token; events flow via `token:rx` / `token:tx` / `token:closed` Tauri
+events. Used by `RemoteShellService` for WebOS PTY shells.
 
 ### Device State Persistence
 
-Android TV and Tizen device lists are stored in `localStorage` (not a Tauri store or file). State services:
+Android TV and Tizen device lists are stored in `localStorage` (not a Tauri store or file):
 - `TizenStateService` — keys `smart-tv-qa-tizen-devices`, `smart-tv-qa-tizen-selected-device`, `smart-tv-qa-tizen-studio-path`, `smart-tv-qa-tizen-cert-profile`
 - `AdbStateService` — keys `freetv-android-tv-devices`, `freetv-android-tv-selected-device`
 
-`AdbStateService` wipes device state on first launch per app installation (guarded by `adb-state-initialized` flag). This is the "Persistent device state" open work item — the intent is to keep state across reinstalls.
+`AdbStateService` wipes device state on first launch per app installation (guarded by
+`adb-state-initialized` flag). This is the "Persistent device state" open work item — the intent is
+to keep state across reinstalls.
 
-LG WebOS devices are stored in `~/.webos/ose/novacom-devices.json` (macOS/Linux) or `%APPDATA%\.webos\ose\` (Windows) — a legacy path from the webosbrew fork. The `DeviceManager` clears this file once on first run (`.initialized` marker) to drop stale entries from the fork.
+LG WebOS devices live in `~/.webos/ose/novacom-devices.json` (macOS/Linux) or `%APPDATA%\.webos\ose\`
+(Windows) — a legacy path from the webosbrew fork. `DeviceManager` clears this file once on first
+run (`.initialized` marker) to drop stale entries from the fork.
 
 ### Unified Logging
 
-`DeviceLogService` (`src/app/core/services/device-log.service.ts`) provides a platform-neutral log stream with parsers:
-- `parseAndroidLogcat(raw, deviceId)` for `adb logcat`
-- `parseTizenDlog(raw, deviceId)` for `sdb dlog`
+`DeviceLogService` (`src/app/core/services/device-log.service.ts`) provides a platform-neutral log
+stream with parsers: `parseAndroidLogcat(raw, deviceId)` for `adb logcat`, `parseTizenDlog(raw, deviceId)`
+for `sdb dlog`.
 
 ---
 
@@ -132,7 +197,8 @@ LG WebOS devices are stored in `~/.webos/ose/novacom-devices.json` (macOS/Linux)
 - **Commands:** user-installed `sdb` + `tizen` CLIs, orchestrated from Rust via `adb-manager` plugin
 
 #### Signed WGT Install Flow (Critical — `tizen_install_signed` in Rust)
-The CI build double-packages WGTs: files appear at root (unsigned) AND inside `.buildResult/` (signed). The TV rejects unsigned WGTs with error `[118, -12]`.
+The CI build double-packages WGTs: files appear at root (unsigned) AND inside `.buildResult/` (signed).
+The TV rejects unsigned WGTs with error `[118, -12]`.
 
 Pipeline:
 1. Repack — strip root entries, keep only `.buildResult/` content
@@ -144,11 +210,14 @@ Pipeline:
 7. `tizen install -n file.wgt -s <ip>:26101`
 8. `sdb disconnect` — cleanup
 
-`sdb disconnect` must come before `kill-server`: `kill-server` only kills the Mac-side daemon; the TV still holds its session. `sdb disconnect` sends a proper teardown so the TV releases the port.
+`sdb disconnect` must come before `kill-server`: `kill-server` only kills the Mac-side daemon; the TV
+still holds its session. `sdb disconnect` sends a proper teardown so the TV releases the port.
 
 #### Stress Test / CDP
-- Launch via `sdb.debug(serial, tizenId)` — launches the app AND returns the CDP port. Never call `debug()` again after waiting — it restarts the app.
-- Tizen's `/json` returns `ws://localhost:PORT/...` — rewrite `localhost` to the actual TV IP before connecting the WebSocket.
+- Launch via `sdb.debug(serial, tizenId)` — launches the app AND returns the CDP port. Never call
+  `debug()` again after waiting — it restarts the app.
+- Tizen's `/json` returns `ws://localhost:PORT/...` — rewrite `localhost` to the actual TV IP before
+  connecting the WebSocket.
 - Verification selector: `h1.metadata__title`.
 
 #### TizenBrew-Compatible Commands (vd_* protocol)
@@ -173,12 +242,33 @@ Pipeline:
 ### LG WebOS (Luna API)
 - **Connection:** SSH port 22 / 9922, Ed25519 key auth
 - **App format:** IPK
-- **Architecture:** SSH connection pool (`conn_pool/`, `session_manager/`) via `libssh-rs`; Luna service calls over SSH; PTY shells via `shell_manager/`
+- **Architecture:** SSH connection pool (`conn_pool/`, `session_manager/`) via `libssh-rs`; Luna
+  service calls over SSH; PTY shells via `shell_manager/`
 - **Status:** Fully functional; planned migration to `DeviceProvider` interface
 
 ### VIDAA TV (Hisense) — Planned
 - **Connection:** MQTT-over-TLS port 36669, credentials `hisenseservice` / `multimqttservice`
 - **Plan:** Rust MQTT client (`rumqttc` crate), `VidaaProvider` implementing `DeviceProvider`
+
+---
+
+## Sidecar Binaries
+
+`tauri.conf.json` declares `externalBin: ["binaries/adb", "binaries/sdb"]`. Tauri resolves these
+per **target triple**, so `src-tauri/binaries/` must contain e.g. `adb-aarch64-apple-darwin`,
+`sdb-x86_64-pc-windows-msvc.exe`. A build fails with "binary not found" when the triple for the
+current target is missing — `npm run setup` fetches the host ones; CI copies/duplicates them for
+cross-compiled targets (see `.github/workflows/release.yml`).
+
+---
+
+## CI
+
+- `.github/workflows/build-verify.yml` — build on push/PR to `main` across Linux, macOS, Windows
+  x64 + Windows ARM64.
+- `.github/workflows/release.yml` — on published release (or manual dispatch), builds all targets
+  (Windows x64 + i686 + ARM64, Linux x86_64 + ARM64, macOS universal) with
+  `--features=vendored-openssl` and attaches bundles to the release.
 
 ---
 
@@ -198,10 +288,9 @@ Step states: `pending` → `active` (spinner) → `done` (✓) → `failed` (✕
 
 ## Design System
 
-Glassmorphism dark theme. CSS custom properties:
-- Background: `#0F172B`, Primary: `#5B9FF5`, Danger: `#FF6B6B`, Success: `#4ADE80`
-- Text: `#FFFFFF` / `#A8B8CC` (secondary)
-- Blur effects, 12–20px rounded corners, smooth transitions
+Glassmorphism dark theme. Colors: background `#0F172B`, primary `#5B9FF5`, danger `#FF6B6B`,
+success `#4ADE80`, text `#FFFFFF` / `#A8B8CC` (secondary). Blur effects, 12–20px rounded corners,
+smooth transitions.
 
 ---
 
@@ -223,4 +312,4 @@ Glassmorphism dark theme. CSS custom properties:
 - **Samsung Tizen:** Built from scratch; reverse-engineered TizenBrew's `vd_*` protocol
 - **Android TV:** Ported from internal Python/PySide6 tool; ADB calls moved to Rust
 
-**Last Updated:** June 24, 2026 | **Version:** 1.0.0
+See also `AGENTS.md` (session history and deeper protocol notes) and `README.md` (user-facing setup).
