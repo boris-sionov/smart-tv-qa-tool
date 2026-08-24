@@ -94,3 +94,10 @@ src-tauri/binaries/
 # Session notes and temp plan files
 SESSION_SUMMARY_*.md
 WGT-INSTALL-PLAN.md
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/worktrees/
+
+# Stray screen recordings / media
+*.mp4
