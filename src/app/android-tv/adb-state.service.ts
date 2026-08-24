@@ -1,5 +1,6 @@
 import {Injectable} from '@angular/core';
 import {BehaviorSubject} from 'rxjs';
+import {AdbPackageInfo} from '../core/services/adb.service';
 
 export interface SavedDevice {
     name: string;
@@ -18,6 +19,19 @@ const SELECTED_STORAGE_KEY = 'freetv-android-tv-selected-device';
 export class AdbStateService {
 
     selected$ = new BehaviorSubject<SavedDevice | null>(this.getLastSelectedDevice());
+    private packagesCache = new Map<string, AdbPackageInfo[]>();
+
+    getCachedPackages(serial: string): AdbPackageInfo[] | null {
+        return this.packagesCache.get(serial) ?? null;
+    }
+
+    setCachedPackages(serial: string, packages: AdbPackageInfo[]): void {
+        this.packagesCache.set(serial, packages);
+    }
+
+    invalidatePackages(serial: string): void {
+        this.packagesCache.delete(serial);
+    }
 
     constructor() {
         const isInitialized = localStorage.getItem('adb-state-initialized');
