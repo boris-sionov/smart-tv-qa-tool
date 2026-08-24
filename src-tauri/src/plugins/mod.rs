@@ -3,5 +3,7 @@ pub mod cmd;
 pub mod device;
 pub mod devmode;
 pub mod file;
+pub mod lg_remote;
 pub mod local_file;
+pub mod samsung_tizen;
 pub mod shell;

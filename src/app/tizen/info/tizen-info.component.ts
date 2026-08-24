@@ -1,6 +1,6 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
-import {SdbService, TizenInfoEntry} from '../../core/services/sdb.service';
+import {SdbService} from '../../core/services/sdb.service';
 import {tizenSerial, TizenDevice, TizenStateService} from '../tizen-state.service';
 
 interface InfoRow {
@@ -46,26 +46,11 @@ export class TizenInfoComponent implements OnInit, OnDestroy {
         this.error = undefined;
         const serial = tizenSerial(dev);
         try {
-            let systemInfo: TizenInfoEntry[] = [];
+            const basic = await this.sdb.getDeviceInfo(serial).catch(() => null);
 
-            // Primary: full key-value info via sdb capability + /etc/info.ini
-            const details = await this.sdb.getTizenBrewDeviceDetails(serial);
-            systemInfo = details.systemInfo;
-
-            // Fallback: basic device info if nothing came back
-            if (systemInfo.length === 0) {
-                const basic = await this.sdb.getDeviceInfo(serial).catch(() => null);
-                if (basic) {
-                    if (basic.model)      systemInfo.push({key: 'MODEL_NAME',    value: basic.model});
-                    if (basic.osVersion)  systemInfo.push({key: 'TIZEN_VERSION', value: basic.osVersion});
-                }
-            }
-
-            const get = (...keys: string[]): string => this.findValue(systemInfo, keys);
-
-            const modelName    = get('model_name', 'MODEL_NAME', 'Model Name', 'Model', 'PRODUCT_CODE');
-            const tizenVersion = get('TIZEN_VERSION', 'platform_version', 'Platform Version', 'Tizen Version', 'PRODUCT_VERSION', 'SW_VERSION');
-            const platform     = get('PROFILE', 'profile_name', 'Platform', 'platform', 'PLATFORM', 'device_type', 'DEVICE_TYPE');
+            const modelName    = basic?.model      ?? '';
+            const tizenVersion = basic?.osVersion  ?? '';
+            const platform     = 'tv';
 
             this.info = [
                 {label: 'Model Name',     value: modelName,     icon: 'bi-tag-fill',   highlight: true},
@@ -83,19 +68,6 @@ export class TizenInfoComponent implements OnInit, OnDestroy {
     selectDevice(serial: string): void {
         const device = this.devices.find(dev => tizenSerial(dev) === serial) ?? null;
         this.state.select(device);
-    }
-
-    private findValue(entries: TizenInfoEntry[], keys: string[]): string {
-        const normalized = new Map(entries.map(entry => [this.normalizeKey(entry.key), entry.value]));
-        for (const key of keys) {
-            const value = normalized.get(this.normalizeKey(key));
-            if (value) return value;
-        }
-        return '';
-    }
-
-    private normalizeKey(key: string): string {
-        return key.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     }
 
     async copyDeviceInfo(): Promise<void> {

@@ -18,6 +18,7 @@ fn main() {
                     "app_ssh_key_path",
                     "app_ssh_pubkey",
                     "ssh_key_dir",
+                    "disconnect",
                 ]),
             )
             .plugin(
@@ -44,7 +45,7 @@ fn main() {
             )
             .plugin(
                 "lg-remote",
-                InlinedPlugin::new().commands(&["press_button"]),
+                InlinedPlugin::new().commands(&["press_button", "list_apps"]),
             )
             .plugin(
                 "adb-manager",
@@ -72,6 +73,9 @@ fn main() {
                     "tizen_get_app_version",
                     "tizen_install_signed",
                     "tizen_detect_studio",
+                    "tizen_press_key",
+                    "tizen_open_certificate_manager",
+                    "tizen_open_device_manager",
                 ]),
             ),
     )

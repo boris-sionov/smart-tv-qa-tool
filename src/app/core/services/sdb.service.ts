@@ -213,6 +213,14 @@ export class SdbService implements DeviceProvider {
         return invoke<TizenStudioInfo>('plugin:adb-manager|tizen_detect_studio', {homeDir: home});
     }
 
+    async openCertificateManager(studioPath: string): Promise<void> {
+        return invoke('plugin:adb-manager|tizen_open_certificate_manager', {studioPath});
+    }
+
+    async openDeviceManager(studioPath: string): Promise<void> {
+        return invoke('plugin:adb-manager|tizen_open_device_manager', {studioPath});
+    }
+
     async isTizenCliAvailable(): Promise<boolean> {
         return false;
     }

@@ -54,6 +54,10 @@ export class DeviceManagerService extends BackendClient {
         return await this.invoke('remove', {name, removeKey}).then(() => this.load());
     }
 
+    async disconnect(name: string): Promise<void> {
+        return await this.invoke('disconnect', {name});
+    }
+
     async addDevice(device: NewDevice): Promise<Device> {
         const result = await this.invoke<Device>('add', {device});
         this.load();
@@ -109,14 +113,22 @@ export class DeviceManagerService extends BackendClient {
         }, true);
     }
 
+    private deviceInfoCache = new Map<string, DeviceInfo>();
+
+    invalidateDeviceInfo(deviceName: string): void {
+        this.deviceInfoCache.delete(deviceName);
+    }
+
     async getDeviceInfo(device: DeviceLike): Promise<DeviceInfo> {
+        const cached = this.deviceInfoCache.get(device.name);
+        if (cached) return cached;
         const systemInfo = await this.luna.call<SystemInfo>(device, 'luna://com.webos.service.tv.systemproperty/getSystemInfo', {
             keys: ['firmwareVersion', 'modelName', 'sdkVersion', 'otaId']
         }, true, false);
         const osInfo = await this.luna.call<Partial<OsInfo>>(device, 'luna://com.palm.systemservice/osInfo/query', {
             parameters: ['device_name', 'webos_manufacturing_version', 'webos_release']
         }).catch(() => null);
-        return {
+        const info: DeviceInfo = {
             modelName: systemInfo.modelName,
             osVersion: osInfo?.webos_release || systemInfo.sdkVersion,
             otaId: systemInfo.otaId || await this.luna.call<{
@@ -131,6 +143,8 @@ export class DeviceManagerService extends BackendClient {
             socName: osInfo?.device_name || await this.file.read(device, '/etc/prefs/properties/machineName',
                 undefined, 'utf-8').catch(() => undefined),
         };
+        this.deviceInfoCache.set(device.name, info);
+        return info;
     }
 
     async getStorageInfo(device: DeviceLike, mountPoint?: string): Promise<StorageInfo | null> {
@@ -148,7 +162,9 @@ export class DeviceManagerService extends BackendClient {
     }
 
     async takeScreenshot(device: DeviceLike, method: ScreenshotMethod = 'DISPLAY'): Promise<string> {
-        const tmpPath = `/tmp/devman_shot_${Date.now()}.png`
+        // See app-manager.service.ts: /tmp is not readable/writable by `prisoner`
+        // on newer webOS builds, so keep captures in the developer home.
+        const tmpPath = `/media/developer/temp/devman_shot_${Date.now()}.png`
         const param: Record<string, any> = {
             path: tmpPath,
             method: method,

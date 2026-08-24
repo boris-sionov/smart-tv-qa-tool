@@ -1,0 +1,262 @@
+.remote-dialog {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #1a2744 0%, #0F172B 100%);
+  border-radius: 16px;
+  overflow: hidden;
+  min-width: 280px;
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────────
+
+.remote-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid rgba(91, 159, 245, 0.15);
+}
+
+.remote-title {
+  color: #FFFFFF;
+  font-size: 15px;
+  font-weight: 700;
+  flex: 1;
+}
+
+.remote-device {
+  color: #A8B8CC;
+  font-size: 12px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #7E92B0;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+
+  &:hover { color: #FFFFFF; background: rgba(255, 255, 255, 0.08); }
+}
+
+// ── Body / D-pad ───────────────────────────────────────────────────────────────
+
+.remote-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 24px 20px;
+}
+
+.dpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.dpad-grid {
+  display: grid;
+  grid-template-columns: 60px 60px 60px;
+  grid-template-rows: 60px 60px 60px;
+  gap: 6px;
+}
+
+.dpad-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid rgba(91, 159, 245, 0.25);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #EAF2FF;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+
+  &:hover:not(:disabled) {
+    background: rgba(91, 159, 245, 0.18);
+    border-color: rgba(91, 159, 245, 0.5);
+    color: #FFFFFF;
+    transform: scale(1.06);
+  }
+
+  &.pressing {
+    background: rgba(91, 159, 245, 0.3) !important;
+    border-color: #5B9FF5 !important;
+    color: #FFFFFF;
+    transform: scale(0.94);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+// Grid placement
+.dpad-up    { grid-column: 2; grid-row: 1; }
+.dpad-left  { grid-column: 1; grid-row: 2; }
+.dpad-ok    { grid-column: 2; grid-row: 2; font-size: 13px; border-radius: 50%;
+              background: rgba(91, 159, 245, 0.2); border-color: rgba(91, 159, 245, 0.45); }
+.dpad-right { grid-column: 3; grid-row: 2; }
+.dpad-down  { grid-column: 2; grid-row: 3; }
+
+.aux-row {
+  display: flex;
+  gap: 10px;
+}
+
+.aux-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 36px;
+  padding: 0 16px;
+  border: 1.5px solid rgba(91, 159, 245, 0.22);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #A8B8CC;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: #FFFFFF;
+  }
+
+  &.pressing {
+    background: rgba(91, 159, 245, 0.22) !important;
+    border-color: #5B9FF5 !important;
+    color: #FFFFFF;
+  }
+
+  &:disabled { opacity: 0.4; cursor: default; }
+}
+
+// ── Number pad ─────────────────────────────────────────────────────────────────
+
+.numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 52px);
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.numpad-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 42px;
+  border: 1.5px solid rgba(91, 159, 245, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #EAF2FF;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+
+  &:hover:not(:disabled) {
+    background: rgba(91, 159, 245, 0.15);
+    border-color: rgba(91, 159, 245, 0.4);
+    color: #FFFFFF;
+  }
+
+  &.pressing {
+    background: rgba(91, 159, 245, 0.28) !important;
+    border-color: #5B9FF5 !important;
+    color: #FFFFFF;
+    transform: scale(0.93);
+  }
+
+  &:disabled { opacity: 0.35; cursor: default; }
+
+  // 0 spans 2 columns (last row, center-right)
+  &:last-child {
+    grid-column: 2 / span 1;
+  }
+}
+
+.remote-error {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: #FF6B6B;
+  font-size: 12px;
+  width: 100%;
+}
+
+// ── Footer ─────────────────────────────────────────────────────────────────────
+
+.remote-footer {
+  padding: 0 18px 18px;
+  display: flex;
+  justify-content: center;
+}
+
+.stress-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 40px;
+  padding: 0 18px;
+  border: 1.5px solid rgba(74, 222, 128, 0.3);
+  border-radius: 10px;
+  background: rgba(74, 222, 128, 0.08);
+  color: #4ADE80;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover:not(:disabled) {
+    background: rgba(74, 222, 128, 0.15);
+    border-color: rgba(74, 222, 128, 0.5);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+}
+
+.stress-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.25);
+  color: #4ADE80;
+  font-size: 11px;
+  font-weight: 800;
+}

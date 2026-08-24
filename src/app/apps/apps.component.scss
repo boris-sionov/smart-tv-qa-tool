@@ -21,6 +21,12 @@ $border-color: rgba(91, 159, 245, 0.2);
   }
 }
 
+// Keep the scrollbar's space reserved, so switching to a shorter list doesn't shift the
+// whole page sideways when the scrollbar disappears.
+.apps-scroll {
+  scrollbar-gutter: stable;
+}
+
 // Manager Toolbar
 .manager-toolbar {
   background: rgba(15, 23, 43, 0.6) !important;
@@ -224,4 +230,109 @@ $border-color: rgba(91, 159, 245, 0.2);
   i { color: #5B9FF5; font-size: 36px; }
   h3 { margin: 0; color: #FFFFFF; font-size: 17px; font-weight: 700; }
   p  { margin: 0; font-size: 13px; }
+}
+
+.stress-results-panel {
+  margin-top: 16px;
+  background: rgba(15, 23, 43, 0.85);
+  border: 1px solid rgba(91, 159, 245, 0.25);
+  border-radius: 12px;
+  padding: 16px 18px;
+  color: #FFFFFF;
+
+  .stress-results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+
+    h3 { margin: 0; font-size: 16px; font-weight: 700; }
+    .stress-results-sub { color: #A8B8CC; font-size: 12px; margin-top: 2px; }
+  }
+
+  .stress-results-summary { margin-bottom: 10px; }
+
+  .stress-results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th, td {
+      padding: 6px 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    th { color: #A8B8CC; font-weight: 600; }
+    .row-pass td { background: rgba(40, 167, 69, 0.06); }
+    .row-fail td { background: rgba(220, 53, 69, 0.08); }
+  }
+}
+
+.stress-countdown {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 12px;
+  padding: 2px 10px;
+  background: rgba(91, 159, 245, 0.15);
+  border: 1px solid rgba(91, 159, 245, 0.4);
+  border-radius: 999px;
+  color: #5B9FF5;
+  font-weight: 600;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: rgba(168, 184, 204, 0.15);
+  color: #A8B8CC;
+}
+.type-badge.type-Live { background: rgba(220, 53, 69, 0.18); color: #ff6b6b; }
+.type-badge.type-VOD  { background: rgba(40, 167, 69, 0.18); color: #28a745; }
+
+.btn-chip {
+  display: inline-block;
+  margin: 1px 3px 1px 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(91, 159, 245, 0.12);
+  border: 1px solid rgba(91, 159, 245, 0.3);
+  color: #5B9FF5;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.stress-prompt-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1050;
+}
+.stress-prompt {
+  background: #0F172B;
+  border: 1px solid rgba(91, 159, 245, 0.3);
+  border-radius: 14px;
+  padding: 22px 24px;
+  min-width: 340px;
+  color: #FFFFFF;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+
+  h3 { margin: 0 0 6px; font-size: 18px; font-weight: 700; }
+  p  { margin: 0 0 4px; color: #A8B8CC; font-size: 13px; }
+  .stress-prompt-id { display: inline-block; margin-bottom: 14px; color: #5B9FF5; font-size: 12px; }
+  label { display: block; color: #A8B8CC; font-size: 13px; margin-bottom: 16px; }
+  input[type=number] {
+    margin-top: 6px; width: 100%; padding: 8px 10px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(91,159,245,0.4);
+    border-radius: 8px; color: #FFFFFF; font-size: 15px;
+  }
+  .stress-prompt-actions {
+    display: flex; gap: 8px; justify-content: flex-end;
+    .btn { min-width: 90px; }
+  }
 }

@@ -1,10 +1,12 @@
 import {Component, Host, Input, NgZone, OnDestroy} from '@angular/core';
-import {AppsComponent} from '../apps.component';
-import {Device, PackageInfo} from "../../types";
+import {AppsComponent, AppsScope} from '../apps.component';
+import {Device, PackageInfo, PackageSource} from "../../types";
 import {Observable, Subscription} from "rxjs";
 import {AppsRepoService, RepositoryItem} from "../../core/services";
 import {RemoteFileService} from "../../core/services/remote-file.service";
 import {IconCacheService} from "../../core/services/icon-cache.service";
+import {LgHostedAppVersionService} from "../../core/services/lg-hosted-app-version.service";
+import {appEnvironment, isKnownApp, isPriorityApp} from "../../shared/known-apps";
 
 @Component({
     selector: 'app-installed',
@@ -18,6 +20,10 @@ export class InstalledComponent implements OnDestroy {
 
     installedError?: Error;
     repoPackages?: Record<string, RepositoryItem>;
+    htmlVersions = new Map<string, string | null>();
+    packages: PackageInfo[] | null = null;
+    search = '';
+    private scoped: PackageInfo[] | null = null;
 
     private subscription?: Subscription;
     private installedField?: Observable<PackageInfo[] | null>;
@@ -28,6 +34,7 @@ export class InstalledComponent implements OnDestroy {
         private fileService: RemoteFileService,
         public iconCache: IconCacheService,
         private ngZone: NgZone,
+        private lgHostedVersion: LgHostedAppVersionService,
     ) {}
 
     @Input()
@@ -36,12 +43,20 @@ export class InstalledComponent implements OnDestroy {
         this.subscription = value?.subscribe({
             next: (pkgs) => {
                 this.installedError = undefined;
+                this.htmlVersions.clear();
+                this.packages = pkgs;
+                this.applyScope();
                 const strings: string[] = pkgs?.map((pkg) => pkg.id) ?? [];
                 this.appsRepo.showApps(...strings).then(apps => this.repoPackages = apps);
-                pkgs?.forEach(pkg => this.loadIconOnce(pkg));
+                // Only the apps that end up on screen — the raw list holds the TV's whole inventory.
+                this.scoped?.forEach(pkg => {
+                    void this.loadIconOnce(pkg);
+                    this.resolveHtmlVersion(pkg);
+                });
             },
             error: (error) => {
                 console.log('installed apps', error);
+                this.packages = null;
                 return this.installedError = error;
             }
         });
@@ -50,6 +65,37 @@ export class InstalledComponent implements OnDestroy {
 
     get installed$(): Observable<PackageInfo[] | null> | undefined {
         return this.installedField;
+    }
+
+    get scope(): AppsScope {
+        return this.parent.appsScope;
+    }
+
+    /**
+     * The scope filter runs once per list/scope change rather than per change-detection pass —
+     * the template reads `visiblePackages` constantly and this sorts the whole TV inventory.
+     */
+    private applyScope(): void {
+        const packages = this.packages;
+        if (!packages) {
+            this.scoped = null;
+            return;
+        }
+        this.scoped = this.scope !== 'apps' ? packages
+            // Sideloaded builds are the ones under test, so they stay in whatever they are named.
+            : packages.filter(pkg => this.isDeveloperApp(pkg) || isKnownApp(pkg.id, pkg.title))
+                .sort((a, b) => this.appsScopeRank(b) - this.appsScopeRank(a)
+                    || (a.title || a.id).localeCompare(b.title || b.id));
+    }
+
+    /** Apps left after the scope filter and the search box. */
+    get visiblePackages(): PackageInfo[] | null {
+        const scoped = this.scoped;
+        if (!scoped) return null;
+        const needle = this.search.trim().toLowerCase();
+        if (!needle) return scoped;
+        return scoped.filter(pkg =>
+            pkg.id.toLowerCase().includes(needle) || (pkg.title ?? '').toLowerCase().includes(needle));
     }
 
     ngOnDestroy(): void {
@@ -61,33 +107,100 @@ export class InstalledComponent implements OnDestroy {
         this.parent.loadPackages();
     }
 
-    forceReloadIcon(pkgId: string): void {
-        this.iconCache.delete(pkgId);
-        const installed = (this.installedField as any)?.getValue?.() as PackageInfo[] | null;
-        const pkg = installed?.find(p => p.id === pkgId);
-        if (pkg && this.parent.device) {
-            this.loadIconOnce(pkg);
+    setScope(scope: AppsScope): void {
+        this.search = '';
+        this.parent.setAppsScope(scope);
+    }
+
+    /** Sideloaded builds first, then FreeTV, then the rest of the tracked brands. */
+    private appsScopeRank(pkg: PackageInfo): number {
+        if (this.isDeveloperApp(pkg)) return 2;
+        return isPriorityApp(pkg.id, pkg.title) ? 1 : 0;
+    }
+
+    /** Only apps sideloaded in dev mode can be uninstalled or debugged from here. */
+    isDeveloperApp(pkg: PackageInfo): boolean {
+        return (pkg.source ?? 'developer') === 'developer';
+    }
+
+    /** Which build this is — PreProd / UAT / Staging… — falling back to where it is installed. */
+    badgeLabel(pkg: PackageInfo): string {
+        return appEnvironment(pkg.id, pkg.title) ?? this.sourceLabel(pkg.source);
+    }
+
+    badgeClass(pkg: PackageInfo): string {
+        return appEnvironment(pkg.id, pkg.title) ? 'env' : (pkg.source ?? 'developer');
+    }
+
+    sourceLabel(source: PackageSource | undefined): string {
+        switch (source) {
+            case 'store':
+                return 'Store';
+            case 'system':
+                return 'System';
+            default:
+                return 'Dev';
         }
     }
 
-    private loadIconOnce(pkg: PackageInfo): void {
-        if (this.iconCache.has(pkg.id)) return;
-        if (!this.parent.device) return;
+    forceReloadIcon(pkgId: string): void {
+        this.iconCache.delete(pkgId);
+        const pkg = this.packages?.find(p => p.id === pkgId);
+        if (pkg && this.parent.device) {
+            void this.loadIconOnce(pkg);
+        }
+    }
 
-        const iconPath = `${pkg.folderPath}/${pkg.icon}`;
-        this.fileService.read(this.parent.device, iconPath, undefined, 'buffer')
-            .then((buffer: any) => {
-                const blob = new Blob([buffer], {type: 'image/png'});
+    private resolveHtmlVersion(pkg: PackageInfo): void {
+        const device = this.device ?? this.parent.device;
+        if (!device) return;
+        const sync = this.lgHostedVersion.getVersionSync(device, pkg);
+        if (sync !== undefined) {
+            this.htmlVersions.set(pkg.id, sync);
+            return;
+        }
+        if (this.htmlVersions.has(pkg.id)) return;
+        this.lgHostedVersion.getVersion(device, pkg).then(version => {
+            this.ngZone.run(() => this.htmlVersions.set(pkg.id, version));
+        });
+    }
+
+    /**
+     * Where the icon file may live. `icon` comes back in three different shapes depending on who
+     * reported the app — a bare file name, an absolute path, or an https URL on the TV itself —
+     * and webOS apps consistently ship an `icon.png` in the app folder as a last resort.
+     */
+    private iconCandidates(pkg: PackageInfo): string[] {
+        const candidates: string[] = [];
+        const icon = pkg.icon ?? '';
+        if (icon && !/^https?:\/\//i.test(icon)) {
+            candidates.push(icon.startsWith('/') ? icon : `${pkg.folderPath}/${icon}`);
+        }
+        if (pkg.folderPath) {
+            candidates.push(`${pkg.folderPath}/icon.png`);
+        }
+        return [...new Set(candidates)];
+    }
+
+    private async loadIconOnce(pkg: PackageInfo): Promise<void> {
+        if (this.iconCache.has(pkg.id)) return;
+        const device = this.parent.device;
+        if (!device) return;
+
+        for (const path of this.iconCandidates(pkg)) {
+            const buffer = await this.fileService.read(device, path, undefined, 'buffer')
+                .catch(() => null);
+            if (!buffer?.length) continue;
+            const type = /\.jpe?g$/i.test(path) ? 'image/jpeg'
+                : /\.gif$/i.test(path) ? 'image/gif'
+                    : /\.webp$/i.test(path) ? 'image/webp' : 'image/png';
+            const dataUri = await new Promise<string>((resolve) => {
                 const reader = new FileReader();
-                reader.onloadend = () => {
-                    this.ngZone.run(() => {
-                        this.iconCache.set(pkg.id, reader.result as string);
-                    });
-                };
-                reader.readAsDataURL(blob);
-            })
-            .catch(() => {
-                // fall back to original URI on error — don't set cache so icon uses fallback
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(new Blob([buffer], {type}));
             });
+            this.ngZone.run(() => this.iconCache.set(pkg.id, dataUri));
+            return;
+        }
     }
 }

@@ -1,6 +1,6 @@
 import {Injectable} from '@angular/core';
 import {BehaviorSubject, catchError, firstValueFrom, lastValueFrom, mergeMap, noop, Observable, Subject, timeout} from 'rxjs';
-import {Device, PackageInfo, RawPackageInfo} from '../../types';
+import {Device, PackageInfo, PackageSource, RawPackageInfo} from '../../types';
 import {
     LunaResponse,
     LunaResponseError,
@@ -19,7 +19,33 @@ import {APP_ID_HBCHANNEL} from "../../shared/constants";
 import {DeviceManagerService} from "./device-manager.service";
 import {HomebrewChannelConfiguration} from "../../types/luna-apis";
 import {download} from "@tauri-apps/plugin-upload";
-import {convertFileSrc} from "@tauri-apps/api/core";
+import {LgRemoteService, SsapApp} from "./lg-remote.service";
+
+const APP_ROOTS: ReadonlyArray<[string, PackageSource]> = [
+    ['/media/developer/apps/usr/palm/applications', 'developer'],
+    ['/media/cryptofs/apps/usr/palm/applications', 'store'],
+    ['/usr/palm/applications', 'system'],
+];
+
+const SCAN_MARKER = '@@stvqa-app@@';
+
+const SOURCE_ORDER: Record<PackageSource, number> = {developer: 0, store: 1, system: 2};
+
+function sourceForFolder(folderPath: string): PackageSource {
+    for (const [root, source] of APP_ROOTS) {
+        if (folderPath.startsWith(`${root}/`)) return source;
+    }
+    return 'system';
+}
+
+function comparePackages(a: PackageInfo, b: PackageInfo): number {
+    const rank = SOURCE_ORDER[a.source ?? 'system'] - SOURCE_ORDER[b.source ?? 'system'];
+    if (rank !== 0) return rank;
+    // Most of the system entries are hidden stubs — keep the ones the TV actually shows on top.
+    const hidden = Number(a.visible === false) - Number(b.visible === false);
+    if (hidden !== 0) return hidden;
+    return (a.title || a.id).localeCompare(b.title || b.id);
+}
 
 @Injectable({
     providedIn: 'root'
@@ -27,14 +53,24 @@ import {convertFileSrc} from "@tauri-apps/api/core";
 export class AppManagerService {
 
     private packagesSubjects: Map<string, Subject<PackageInfo[] | null>>;
+    private allPackagesSubjects: Map<string, Subject<PackageInfo[] | null>>;
 
     constructor(private luna: RemoteLunaService, private cmd: RemoteCommandService, private file: RemoteFileService,
-                private localFile: LocalFileService, private deviceManager: DeviceManagerService) {
+                private localFile: LocalFileService, private deviceManager: DeviceManagerService,
+                private lgRemote: LgRemoteService) {
         this.packagesSubjects = new Map();
+        this.allPackagesSubjects = new Map();
     }
 
     packages$(device: Device): Observable<PackageInfo[] | null> {
         return this.obtainSubject(device);
+    }
+
+    /**
+     * Every app on the TV — developer, LG Content Store and preloaded system apps.
+     */
+    allPackages$(device: Device): Observable<PackageInfo[] | null> {
+        return this.obtainSubject(device, true);
     }
 
     async load(device: Device): Promise<PackageInfo[]> {
@@ -51,6 +87,30 @@ export class AppManagerService {
             });
     }
 
+    async loadAll(device: Device): Promise<PackageInfo[]> {
+        const subject = this.obtainSubject(device, true);
+        return this.listAll(device)
+            .then(pkgs => {
+                subject.next(pkgs);
+                return pkgs;
+            })
+            .catch((error: any) => {
+                subject.error(error);
+                this.allPackagesSubjects.delete(device.name);
+                return [];
+            });
+    }
+
+    /**
+     * Reloads the developer list, plus the full list when it has been requested at least once.
+     */
+    async refresh(device: Device): Promise<void> {
+        await this.load(device);
+        if (this.allPackagesSubjects.has(device.name)) {
+            await this.loadAll(device);
+        }
+    }
+
     async list(device: Device): Promise<PackageInfo[]> {
         return this.luna.call(device, 'luna://com.webos.applicationManager/dev/listApps')
             .catch((e) => {
@@ -60,10 +120,50 @@ export class AppManagerService {
                 throw e;
             })
             .then(resp => resp['apps'] as RawPackageInfo[])
-            .then((result) => result.map(info => {
-                const iconPath = [info.folderPath, info.icon].join('/');
-                return {iconUri: `${convertFileSrc('', 'remote-file')}${device.name}${iconPath}`, ...info};
-            }));
+            .then((result) => result.map(info => this.toPackageInfo(info, 'developer')));
+    }
+
+    /**
+     * Lists every app installed on the TV, not only the ones sideloaded in dev mode.
+     *
+     * The full list comes from SSAP (`ssap://com.webos.applicationManager/listApps` on the remote
+     * socket) — the same call the TV's own launcher makes, so it returns system and Content Store
+     * apps too. `dev/listApps` over SSH is scoped to /media/developer, and the unrestricted Luna
+     * `listApps` is root-only. If SSAP is unreachable (TV not paired, port closed) we fall back to
+     * reading the `appinfo.json` of every app folder over SSH.
+     */
+    async listAll(device: Device): Promise<PackageInfo[]> {
+        const errors: any[] = [];
+        const [developer, ssapApps] = await Promise.all([
+            this.list(device).catch((e) => {
+                console.warn('listAll: dev/listApps failed', e);
+                errors.push(e);
+                return [] as PackageInfo[];
+            }),
+            this.lgRemote.listApps(device).catch((e) => {
+                console.warn('listAll: SSAP listApps failed, falling back to folder scan', e);
+                errors.push(e);
+                return [] as SsapApp[];
+            }),
+        ]);
+        let everything = ssapApps.map(app => this.fromSsapApp(app));
+        if (!everything.length) {
+            everything = await this.scanAppFolders(device, errors);
+        }
+        const byId = new Map<string, PackageInfo>();
+        for (const pkg of everything) {
+            byId.set(pkg.id, pkg);
+        }
+        for (const pkg of developer) {
+            // The full list knows where the app actually lives, so its source wins — `list()` can
+            // fall back to the unrestricted listApps on rooted TVs, which also reports store apps.
+            const known = byId.get(pkg.id);
+            byId.set(pkg.id, {...known, ...pkg, source: known?.source ?? 'developer'});
+        }
+        if (byId.size === 0 && errors.length) {
+            throw errors[0];
+        }
+        return Array.from(byId.values()).sort(comparePackages);
     }
 
     async info(device: Device, id: string): Promise<PackageInfo | null> {
@@ -92,7 +192,7 @@ export class AppManagerService {
                 await this.file.rm(device, ipkPath, false);
             }
         }
-        this.load(device).catch(noop);
+        this.refresh(device).catch(noop);
     }
 
     async installByManifest(device: Device, manifest: PackageManifest, progress?: InstallProgressHandler): Promise<void> {
@@ -101,7 +201,7 @@ export class AppManagerService {
         if (hasHbChannel) {
             try {
                 await this.hbChannelInstall(device, manifest.ipkUrl, manifest.ipkHash?.sha256, progress);
-                await this.load(device).catch(noop);
+                await this.refresh(device).catch(noop);
                 return;
             } catch (e) {
                 // Never attempt to do default install, if we are reinstalling hbchannel
@@ -112,7 +212,7 @@ export class AppManagerService {
         }
         const path = await this.tempDownloadIpk(device, new URL(manifest.ipkUrl), progress);
         await this.devInstall(device, path, progress)
-            .then(() => this.load(device).catch(noop))
+            .then(() => this.refresh(device).catch(noop))
             .finally(() => this.file.rm(device, path, false));
     }
 
@@ -128,13 +228,23 @@ export class AppManagerService {
                 throw e;
             })))/* Unsubscribe when failed, and throw the error */)
         );
-        await this.load(device);
+        await this.refresh(device);
     }
 
     async launch(device: Device, appId: string, params?: Record<string, any>): Promise<void> {
         await this.luna.call(device, 'luna://com.webos.applicationManager/launch', {
             id: appId, subscribe: false, params
         }, true);
+    }
+
+    async close(device: Device, appId: string): Promise<void> {
+        await this.luna.call(device, 'luna://com.webos.applicationManager/dev/closeByAppId', {id: appId}, true)
+            .catch(e => {
+                if (e instanceof LunaUnknownMethodError) {
+                    return this.luna.call(device, 'luna://com.webos.service.applicationManager/closeByAppId', {id: appId}, true);
+                }
+                throw e;
+            });
     }
 
     async checkIncompatibility(device: Device, item: RepositoryItem): Promise<IncompatibleReason[] | null> {
@@ -187,17 +297,80 @@ export class AppManagerService {
         }
     }
 
-    private obtainSubject(device: Device): Subject<PackageInfo[] | null> {
-        let subject = this.packagesSubjects.get(device.name);
+    private obtainSubject(device: Device, all: boolean = false): Subject<PackageInfo[] | null> {
+        const subjects = all ? this.allPackagesSubjects : this.packagesSubjects;
+        let subject = subjects.get(device.name);
         if (!subject) {
             subject = new BehaviorSubject<PackageInfo[] | null>(null);
-            this.packagesSubjects.set(device.name, subject);
+            subjects.set(device.name, subject);
         }
         return subject;
     }
 
+    /**
+     * Icons are not addressed by URL: the `remote-file://` scheme puts the device name in the URL
+     * authority, and most device names ("Home - 2024") don't survive that. The list view reads the
+     * icon files over SFTP instead.
+     */
+    private toPackageInfo(info: RawPackageInfo, source: PackageSource): PackageInfo {
+        return {...info, source};
+    }
+
+    private fromSsapApp(app: SsapApp): PackageInfo {
+        const folderPath = app.folderPath ?? '';
+        // `icon` is an https URL on the TV's own port 3001, served with a self-signed certificate
+        // the webview refuses; `largeIcon` keeps the plain file name we can read back over SFTP.
+        const localIcon = [app.largeIcon, app.icon].find(v => !!v && !/^https?:\/\//i.test(v)) ?? '';
+        return {
+            id: app.id,
+            title: app.title || app.id,
+            type: app.type ?? '',
+            vendor: app.vendor ?? '',
+            version: app.version ?? '',
+            icon: localIcon,
+            folderPath,
+            source: sourceForFolder(folderPath),
+            visible: app.visible,
+        };
+    }
+
+    /**
+     * Reads the `appinfo.json` of every app folder on the TV. A folder that can't be listed (for
+     * example /media/cryptofs on a locked-down build) is skipped, with its error pushed to `errors`.
+     */
+    private async scanAppFolders(device: Device, errors: any[]): Promise<PackageInfo[]> {
+        const results: PackageInfo[] = [];
+        for (const [root, source] of APP_ROOTS) {
+            const command = `for d in ${root}/*/; do if [ -f "$d/appinfo.json" ]; then echo "${SCAN_MARKER}$d"; cat "$d/appinfo.json"; echo ""; fi; done; true`;
+            const output = await this.cmd.exec(device, command, 'utf-8').catch((e) => {
+                console.warn(`listAll: failed to scan ${root}`, e);
+                errors.push(e);
+                return '';
+            });
+            for (const chunk of output.split(SCAN_MARKER).slice(1)) {
+                const breakAt = chunk.indexOf('\n');
+                if (breakAt < 0) continue;
+                const folderPath = chunk.substring(0, breakAt).trim().replace(/\/+$/, '');
+                let info: RawPackageInfo;
+                try {
+                    info = JSON.parse(chunk.substring(breakAt + 1));
+                } catch (e) {
+                    console.warn(`listAll: unreadable appinfo.json in ${folderPath}`, e);
+                    continue;
+                }
+                if (!info?.id) continue;
+                // The folder we found it in wins: appinfo.json rarely carries folderPath, and when
+                // it does it's the path from the build machine.
+                results.push(this.toPackageInfo({...info, folderPath}, source));
+            }
+        }
+        return results;
+    }
+
     private async tempDownloadIpk(device: Device, location: string | URL, progress?: InstallProgressHandler): Promise<string> {
-        const targetPath = `/tmp/devman_dl_${Date.now()}.ipk`
+        // Stage in the developer home, not /tmp: newer webOS builds ship /tmp as
+        // d--x--x--x root:root, so the `prisoner` user cannot create files there.
+        const targetPath = `/media/developer/temp/devman_dl_${Date.now()}.ipk`
         let localPath: string;
         let deleteLocal = false;
         switch (typeof location) {

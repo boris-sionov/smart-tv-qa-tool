@@ -1,0 +1,71 @@
+<div class="remote-dialog">
+  <div class="remote-header">
+    <div class="remote-title">
+      <i class="bi bi-tv me-2"></i>Remote Control
+    </div>
+    <div class="remote-device">{{ device.name }}</div>
+    <button class="remote-close" (click)="modal.dismiss()" aria-label="Close">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <div class="remote-body">
+    <div class="dpad">
+      <div class="dpad-grid">
+        <button class="dpad-btn dpad-up" (click)="press('KEY_UP')"
+                [class.pressing]="pressing === 'KEY_UP'" [disabled]="!!pressing">
+          <i class="bi bi-chevron-up"></i>
+        </button>
+        <button class="dpad-btn dpad-left" (click)="press('KEY_LEFT')"
+                [class.pressing]="pressing === 'KEY_LEFT'" [disabled]="!!pressing">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <button class="dpad-btn dpad-ok" (click)="press('KEY_ENTER')"
+                [class.pressing]="pressing === 'KEY_ENTER'" [disabled]="!!pressing">
+          OK
+        </button>
+        <button class="dpad-btn dpad-right" (click)="press('KEY_RIGHT')"
+                [class.pressing]="pressing === 'KEY_RIGHT'" [disabled]="!!pressing">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+        <button class="dpad-btn dpad-down" (click)="press('KEY_DOWN')"
+                [class.pressing]="pressing === 'KEY_DOWN'" [disabled]="!!pressing">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </div>
+
+      <div class="aux-row">
+        <button class="aux-btn" (click)="press('KEY_RETURN')"
+                [class.pressing]="pressing === 'KEY_RETURN'" [disabled]="!!pressing">
+          <i class="bi bi-arrow-return-left me-1"></i>Back
+        </button>
+      </div>
+
+      <!-- Number pad: 1–9, 0 -->
+      <div class="numpad">
+        @for (n of [1,2,3,4,5,6,7,8,9,0]; track n) {
+          <button class="numpad-btn" (click)="press('KEY_' + n)"
+                  [class.pressing]="pressing === 'KEY_' + n" [disabled]="!!pressing">
+            {{ n }}
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (error) {
+      <div class="remote-error">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ error }}
+      </div>
+    }
+  </div>
+
+  <div class="remote-footer">
+    <button class="stress-btn" (click)="openStress()" [disabled]="wgtApps.length === 0"
+            [title]="wgtApps.length === 0 ? 'No WGT apps installed on this device' : ''">
+      <i class="bi bi-arrow-repeat me-2"></i>Stress Test
+      @if (wgtApps.length > 0) {
+        <span class="stress-badge">{{ wgtApps.length }}</span>
+      }
+    </button>
+  </div>
+</div>

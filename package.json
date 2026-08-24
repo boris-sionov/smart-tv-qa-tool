@@ -16,12 +16,15 @@
   ],
   "scripts": {
     "tauri": "node scripts/tauri-wrapper.js",
+    "prestart": "node scripts/build-info.js",
     "start": "tauri dev",
+    "prebuild": "node scripts/build-info.js --bump",
     "build": "tauri build",
     "ng": "node scripts/ng-wrapper.js",
     "icon": "node scripts/icon-generator.js",
     "setup": "bash scripts/download-adb.sh && bash scripts/download-sdb.sh",
-    "setup:win": "powershell -ExecutionPolicy Bypass -File scripts\\download-adb.ps1 && powershell -ExecutionPolicy Bypass -File scripts\\download-sdb.ps1"
+    "setup:win": "powershell -ExecutionPolicy Bypass -File scripts\\download-adb.ps1 && powershell -ExecutionPolicy Bypass -File scripts\\download-sdb.ps1",
+    "build-info": "node scripts/build-info.js"
   },
   "private": true,
   "engines": {

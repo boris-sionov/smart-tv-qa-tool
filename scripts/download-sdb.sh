@@ -1,60 +1,46 @@
 #!/usr/bin/env bash
 # Downloads the SDB (Smart Development Bridge) binary from Samsung's Tizen SDK server
-# and installs it to ~/tizen-studio/tools/sdb (the default location the app looks in).
-#
-# Run this once before using the Samsung Tizen features.
-# If download fails, install Tizen Studio from:
-#   https://developer.samsung.com/tizen/overview.html
+# and places it in src-tauri/binaries/ with the correct Tauri sidecar naming convention.
+# Run this once before `npm run start` or `npm run build`.
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BINARIES_DIR="$SCRIPT_DIR/../src-tauri/binaries"
 TMP_DIR="$(mktemp -d)"
-INSTALL_DIR="$HOME/tizen-studio/tools"
-SDB_DST="$INSTALL_DIR/sdb"
+
+TARGET="$(rustc -Vv 2>/dev/null | grep '^host:' | awk '{print $2}')"
+if [[ -z "$TARGET" ]]; then
+  echo "ERROR: could not determine Rust target triple (is rustc installed?)"
+  exit 1
+fi
+echo "Target triple: $TARGET"
 
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 
-# Pick download URL based on OS
-# Samsung provides SDB as part of the Tizen SDK platform tools package
 case "$OS" in
   Darwin)
-    # macOS — Intel binary runs under Rosetta on Apple Silicon
-    URL="https://download.tizen.org/sdk/tizenstudio/official/binary/sdb_4.2.12_macos.zip"
+    # Intel binary; runs under Rosetta 2 on Apple Silicon
+    URL="https://download.tizen.org/sdk/tizenstudio/official/binary/sdb_4.2.36_macos-64.zip"
     ;;
   Linux)
-    if [[ "$ARCH" == "aarch64" ]]; then
-      URL="https://download.tizen.org/sdk/tizenstudio/official/binary/sdb_4.2.12_ubuntu-arm64.zip"
-    else
-      URL="https://download.tizen.org/sdk/tizenstudio/official/binary/sdb_4.2.12_ubuntu-64.zip"
-    fi
+    # No ARM64 package available upstream; x86_64 binary is placed at the target triple path
+    URL="https://download.tizen.org/sdk/tizenstudio/official/binary/sdb_4.2.36_ubuntu-64.zip"
     ;;
   *)
     echo "ERROR: Unsupported OS: $OS"
-    echo "Install Tizen Studio manually from https://developer.samsung.com/tizen/overview.html"
     exit 1
     ;;
 esac
 
 echo "Downloading SDB from $URL ..."
 ZIP="$TMP_DIR/sdb.zip"
-
-if ! curl -L --fail --progress-bar -o "$ZIP" "$URL"; then
-  echo ""
-  echo "ERROR: Download failed."
-  echo ""
-  echo "Please install Tizen Studio manually:"
-  echo "  https://developer.samsung.com/tizen/overview.html"
-  echo ""
-  echo "After installing, SDB will be at: ~/tizen-studio/tools/sdb"
-  rm -rf "$TMP_DIR"
-  exit 1
-fi
+curl -L --fail --progress-bar -o "$ZIP" "$URL"
 
 echo "Extracting ..."
 unzip -q "$ZIP" -d "$TMP_DIR"
 
-# Find the sdb binary in the extracted contents
 SDB_SRC="$(find "$TMP_DIR" -name "sdb" -type f | head -1)"
 if [[ -z "$SDB_SRC" ]]; then
   echo "ERROR: Could not find sdb binary in downloaded package."
@@ -62,16 +48,15 @@ if [[ -z "$SDB_SRC" ]]; then
   exit 1
 fi
 
-mkdir -p "$INSTALL_DIR"
-cp "$SDB_SRC" "$SDB_DST"
-chmod +x "$SDB_DST"
+mkdir -p "$BINARIES_DIR"
+DST="$BINARIES_DIR/sdb-$TARGET"
+cp "$SDB_SRC" "$DST"
+chmod +x "$DST"
 
 rm -rf "$TMP_DIR"
 
 echo ""
-echo "Done! SDB installed at: $SDB_DST"
+echo "Done! SDB binary placed at:"
+echo "  $DST"
 echo ""
-echo "Verify with: $SDB_DST version"
-"$SDB_DST" version 2>/dev/null || echo "(run the above command manually to verify)"
-echo ""
-echo "You can now use Samsung Tizen features in the app."
+echo "You can now run: npm run start"

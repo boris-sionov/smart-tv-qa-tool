@@ -1,6 +1,7 @@
 use crate::app_dirs::{GetAppSshKeyDir, GetSshDir};
 use crate::device_manager::{Device, DeviceCheckConnection, DeviceManager, PrivateKeyInfo};
 use crate::error::Error;
+use crate::session_manager::SessionManager;
 use std::io::Read;
 use tauri::{
     plugin::{Builder, TauriPlugin},
@@ -99,6 +100,12 @@ async fn ssh_key_dir<R: Runtime>(app: AppHandle<R>) -> Result<String, Error> {
     Ok(app.get_ssh_dir().unwrap().to_string_lossy().to_string())
 }
 
+#[tauri::command]
+async fn disconnect(sessions: State<'_, SessionManager>, name: String) -> Result<(), Error> {
+    sessions.disconnect(&name);
+    Ok(())
+}
+
 /// Initializes the plugin.
 pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
     Builder::new(name)
@@ -114,6 +121,7 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             app_ssh_key_path,
             app_ssh_pubkey,
             ssh_key_dir,
+            disconnect,
         ])
         .build()
 }

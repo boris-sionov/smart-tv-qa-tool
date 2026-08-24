@@ -27,7 +27,9 @@
       Saved Devices
     </h5>
 
-    @if (!devices || devices.length === 0) {
+    @if (!devices) {
+      <app-loading-card text="Loading devices..."></app-loading-card>
+    } @else if (devices.length === 0) {
       <div class="empty-state">
         <div class="empty-icon">
           <i class="bi bi-inbox"></i>
@@ -61,6 +63,12 @@
                 <button class="device-btn secondary" (click)="editingDevice = undefined">
                   <i class="bi bi-x-lg"></i>
                   Cancel
+                </button>
+              }
+              @if (device.default) {
+                <button class="device-btn secondary" title="Disconnect SSH session"
+                        (click)="deviceManager.disconnect(device.name)">
+                  <i class="bi bi-plug"></i>
                 </button>
               }
               <button class="device-btn danger" (click)="deleteDevice(device)">

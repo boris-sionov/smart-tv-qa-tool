@@ -8,6 +8,7 @@ import {AddDeviceModule} from "../add-device/add-device.module";
 import {InlineEditorComponent} from "./inline-editor/inline-editor.component";
 import {LgComponent} from "../lg/lg.component";
 import {RemoveConfirmation, RemoveDeviceComponent} from "../remove-device/remove-device.component";
+import {SharedModule} from "../shared/shared.module";
 
 @Component({
     selector: 'app-devices',
@@ -17,7 +18,8 @@ import {RemoveConfirmation, RemoveDeviceComponent} from "../remove-device/remove
         AddDeviceModule,
         NgbCollapse,
         NgbTooltipModule,
-        InlineEditorComponent
+        InlineEditorComponent,
+        SharedModule,
     ],
     templateUrl: './devices.component.html',
     styleUrl: './devices.component.scss'

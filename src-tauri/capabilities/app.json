@@ -24,6 +24,11 @@
           "name": "binaries/adb",
           "sidecar": true,
           "args": true
+        },
+        {
+          "name": "binaries/sdb",
+          "sidecar": true,
+          "args": true
         }
       ]
     },
@@ -37,13 +42,18 @@
     "dev-mode:default",
     "local-file:default",
     "adb-manager:default",
+    "lg-remote:default",
     "log:default",
     "os:default",
     {
       "identifier": "http:default",
       "allow": [
         {"url": "https://*"},
-        {"url": "http://*"}
+        {"url": "http://*"},
+        {"url": "http://*:*"},
+        {"url": "https://*:*"},
+        {"url": "http://**"},
+        {"url": "https://**"}
       ]
     }
   ]

@@ -2,12 +2,13 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {Subscription} from 'rxjs';
 import {open as openUrl} from '@tauri-apps/plugin-shell';
-import {fetch as tauriFetch} from '@tauri-apps/plugin-http';
 import {SdbAppInfo, SdbService} from '../../core/services/sdb.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {ProgressDialogComponent, ProgressStep} from '../../shared/components/progress-dialog/progress-dialog.component';
 import {tizenSerial, TizenDevice, TizenStateService} from '../tizen-state.service';
 import {TizenWizardComponent} from '../wizard/tizen-wizard.component';
+import {TizenRemoteDialogComponent} from '../remote-dialog/tizen-remote-dialog.component';
+import {isKnownApp, isPriorityApp} from '../../shared/known-apps';
 
 @Component({
     selector: 'app-tizen-apps',
@@ -52,21 +53,13 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         return this.selected ? tizenSerial(this.selected) : null;
     }
 
-    // Apps to show — any environment variant of these brands
-    private static readonly ALLOWED_PATTERN =
-        /freetv|stingtv|sting\.tv|\bsting\b|yesplus|yes\.plus|\byes\b|partnertv|partner\.tv|\bpartner\b|cellcomtv|cellcom\.tv|\bcellcom\b|\bhot\b|nexttv|next\.tv|\bnext\b|disney|netflix|hbomax|hbo\.max|\bhbo\b|warnermedia/i;
-
-    // Sort order: FreeTV first, then the rest alphabetically
-    private static readonly FREETV_PATTERN = /freetv/i;
-
     isAllowed(app: SdbAppInfo): boolean {
-        const re = TizenAppsComponent.ALLOWED_PATTERN;
-        return re.test(app.name) || re.test(app.id) || re.test(app.runtimeId ?? '') || re.test(app.tizenId ?? '');
+        return isKnownApp(app.name, app.id, app.runtimeId, app.tizenId);
     }
 
+    // Sort order: FreeTV first, then the rest alphabetically
     isPriority(app: SdbAppInfo): boolean {
-        const re = TizenAppsComponent.FREETV_PATTERN;
-        return re.test(app.name) || re.test(app.id) || re.test(app.runtimeId ?? '') || re.test(app.tizenId ?? '');
+        return isPriorityApp(app.name, app.id, app.runtimeId, app.tizenId);
     }
 
     get filteredApps(): SdbAppInfo[] | null {
@@ -86,8 +79,16 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         this.state.select(device);
     }
 
-    async loadApps(): Promise<void> {
+    async loadApps(force = false): Promise<void> {
         if (!this.serial) return;
+        if (!force) {
+            const cached = this.state.getCachedApps(this.serial);
+            if (cached) {
+                this.apps = cached.apps;
+                this.appVersions = cached.versions;
+                return;
+            }
+        }
         this.loadingApps = true;
         this.apps = null;
         this.appVersions = new Map();
@@ -102,6 +103,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
                     if (ver) this.appVersions.set(app.id, ver);
                 }));
             }
+            this.state.setCachedApps(this.serial, {apps: this.apps ?? [], versions: this.appVersions});
         } catch (e) {
             this.appsError = e as Error;
         } finally {
@@ -116,6 +118,15 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         (ref.componentInstance as TizenWizardComponent).startStep = 3;
         await ref.result.catch(() => {});
         // Banner re-evaluates via certProfile getter automatically
+    }
+
+    openRemote(): void {
+        if (!this.selected || !this.serial) return;
+        const ref = this.modalService.open(TizenRemoteDialogComponent, {centered: true});
+        const inst = ref.componentInstance as TizenRemoteDialogComponent;
+        inst.device = this.selected;
+        inst.serial = this.serial;
+        inst.wgtApps = (this.filteredApps ?? []).filter(a => !!a.tizenId);
     }
 
     async installWgt(): Promise<void> {
@@ -167,6 +178,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
                 p => dialog.update(p.message, p.percent, p.step),
             );
             dialog.update('Refreshing app list…', 95, 'done');
+            if (this.serial) this.state.invalidateApps(this.serial);
             await this.loadApps();
             dialog.update('Done', 100, 'done');
         } catch (e) {
@@ -226,240 +238,6 @@ launchApp(app: SdbAppInfo): void {
         return true;
     }
 
-    // ── Stress test ──────────────────────────────────────────────────────────
-
-    private readonly READINESS_SELECTOR = 'h1.metadata__title';
-
-    stressRunningId: string | null = null;
-    stressStatus = '';
-    stressPassCount = 0;
-    stressFailCount = 0;
-    stressResults: Array<{cycle: number, pass: boolean, timestamp: string, title: string, channel: string, type: string, label: string, buttons: string[]}> = [];
-    stressFinishedFor: string | null = null;
-    stressCountdown = 0;
-    stressPhase: '' | 'after-launch' | 'after-kill' = '';
-    stressTotalRemaining = 0;
-    stressPromptForId: string | null = null;
-    stressPromptCycles = 2;
-    private stressAbort = false;
-    private stressCurrentCycle = 0;
-    private stressTotalCycles = 0;
-    private stressAfterLaunchSec = 0;
-    private stressAfterKillSec = 0;
-
-    openStressPrompt(app: SdbAppInfo): void {
-        const id = app.runtimeId || app.id;
-        if (this.stressRunningId === id) { this.stressAbort = true; return; }
-        if (!this.serial || this.stressRunningId) return;
-        this.stressPromptCycles = 2;
-        this.stressPromptForId = id;
-    }
-
-    confirmStressPrompt(): void {
-        const id = this.stressPromptForId;
-        const cycles = Math.max(1, Math.floor(this.stressPromptCycles || 0));
-        this.stressPromptForId = null;
-        if (id) this.runStressTest(id, cycles);
-    }
-
-    cancelStressPrompt(): void { this.stressPromptForId = null; }
-
-    async runStressTest(id: string, cycles = 2, afterLaunchMs = 30_000, afterKillMs = 10_000): Promise<void> {
-        if (this.stressRunningId === id) { this.stressAbort = true; return; }
-        if (!this.serial || !this.selected || this.stressRunningId) return;
-
-        const serial = this.serial;
-        const ip = this.selected.ip;
-
-        this.stressRunningId = id;
-        this.stressAbort = false;
-        this.stressPassCount = 0;
-        this.stressFailCount = 0;
-        this.stressResults = [];
-        this.stressFinishedFor = id;
-        this.stressTotalCycles = cycles;
-        this.stressAfterLaunchSec = Math.ceil(afterLaunchMs / 1000);
-        this.stressAfterKillSec   = Math.ceil(afterKillMs  / 1000);
-
-        // Find the app entry to get tizenId for debug calls
-        const app = this.apps?.find(a => (a.runtimeId || a.id) === id) ?? null;
-        const tizenId = app?.tizenId || id;
-
-        try {
-            this.stressStatus = 'Pre-flight: closing app…';
-            await this.sdb.kill(serial, id).catch(e => console.warn('[Stress] preflight kill', e));
-            await this.stressWait(3000);
-
-            for (let i = 1; i <= cycles; i++) {
-                if (this.stressAbort) break;
-                this.stressCurrentCycle = i;
-
-                // Launch via debug so we get the CDP port immediately —
-                // calling debug() after launch would restart the app and we'd check a blank page.
-                this.stressStatus = `Cycle ${i}/${cycles}: launching`;
-                console.log(`[Stress] ${this.stressStatus}`);
-                let debugPort: number | null = null;
-                try {
-                    debugPort = await this.sdb.debug(serial, tizenId);
-                    console.log(`[Stress] debug port: ${debugPort}`);
-                } catch (e) {
-                    console.error('[Stress] debug launch failed:', e);
-                }
-                this.stressPhase = 'after-launch';
-                if (await this.stressWait(afterLaunchMs)) break;
-
-                const check = await (debugPort !== null
-                    ? this.checkTizenElementByPort(ip, debugPort, this.READINESS_SELECTOR)
-                    : Promise.resolve({found: false, title: '', channel: '', type: '', label: '', buttons: [] as string[]})
-                ).catch(e => { console.warn('[Stress] check failed:', e); return {found: false, title: '', channel: '', type: '', label: '', buttons: [] as string[]}; });
-                const friendlyType = this.toFriendlyType(check.type);
-                if (check.found) this.stressPassCount++; else this.stressFailCount++;
-                this.stressResults.push({cycle: i, pass: check.found, title: check.title, channel: check.channel, type: friendlyType, label: check.label, buttons: check.buttons, timestamp: new Date().toLocaleTimeString()});
-                console.log(`[Stress] Cycle ${i}: ${check.found ? `✅ [${friendlyType}] "${check.title}"` : '❌ MISSING'} (pass ${this.stressPassCount} / fail ${this.stressFailCount})`);
-
-                this.stressStatus = `Cycle ${i}/${cycles}: ${check.found ? 'PASS' : 'FAIL'} → killing`;
-                await this.sdb.kill(serial, id).catch(e => console.error('[Stress] kill', e));
-                this.stressPhase = 'after-kill';
-                if (i < cycles && await this.stressWait(afterKillMs)) break;
-            }
-            this.stressStatus = this.stressAbort
-                ? `Stopped (pass ${this.stressPassCount} / fail ${this.stressFailCount})`
-                : `Done (pass ${this.stressPassCount} / fail ${this.stressFailCount})`;
-        } finally {
-            this.stressRunningId = null;
-            this.stressCountdown = 0;
-            this.stressPhase = '';
-            this.stressTotalRemaining = 0;
-        }
-    }
-
-    private toFriendlyType(raw: string): string {
-        if (!raw) return '';
-        return raw.toUpperCase() === 'PROGRAMME' ? 'Live' : 'VOD';
-    }
-
-    formatDuration(secs: number): string {
-        if (secs <= 0) return '0s';
-        const h = Math.floor(secs / 3600);
-        const m = Math.floor((secs % 3600) / 60);
-        const s = secs % 60;
-        const parts: string[] = [];
-        if (h) parts.push(`${h}h`);
-        if (m || h) parts.push(`${m}m`);
-        parts.push(`${s}s`);
-        return parts.join(' ');
-    }
-
-    private computeStressTotalRemaining(): number {
-        if (!this.stressRunningId) return 0;
-        const cyclesAfterThis = this.stressTotalCycles - this.stressCurrentCycle;
-        const perCycleSec = this.stressAfterLaunchSec + this.stressAfterKillSec;
-        let remaining = this.stressCountdown;
-        if (this.stressPhase === 'after-launch') remaining += this.stressAfterKillSec;
-        remaining += cyclesAfterThis * perCycleSec;
-        return remaining;
-    }
-
-    clearStressResults(): void {
-        this.stressResults = [];
-        this.stressFinishedFor = null;
-        this.stressStatus = '';
-    }
-
-    private async checkTizenElementByPort(
-        ip: string, port: number, selector: string,
-    ): Promise<{found: boolean, title: string, channel: string, type: string, label: string, buttons: string[]}> {
-        const resp = await tauriFetch(`http://${ip}:${port}/json`, {method: 'GET'});
-        if (!resp.ok) throw new Error(`devtools /json HTTP ${resp.status}`);
-        const targets: Array<{webSocketDebuggerUrl?: string, type?: string, url?: string, title?: string}> = await resp.json();
-        console.log('[Stress] CDP targets:', targets.map(t => ({type: t.type, title: t.title, url: t.url, ws: t.webSocketDebuggerUrl})));
-
-        const candidates = targets.filter(t => t.type === 'page' && !!t.webSocketDebuggerUrl);
-        for (const target of candidates) {
-            // Tizen returns localhost in the WS URL — rewrite to the actual TV IP
-            const wsUrl = target.webSocketDebuggerUrl!
-                .replace(/^ws:\/\/(localhost|127\.0\.0\.1)/, `ws://${ip}`);
-            try {
-                const result = await this.cdpEvalInTarget(wsUrl, selector);
-                console.log(`[Stress] target ${target.url} → found=${result.found}, type="${result.type}", title="${result.title}"`);
-                if (result.found) return {found: true, title: result.title, channel: result.channel, type: result.type, label: result.label, buttons: result.buttons};
-            } catch (e) {
-                console.warn(`[Stress] target ${target.url} eval failed:`, e);
-            }
-        }
-        return {found: false, title: '', channel: '', type: '', label: '', buttons: []};
-    }
-
-    private cdpEvalInTarget(wsUrl: string, selector: string): Promise<{found: boolean, count: number, title: string, channel: string, type: string, label: string, buttons: string[]}> {
-        return new Promise((resolve, reject) => {
-            const ws = new WebSocket(wsUrl);
-            const timeout = setTimeout(() => { ws.close(); reject(new Error('CDP timeout')); }, 5000);
-            const expression = `(() => {
-                const sel = ${JSON.stringify(selector)};
-                const all = document.querySelectorAll(sel);
-                const first = all[0];
-                const channelEl = document.querySelector('.metadata__channel-name');
-                const labelEl   = document.querySelector('.metadata__item-label');
-                const wrap      = document.querySelector('.metadata.wrapper__details');
-                const typeClass = wrap ? Array.from(wrap.classList).find(c => c.indexOf('metadata--') === 0) : '';
-                const type      = typeClass ? typeClass.replace('metadata--', '') : '';
-                const buttons   = Array.from(document.querySelectorAll('.section__bullets .button__title'))
-                    .map(b => (b.textContent || '').trim()).filter(t => t.length > 0);
-                return {
-                    found: all.length > 0, count: all.length,
-                    title:   first      ? (first.textContent      || '').trim() : '',
-                    channel: channelEl  ? (channelEl.textContent  || '').trim() : '',
-                    label:   labelEl    ? (labelEl.textContent    || '').trim() : '',
-                    type, buttons,
-                    readyState: document.readyState,
-                    bodyTags: document.body ? document.body.children.length : 0,
-                };
-            })()`;
-            ws.onopen = () => ws.send(JSON.stringify({
-                id: 1, method: 'Runtime.evaluate',
-                params: {expression, returnByValue: true, awaitPromise: false},
-            }));
-            ws.onmessage = (ev) => {
-                clearTimeout(timeout);
-                try {
-                    const data = JSON.parse(ev.data);
-                    const v = data?.result?.result?.value;
-                    if (!v) {
-                        console.warn('[Stress] CDP raw response:', data);
-                        resolve({found: false, count: 0, title: '', channel: '', type: '', label: '', buttons: []});
-                    } else {
-                        console.log('[Stress] CDP page state:', v);
-                        resolve({found: v.found, count: v.count, title: v.title, channel: v.channel, type: v.type, label: v.label, buttons: v.buttons || []});
-                    }
-                } catch (e) { reject(e); }
-                finally { ws.close(); }
-            };
-            ws.onerror = () => { clearTimeout(timeout); reject(new Error('CDP ws error')); };
-        });
-    }
-
-    private stressWait(ms: number): Promise<boolean> {
-        return new Promise(resolve => {
-            const step = 250;
-            let elapsed = 0;
-            this.stressCountdown = Math.ceil(ms / 1000);
-            const timer = setInterval(() => {
-                elapsed += step;
-                this.stressCountdown = Math.max(0, Math.ceil((ms - elapsed) / 1000));
-                this.stressTotalRemaining = this.computeStressTotalRemaining();
-                if (this.stressAbort) {
-                    clearInterval(timer);
-                    this.stressCountdown = 0;
-                    resolve(true);
-                } else if (elapsed >= ms) {
-                    clearInterval(timer);
-                    this.stressCountdown = 0;
-                    resolve(false);
-                }
-            }, step);
-        });
-    }
-
     isStoreApp(app: SdbAppInfo): boolean {
         return !this.canInspect(app);
     }
@@ -478,6 +256,7 @@ launchApp(app: SdbAppInfo): void {
 
         try {
             await this.sdb.uninstall(this.serial, app.tizenId || app.id, app.runtimeId);
+            this.state.invalidateApps(this.serial);
             await this.loadApps();
         } catch (e) {
             MessageDialogComponent.open(this.modalService, {

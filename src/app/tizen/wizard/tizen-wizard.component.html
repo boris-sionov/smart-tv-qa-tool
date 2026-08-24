@@ -3,13 +3,19 @@
     <div class="header-text">
       <h5 class="wizard-title">
         @if (currentStep === 1) { Enable Developer Mode on your Samsung TV }
-        @else { Add Samsung Tizen Device }
+        @else if (currentStep === 2) { Add Samsung Tizen Device }
+        @else { {{ certTitle }} }
       </h5>
-      <div class="step-indicator">
-        <div class="step" [class.active]="currentStep === 1" [class.complete]="currentStep > 1"><span>1</span></div>
-        <div class="step-line" [class.complete]="currentStep > 1"></div>
-        <div class="step" [class.active]="currentStep === 2"><span>2</span></div>
-      </div>
+      <!-- Step indicator: only show when going through the full wizard -->
+      @if (startStep === 1) {
+        <div class="step-indicator">
+          <div class="step" [class.active]="currentStep === 1" [class.complete]="currentStep > 1"><span>1</span></div>
+          <div class="step-line" [class.complete]="currentStep > 1"></div>
+          <div class="step" [class.active]="currentStep === 2" [class.complete]="currentStep > 2"><span>2</span></div>
+          <div class="step-line" [class.complete]="currentStep > 2"></div>
+          <div class="step" [class.active]="currentStep === 3"><span>3</span></div>
+        </div>
+      }
     </div>
     <button class="close-btn" (click)="modal.dismiss()" aria-label="Close">
       <i class="bi bi-x-lg"></i>
@@ -17,7 +23,59 @@
   </div>
 
   <div class="wizard-body">
-    @if (currentStep === 1) {
+    @if (currentStep === 3) {
+      <div class="cert-setup">
+
+        <!-- File selected -->
+        @if (certFilePath) {
+          <div class="cert-state success">
+            <i class="bi bi-check-circle-fill cert-status-icon success"></i>
+            <div>
+              <div class="cert-status-title">{{ certProfileName }}</div>
+              <div class="cert-status-sub cert-file-path">{{ certFilePath }}</div>
+            </div>
+          </div>
+        }
+
+        <!-- No file selected yet — show instructions -->
+        @else {
+          <div class="cert-state warn">
+            <i class="bi bi-shield-exclamation cert-status-icon warn"></i>
+            <div>
+              <div class="cert-status-title">No certificate selected</div>
+              <div class="cert-status-sub">
+                Browse to your <strong>SamsungCertificate</strong> folder and pick the
+                <code>distributor.p12</code> for this TV.
+              </div>
+            </div>
+          </div>
+
+          <div class="cert-instructions">
+            <div class="cert-instructions-title">Don't have a certificate yet?</div>
+            <ol class="cert-steps">
+              <li>Open Certificate Manager below, click <strong>+</strong> → choose <strong>Samsung</strong></li>
+              <li>In the <em>Distributor</em> step click<br>
+                <strong>"Get DUIDs from Connected Devices"</strong>
+                <em>(TV must be reachable)</em></li>
+              <li>Complete the wizard — the <code>distributor.p12</code> will be saved<br>
+                in your <strong>SamsungCertificate</strong> folder</li>
+              <li>Come back and click <strong>Browse…</strong> below</li>
+            </ol>
+            <div class="cert-tool-btns">
+              <button class="wizard-btn secondary small" (click)="openCertificateManager()">
+                <i class="bi bi-shield-lock"></i>
+                <span>Open Certificate Manager</span>
+              </button>
+              <button class="wizard-btn secondary small" (click)="openDeviceManager()">
+                <i class="bi bi-display"></i>
+                <span>Open Device Manager</span>
+              </button>
+            </div>
+          </div>
+        }
+
+      </div>
+    } @else if (currentStep === 1) {
       <div class="devmode-info">
         <p class="devmode-intro">Follow these steps on your Samsung TV remote to enable Developer Mode.</p>
 
@@ -120,7 +178,22 @@
   </div>
 
   <div class="wizard-footer">
-    @if (currentStep === 1) {
+    @if (currentStep === 3) {
+      <!-- Cert step footer -->
+      <button class="wizard-btn secondary" (click)="skipCert()">
+        <span>Skip — set up later</span>
+      </button>
+      <button class="wizard-btn secondary ms-auto" (click)="browseCert()">
+        <i class="bi bi-folder2-open"></i>
+        <span>{{ certFilePath ? 'Change…' : 'Browse…' }}</span>
+      </button>
+      @if (certFilePath) {
+        <button class="wizard-btn primary" (click)="saveCert()">
+          <i class="bi bi-check-lg"></i>
+          <span>Use this profile</span>
+        </button>
+      }
+    } @else if (currentStep === 1) {
       <button class="wizard-btn primary ms-auto" (click)="next()">
         <span>Next</span>
         <i class="bi bi-arrow-right"></i>

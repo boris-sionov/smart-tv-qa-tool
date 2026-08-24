@@ -11,8 +11,18 @@ export class DevModeService extends BackendClient {
     super(zone, "dev-mode");
   }
 
+  private statusCache = new Map<string, DevModeStatus>();
+
+  invalidateStatus(deviceName: string): void {
+    this.statusCache.delete(deviceName);
+  }
+
   async status(device: Device): Promise<DevModeStatus> {
-    return this.invoke('status', {device});
+    const cached = this.statusCache.get(device.name);
+    if (cached) return cached;
+    const result = await this.invoke<DevModeStatus>('status', {device});
+    this.statusCache.set(device.name, result);
+    return result;
   }
 
   async token(device: Device): Promise<string> {

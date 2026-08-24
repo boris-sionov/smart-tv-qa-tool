@@ -24,4 +24,7 @@ permissions = [
   "allow-tizen-get-app-version",
   "allow-tizen-install-signed",
   "allow-tizen-detect-studio",
+  "allow-tizen-press-key",
+  "allow-tizen-open-certificate-manager",
+  "allow-tizen-open-device-manager",
 ]

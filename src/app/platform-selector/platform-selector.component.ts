@@ -1,5 +1,6 @@
 import {Component} from '@angular/core';
 import {Router} from '@angular/router';
+import {APP_VERSION} from '../core/build-info';
 
 @Component({
     selector: 'app-platform-selector',
@@ -7,6 +8,8 @@ import {Router} from '@angular/router';
     styleUrls: ['./platform-selector.component.scss']
 })
 export class PlatformSelectorComponent {
+    readonly appVersion = APP_VERSION;
+
     constructor(private router: Router) {}
 
     openLg(): void {

@@ -1,5 +1,6 @@
 import {Injectable} from '@angular/core';
 import {BehaviorSubject} from 'rxjs';
+import {SdbAppInfo} from '../core/services/sdb.service';
 
 export interface TizenDevice {
     name: string;
@@ -13,10 +14,30 @@ export function tizenSerial(device: TizenDevice): string {
 
 const STORAGE_KEY = 'smart-tv-qa-tizen-devices';
 const SELECTED_STORAGE_KEY = 'smart-tv-qa-tizen-selected-device';
+const STUDIO_PATH_KEY = 'smart-tv-qa-tizen-studio-path';
+const CERT_PROFILE_KEY = 'smart-tv-qa-tizen-cert-profile';
+
+export interface TizenAppsCache {
+    apps: SdbAppInfo[];
+    versions: Map<string, string>;
+}
 
 @Injectable({providedIn: 'root'})
 export class TizenStateService {
     selected$ = new BehaviorSubject<TizenDevice | null>(this.getLastSelectedDevice());
+    private appsCache = new Map<string, TizenAppsCache>();
+
+    getCachedApps(serial: string): TizenAppsCache | null {
+        return this.appsCache.get(serial) ?? null;
+    }
+
+    setCachedApps(serial: string, cache: TizenAppsCache): void {
+        this.appsCache.set(serial, cache);
+    }
+
+    invalidateApps(serial: string): void {
+        this.appsCache.delete(serial);
+    }
 
     getSavedDevices(): TizenDevice[] {
         try {
@@ -52,6 +73,28 @@ export class TizenStateService {
             localStorage.removeItem(SELECTED_STORAGE_KEY);
         }
         this.selected$.next(device);
+    }
+
+    // ── Certificate profile ────────────────────────────────────────────────────
+
+    getCertProfile(): string | null {
+        return localStorage.getItem(CERT_PROFILE_KEY);
+    }
+
+    setCertProfile(name: string | null): void {
+        name
+            ? localStorage.setItem(CERT_PROFILE_KEY, name)
+            : localStorage.removeItem(CERT_PROFILE_KEY);
+    }
+
+    getStudioPath(): string | null {
+        return localStorage.getItem(STUDIO_PATH_KEY);
+    }
+
+    setStudioPath(path: string | null): void {
+        path
+            ? localStorage.setItem(STUDIO_PATH_KEY, path)
+            : localStorage.removeItem(STUDIO_PATH_KEY);
     }
 
     private getLastSelectedDevice(): TizenDevice | null {

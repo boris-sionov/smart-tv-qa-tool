@@ -33,6 +33,8 @@
         <h4>No Device Selected</h4>
         <p>Select a device from the dropdown to view its information.</p>
       </div>
+    } @else if (loading) {
+      <app-loading-card text="Loading device info..."></app-loading-card>
     } @else if (infoError) {
       <div class="error-state">
         <div class="error-icon">

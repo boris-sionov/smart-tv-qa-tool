@@ -2,16 +2,16 @@ import {CommonModule} from '@angular/common';
 import {NgModule} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {RouterModule, Routes} from '@angular/router';
-import {NgbDropdownModule, NgbTooltipModule} from '@ng-bootstrap/ng-bootstrap';
+import {NgbDropdownModule, NgbModalModule, NgbTooltipModule} from '@ng-bootstrap/ng-bootstrap';
 
 import {SharedModule} from '../shared/shared.module';
 import {TizenAppsComponent} from './apps/tizen-apps.component';
 import {TizenDevicesComponent} from './devices/tizen-devices.component';
 import {TizenInfoComponent} from './info/tizen-info.component';
+import {TizenRemoteDialogComponent} from './remote-dialog/tizen-remote-dialog.component';
+import {TizenStressWizardComponent} from './stress-wizard/tizen-stress-wizard.component';
 import {TizenComponent} from './tizen.component';
 import {TizenWizardComponent} from './wizard/tizen-wizard.component';
-import {CreateAuthorCertComponent} from './cert/create-author/create-author.component';
-import {CreateProfileComponent} from './cert/create-profile/create-profile.component';
 
 const routes: Routes = [
     {
@@ -33,14 +33,15 @@ const routes: Routes = [
         TizenInfoComponent,
         TizenDevicesComponent,
         TizenWizardComponent,
-        CreateAuthorCertComponent,
-        CreateProfileComponent,
+        TizenRemoteDialogComponent,
+        TizenStressWizardComponent,
     ],
     imports: [
         CommonModule,
         FormsModule,
         SharedModule,
         NgbDropdownModule,
+        NgbModalModule,
         NgbTooltipModule,
         RouterModule.forChild(routes),
     ],

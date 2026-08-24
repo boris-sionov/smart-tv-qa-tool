@@ -69,13 +69,21 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         }
     }
 
-    async loadPackages(): Promise<void> {
+    async loadPackages(force = false): Promise<void> {
         if (!this.serial) return;
+        if (!force) {
+            const cached = this.state.getCachedPackages(this.serial);
+            if (cached) {
+                this.packages = cached;
+                return;
+            }
+        }
         this.packagesError = undefined;
         this.loading = true;
         this.packages = null;
         try {
             this.packages = await this.adb.listPackages(this.serial);
+            this.state.setCachedPackages(this.serial, this.packages);
         } catch (e) {
             this.packagesError = new Error(extractMessage(e, 'Failed to load apps'));
         } finally {
@@ -94,6 +102,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
             await this.adb.install(this.serial, path);
             component.update('Extracting app icon...', 75);
             await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for icon extraction to complete
+            if (this.serial) this.state.invalidatePackages(this.serial);
             await this.loadPackages();
             window.location.reload(); // Reload to pick up new icons
         } catch (e) {
@@ -132,6 +141,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         const progress = ProgressDialogComponent.open(this.modalService);
         try {
             await this.adb.uninstall(this.serial, pkg.id);
+            this.state.invalidatePackages(this.serial);
             await this.loadPackages();
         } catch (e) {
             MessageDialogComponent.open(this.modalService, {
