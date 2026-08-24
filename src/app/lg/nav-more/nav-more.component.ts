@@ -1,7 +1,7 @@
 import {Component} from '@angular/core';
 import {ActivatedRoute, RouterLink} from "@angular/router";
 import {LgComponent} from "../lg.component";
-import ReleaseInfo from '../../../release.json';
+import {APP_VERSION} from '../../core/build-info';
 import {SharedModule} from "../../shared/shared.module";
 import {ExternalLinkDirective} from "../../shared/directives";
 
@@ -25,6 +25,6 @@ export class NavMoreComponent {
         public parent: LgComponent,
     ) {
         this.lgRoute = route.parent;
-        this.appVersion = ReleaseInfo.version;
+        this.appVersion = APP_VERSION;
     }
 }

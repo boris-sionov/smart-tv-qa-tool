@@ -3,12 +3,11 @@ import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {Router} from '@angular/router';
 import {Device} from '../types';
 import {DeviceManagerService} from '../core/services';
-import packageInfo from '../../../package.json';
 import {WizardComponent} from "../add-device/wizard/wizard.component";
 import {noop} from "rxjs";
 import {filter} from "rxjs/operators";
 import {isNonNull} from "../shared/operators";
-import ReleaseInfo from '../../release.json';
+import {APP_VERSION} from '../core/build-info';
 import {DeviceChooserComponent} from "./device-chooser/device-chooser.component";
 import {DevicesComponent} from "../devices/devices.component";
 
@@ -33,7 +32,7 @@ export class LgComponent implements OnInit {
         deviceManager.devices$.pipe(filter(isNonNull)).subscribe((devices) => {
             this.selectedDevice = devices.find((device) => device.default) || devices[0];
         });
-        this.appVersion = ReleaseInfo.version || packageInfo.version;
+        this.appVersion = APP_VERSION;
     }
 
     goBack(): void {
