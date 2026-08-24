@@ -2,7 +2,11 @@ import {Injectable} from '@angular/core';
 import {fetch} from '@tauri-apps/plugin-http';
 import {Command} from '@tauri-apps/plugin-shell';
 import {Device, PackageInfo} from '../../types';
+import {RemoteCommandService} from './remote-command.service';
 import {RemoteFileService} from './remote-file.service';
+
+/** Printed by the TV when its grep cannot do the extraction, so the caller reads the file instead. */
+const GREP_UNSUPPORTED = '@@stvqa-nogrep@@';
 
 @Injectable({
     providedIn: 'root'
@@ -11,7 +15,7 @@ export class LgHostedAppVersionService {
     private cache = new Map<string, Promise<string | null>>();
     private resolved = new Map<string, string | null>();
 
-    constructor(private fileService: RemoteFileService) {}
+    constructor(private fileService: RemoteFileService, private cmd: RemoteCommandService) {}
 
     getVersionSync(device: Device, pkg: PackageInfo): string | null | undefined {
         return this.resolved.get(`${device.name}:${pkg.id}:${pkg.version}:${pkg.folderPath}`);
@@ -64,12 +68,36 @@ export class LgHostedAppVersionService {
 
         for (const src of scripts) {
             const filePath = src.startsWith('/') ? src : `${folderPath}/${src.replace(/^\.\//, '')}`;
-            const bundle = await this.fileService.read(device, filePath, undefined, 'utf-8').catch(() => '');
-            if (!bundle) continue;
-            const version = this.extractAppVersion(bundle);
+            const version = await this.grepAppVersion(device, filePath);
             if (version) return version;
         }
         return null;
+    }
+
+    /**
+     * Reads APP_VERSION out of a bundle without downloading it.
+     *
+     * These bundles run to megabytes, and pulling one over SFTP just to regex it was the slowest
+     * step in showing the app list — grep on the TV sends back a single line instead. The probe
+     * in front checks that grep understands -o and -E before trusting a silent result, since a
+     * busybox without them looks exactly like a bundle that has no APP_VERSION.
+     */
+    private async grepAppVersion(device: Device, filePath: string): Promise<string | null> {
+        const pattern = `APP_VERSION[[:space:]]*:[[:space:]]*["'][^"']*["']`.replace(/"/g, '\\"');
+        const command = [
+            `if echo APP_VERSION | grep -aoE APP_VERSION >/dev/null 2>&1; then`,
+            `grep -aoE "${pattern}" ${this.shellQuote(filePath)} 2>/dev/null | head -n 1;`,
+            `else echo '${GREP_UNSUPPORTED}'; fi; true`,
+        ].join(' ');
+
+        const matched = await this.cmd.exec(device, command, 'utf-8').catch(() => GREP_UNSUPPORTED);
+        if (!matched.includes(GREP_UNSUPPORTED)) {
+            // grep ran: either it found the version, or the bundle genuinely has none.
+            return this.extractAppVersion(matched);
+        }
+
+        const bundle = await this.fileService.read(device, filePath, undefined, 'utf-8').catch(() => '');
+        return bundle ? this.extractAppVersion(bundle) : null;
     }
 
     private mayBeHostedFreeTvApp(pkg: PackageInfo): boolean {
