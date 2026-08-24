@@ -18,6 +18,7 @@ fn main() {
                     "app_ssh_key_path",
                     "app_ssh_pubkey",
                     "ssh_key_dir",
+                    "disconnect",
                 ]),
             )
             .plugin(
@@ -44,7 +45,7 @@ fn main() {
             )
             .plugin(
                 "lg-remote",
-                InlinedPlugin::new().commands(&["press_button"]),
+                InlinedPlugin::new().commands(&["press_button", "list_apps"]),
             )
             .plugin(
                 "adb-manager",
