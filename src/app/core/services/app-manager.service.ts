@@ -263,7 +263,7 @@ export class AppManagerService {
                     continue;
                 }
                 // Only what dev mode owns — store and system apps live on read-only partitions.
-                const targets = (await this.findIconPaths(device, pkg))
+                const targets = (await this.findIconPaths(device, pkg)).declared
                     .filter(path => path.startsWith('/media/developer/'));
                 if (!targets.length) {
                     result.problems.push(`${pkg.id}: found no icon file in ${pkg.folderPath} (it reports icon="${pkg.icon}", largeIcon="${pkg.largeIcon}")`);
@@ -349,10 +349,14 @@ export class AppManagerService {
      *
      * So this reads the app's own `appinfo.json` and lists its folder in one command, and returns
      * only paths that are really there, best first.
+     *
+     * `declared` is what the app calls its icon, and is the only thing safe to overwrite. The
+     * folder scan in `candidates` exists so the list can still show *something* for an app whose
+     * declared icon is missing — writing to those would clobber splash screens and logos.
      */
-    async findIconPaths(device: Device, pkg: PackageInfo): Promise<string[]> {
+    async findIconPaths(device: Device, pkg: PackageInfo): Promise<IconPaths> {
         const folder = pkg.folderPath?.replace(/\/+$/, '');
-        if (!folder) return [];
+        if (!folder) return {declared: [], candidates: []};
         const quoted = `'${folder.replace(/'/g, `'\\''`)}'`;
         const output = await this.cmd.exec(device,
             `cat ${quoted}/appinfo.json 2>/dev/null; echo; echo '${ICON_SCAN_MARKER}'; ls -1 ${quoted} 2>/dev/null; true`,
@@ -360,6 +364,9 @@ export class AppManagerService {
             installLog(`${pkg.id}: could not inspect ${folder}`, e);
             return '';
         });
+        const exists = (path: string) =>
+            !path.startsWith(`${folder}/`) || present.has(path.slice(folder.length + 1));
+        const absolute = (name: string) => name.startsWith('/') ? name : `${folder}/${name}`;
 
         const [rawInfo = '', rawList = ''] = output.split(ICON_SCAN_MARKER);
         let declared: RawPackageInfo | undefined;
@@ -378,15 +385,13 @@ export class AppManagerService {
             .filter(name => IMAGE_NAME.test(name))
             .sort((a, b) => Number(/icon/i.test(b)) - Number(/icon/i.test(a)));
 
-        const paths = [...named, ...scanned].map(name =>
-            name.startsWith('/') ? name : `${folder}/${name}`);
-        const found = [...new Set(paths)].filter(path =>
-            // A name from appinfo.json is only real if the listing agrees, unless it points
-            // somewhere else entirely, which we cannot check from here.
-            !path.startsWith(`${folder}/`) || present.has(path.slice(folder.length + 1)));
+        const declaredPaths = [...new Set(named.map(absolute))].filter(exists);
+        const candidates = [...new Set([...named, ...scanned].map(absolute))].filter(exists);
         // Both callers are otherwise silent about it, and this is the answer to "why no icon".
-        installLog(`${pkg.id}: icon files ${found.join(', ') || `(none in ${folder}, which holds ${[...present].join(', ') || 'nothing readable'})`}`);
-        return found;
+        installLog(`${pkg.id}: declares ${declaredPaths.join(', ') || '(no icon)'}`
+            + (candidates.length > declaredPaths.length
+                ? `; folder also holds ${candidates.slice(declaredPaths.length).join(', ')}` : ''));
+        return {declared: declaredPaths, candidates};
     }
 
     async remove(device: Device, id: string): Promise<void> {
@@ -696,6 +701,14 @@ function mapAppinstalldResponse(v: LunaResponse, expectResult: string | RegExp):
     }
     console.debug('appinstalld output', v);
     return false;
+}
+
+/** Where an app's icon lives, split by how safe each path is to write to. */
+export interface IconPaths {
+    /** What the app's own appinfo.json calls its icon — the only files a stamp may overwrite. */
+    declared: string[];
+    /** Everything that might hold the icon, declared first — for reading only. */
+    candidates: string[];
 }
 
 /** What `applyEnvironmentIcons` did, so the caller can tell the user rather than only the log. */

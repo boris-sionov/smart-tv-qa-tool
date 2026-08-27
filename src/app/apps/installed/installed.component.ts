@@ -228,7 +228,8 @@ export class InstalledComponent implements OnDestroy {
     private async loadIconFromFolder(pkg: PackageInfo): Promise<void> {
         const device = this.parent.device;
         if (!device || this.iconCache.has(pkg.id)) return;
-        const paths = await this.appManager.findIconPaths(device, pkg).catch(() => [] as string[]);
+        const paths = await this.appManager.findIconPaths(device, pkg)
+            .then(found => found.candidates).catch(() => [] as string[]);
         for (const path of paths) {
             const buffer = await this.fileService.read(device, path, undefined, 'buffer')
                 .catch(() => null);
