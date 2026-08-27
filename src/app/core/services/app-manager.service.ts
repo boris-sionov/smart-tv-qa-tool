@@ -289,7 +289,9 @@ export class AppManagerService {
             }
             installLog(result.stamped.length
                 ? `Stamped environment icons: ${result.stamped.join('; ')}`
-                : 'No installed app matches a bundled environment icon');
+                : result.problems.length
+                    ? `Stamped nothing, ${result.problems.length} app(s) in the way`
+                    : 'No installed app matches a bundled environment icon');
             result.problems.forEach(problem => installLog(problem));
         } catch (e) {
             installLog('Could not stamp the environment icons', e);
@@ -301,13 +303,25 @@ export class AppManagerService {
     /**
      * Overwrites one icon file, and puts the old one back if the new one did not land.
      *
-     * The SFTP write opens with TRUNCATE, so a write that fails half way leaves the app with a
-     * broken icon rather than the one it had — worse than never having tried. Reading the file
-     * back is two extra round trips on an operation that just spent seconds installing an IPK.
+     * The old file is unlinked rather than overwritten in place, which is the only way `prisoner`
+     * gets to replace a root-owned icon. That makes a failed write destructive, so the original is
+     * read first and put back when the new one does not land. Two extra round trips on an
+     * operation that just spent seconds installing an IPK.
      */
     private async replaceIcon(device: Device, path: string, content: Uint8Array): Promise<void> {
         const original = await this.file.read(device, path, undefined, 'buffer').catch(() => null);
-        await this.file.write(device, path, content);
+        // appinstalld unpacks the IPK as root, so the icon it leaves behind cannot be opened for
+        // writing by `prisoner` — SFTP answers "permission denied". Unlinking it and creating a
+        // fresh one is what dev mode does have rights for, and what Change icon has always done.
+        await this.file.rm(device, path, false).catch(() => undefined);
+        try {
+            await this.file.write(device, path, content);
+        } catch (e) {
+            if (original?.length) {
+                await this.file.write(device, path, new Uint8Array(original)).catch(noop);
+            }
+            throw e;
+        }
         const written = await this.file.read(device, path, undefined, 'buffer').catch(() => null);
         if (written?.length === content.length && written.every((byte, i) => byte === content[i])) {
             return;
