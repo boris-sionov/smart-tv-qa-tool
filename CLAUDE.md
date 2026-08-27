@@ -246,6 +246,24 @@ still holds its session. `sdb disconnect` sends a proper teardown so the TV rele
   service calls over SSH; PTY shells via `shell_manager/`
 - **Status:** Fully functional; planned migration to `DeviceProvider` interface
 
+#### Environment Icons After Install
+Every FreeTV IPK ships the same green icon, so two sideloaded builds are indistinguishable on the
+TV's home screen. `AppManagerService.applyEnvironmentIcon()` runs as the last install step and
+overwrites the app's `icon` / `largeIcon` files over SFTP with a bundled badged icon from
+`src/assets/lg-icons/` — the mapping lives in `src/app/shared/lg-app-icons.ts`:
+
+| Environment (`appEnvironment`) | Icon |
+|---|---|
+| PreProd | `freetv-lg-preprod-icon.png` |
+| PreProd Test, Test | `freetv-lg-prod-test-icon.png` |
+| UAT, Prod on UAT | `freetv-lg-uat-icon.png` |
+| Prod | `freetv-lg-store-icon.png` |
+
+FreeTV builds only (every bundled icon is a FreeTV one), developer partition only, and best-effort
+— an unmapped environment or a failed write leaves the packaged icon. It re-runs on every install
+because installing the IPK puts the packaged icon back. The installed app is identified by
+`details.packageId` from appinstalld; the Homebrew Channel path diffs the app list instead.
+
 ### VIDAA TV (Hisense) — Planned
 - **Connection:** MQTT-over-TLS port 36669, credentials `hisenseservice` / `multimqttservice`
 - **Plan:** Rust MQTT client (`rumqttc` crate), `VidaaProvider` implementing `DeviceProvider`

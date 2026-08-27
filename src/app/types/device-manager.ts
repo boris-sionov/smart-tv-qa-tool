@@ -21,6 +21,8 @@ export declare interface RawPackageInfo {
   version: string;
   folderPath: string;
   icon: string;
+  /** Optional higher-resolution icon from `appinfo.json` — what the home screen prefers. */
+  largeIcon?: string;
 }
 
 /**

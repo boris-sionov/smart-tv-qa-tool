@@ -20,6 +20,8 @@ import {DeviceManagerService} from "./device-manager.service";
 import {HomebrewChannelConfiguration} from "../../types/luna-apis";
 import {download} from "@tauri-apps/plugin-upload";
 import {LgRemoteService, SsapApp} from "./lg-remote.service";
+import {IconCacheService} from "./icon-cache.service";
+import {lgEnvironmentIcon, readBundledIcon} from "../../shared/lg-app-icons";
 
 const APP_ROOTS: ReadonlyArray<[string, PackageSource]> = [
     ['/media/developer/apps/usr/palm/applications', 'developer'],
@@ -57,7 +59,7 @@ export class AppManagerService {
 
     constructor(private luna: RemoteLunaService, private cmd: RemoteCommandService, private file: RemoteFileService,
                 private localFile: LocalFileService, private deviceManager: DeviceManagerService,
-                private lgRemote: LgRemoteService) {
+                private lgRemote: LgRemoteService, private iconCache: IconCacheService) {
         this.packagesSubjects = new Map();
         this.allPackagesSubjects = new Map();
     }
@@ -175,7 +177,9 @@ export class AppManagerService {
     async installByPath(device: Device, localPath: string, progress?: InstallProgressHandler): Promise<void> {
         const hasHbChannel = await this.deviceManager.getHbChannelConfig(device).then(() => true)
             .catch(() => false);
+        let installedId: string | null;
         if (hasHbChannel) {
+            const before = await this.snapshotDevApps(device);
             const sha256 = await this.localFile.checksum(localPath, 'sha256');
             const serve: ServeInstance = await this.file.serveLocal(device, localPath);
             console.log('Installing', serve.host);
@@ -184,14 +188,16 @@ export class AppManagerService {
             } finally {
                 await serve.interrupt();
             }
+            installedId = await this.detectInstalledApp(device, before);
         } else {
             const ipkPath = await this.tempDownloadIpk(device, localPath, progress);
             try {
-                await this.devInstall(device, ipkPath, progress);
+                installedId = await this.devInstall(device, ipkPath, progress);
             } finally {
                 await this.file.rm(device, ipkPath, false);
             }
         }
+        await this.applyEnvironmentIcon(device, installedId, progress);
         this.refresh(device).catch(noop);
     }
 
@@ -200,7 +206,9 @@ export class AppManagerService {
             .catch(() => false);
         if (hasHbChannel) {
             try {
+                const before = await this.snapshotDevApps(device);
                 await this.hbChannelInstall(device, manifest.ipkUrl, manifest.ipkHash?.sha256, progress);
+                await this.applyEnvironmentIcon(device, manifest.id || await this.detectInstalledApp(device, before), progress);
                 await this.refresh(device).catch(noop);
                 return;
             } catch (e) {
@@ -212,8 +220,79 @@ export class AppManagerService {
         }
         const path = await this.tempDownloadIpk(device, new URL(manifest.ipkUrl), progress);
         await this.devInstall(device, path, progress)
+            .then((installedId) => this.applyEnvironmentIcon(device, installedId || manifest.id, progress))
             .then(() => this.refresh(device).catch(noop))
             .finally(() => this.file.rm(device, path, false));
+    }
+
+    /**
+     * Replaces a freshly installed app's icon with the bundled one for its environment.
+     *
+     * Every FreeTV build ships the same green icon, so a TV holding PreProd and UAT side by side
+     * shows two identical tiles on the home screen. QA used to fix that by hand through Apps →
+     * Change icon after every install — and it *is* every install, because installing the IPK puts
+     * the packaged icon back.
+     *
+     * Best-effort by design: an app we ship no icon for, or a write that fails, keeps whatever the
+     * IPK came with rather than failing the install that already succeeded.
+     */
+    async applyEnvironmentIcon(device: Device, appId: string | null, progress?: InstallProgressHandler): Promise<boolean> {
+        if (!appId) return false;
+        try {
+            // `list`, not `load`: pushing the app list now would race the icon cache we clear below.
+            const pkg = (await this.list(device)).find(p => p.id === appId);
+            if (!pkg) return false;
+            const icon = lgEnvironmentIcon(pkg.id, pkg.title);
+            if (!icon) return false;
+            // Only what dev mode owns — store and system apps live on read-only partitions.
+            const targets = this.environmentIconTargets(pkg)
+                .filter(path => path.startsWith('/media/developer/'));
+            if (!targets.length) return false;
+
+            progress?.(undefined, `Applying ${icon.environment} icon...`);
+            const content = await readBundledIcon(icon.asset);
+            for (const path of targets) {
+                await this.file.write(device, path, content);
+            }
+            // The list only re-reads icons it has no copy of.
+            this.iconCache.delete(appId);
+            console.log(`[Install] Stamped ${icon.environment} icon on ${appId}`);
+            return true;
+        } catch (e) {
+            console.warn(`[Install] Could not stamp the environment icon on ${appId}`, e);
+            return false;
+        }
+    }
+
+    /**
+     * Where the icon files of an app live. `icon`/`largeIcon` come back either as a bare file name
+     * or as an absolute path, and an app that declares neither still gets the `icon.png` every
+     * webOS app folder has.
+     */
+    private environmentIconTargets(pkg: PackageInfo): string[] {
+        const declared = [pkg.icon, pkg.largeIcon]
+            .filter((v): v is string => !!v && !/^https?:\/\//i.test(v))
+            .map(v => v.startsWith('/') ? v : `${pkg.folderPath}/${v}`);
+        const paths = declared.length ? declared : [`${pkg.folderPath}/icon.png`];
+        return [...new Set(paths.filter(path => path.startsWith('/')))];
+    }
+
+    /** id → version of every dev-installed app, to spot what an install changed. */
+    private async snapshotDevApps(device: Device): Promise<Map<string, string>> {
+        return this.list(device)
+            .then(pkgs => new Map(pkgs.map(pkg => [pkg.id, pkg.version] as const)))
+            .catch(() => new Map<string, string>());
+    }
+
+    /**
+     * Which app an install added or updated, for the Homebrew Channel path — its service, unlike
+     * appinstalld, doesn't report the package id. Reinstalling the very same version looks like
+     * nothing happened, so this can come back empty.
+     */
+    private async detectInstalledApp(device: Device, before: Map<string, string>): Promise<string | null> {
+        const changed = (await this.list(device).catch(() => [] as PackageInfo[]))
+            .filter(pkg => before.get(pkg.id) !== pkg.version);
+        return changed.length === 1 ? changed[0].id : null;
     }
 
     async remove(device: Device, id: string): Promise<void> {
@@ -398,9 +477,11 @@ export class AppManagerService {
         return targetPath;
     }
 
-    private async devInstall(device: Device, path: string, progress?: InstallProgressHandler): Promise<void> {
+    /** Returns the id appinstalld reports for the installed app, when it reports one. */
+    private async devInstall(device: Device, path: string, progress?: InstallProgressHandler): Promise<string | null> {
         console.log(`[Install] Starting dev install on ${device.name}: ${path}`);
         const INSTALL_TIMEOUT = 300000; // 5 minutes timeout
+        let installedId: string | null = null;
 
         const luna = await this.luna.subscribe(device, 'luna://com.webos.appInstallService/dev/install', {
             id: 'com.ares.defaultName',
@@ -412,6 +493,7 @@ export class AppManagerService {
             await lastValueFrom(luna.asObservable().pipe(
                 map(v => {
                     console.log(`[Install] Response: `, v);
+                    installedId = appinstalldPackageId(v) ?? installedId;
                     return mapAppinstalldResponse(v, /installed/i);
                 }),
                 timeout(INSTALL_TIMEOUT),
@@ -422,6 +504,7 @@ export class AppManagerService {
                 })))/* Unsubscribe when failed, and throw the error */)
             );
             console.log(`[Install] Installation completed successfully on ${device.name}`);
+            return installedId;
         } catch (error) {
             console.error(`[Install] Installation failed on ${device.name}:`, error);
             throw error;
@@ -480,6 +563,15 @@ export class AppManagerService {
         }
     }
 
+}
+
+/**
+ * appinstalld names the app it is working on in its progress events. `com.ares.defaultName` is the
+ * placeholder id we send in, not an answer.
+ */
+function appinstalldPackageId(v: LunaResponse): string | null {
+    const id: string = _.get(v, ['details', 'packageId']) || _.get(v, ['details', 'id']) || '';
+    return id && id !== 'com.ares.defaultName' ? id : null;
 }
 
 function mapAppinstalldResponse(v: LunaResponse, expectResult: string | RegExp): boolean {

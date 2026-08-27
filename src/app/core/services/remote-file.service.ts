@@ -78,8 +78,13 @@ export class RemoteFileService extends BackendClient {
         return result;
     }
 
+    /**
+     * The Rust side takes a `Vec<u8>`, and a `Uint8Array` nested in the invoke payload is
+     * serialized as `{"0": …}` rather than an array — send plain numbers.
+     */
     public async write(device: Device, path: string, content?: string | Uint8Array): Promise<void> {
-        await this.invoke('write', {device, path, content});
+        const bytes = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+        await this.invoke('write', {device, path, content: bytes ? Array.from(bytes) : []});
     }
 
     public async get(device: Device, path: string, target: string, progress?: ProgressCallback): Promise<void> {
