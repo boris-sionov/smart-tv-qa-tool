@@ -264,7 +264,7 @@ export class AppManagerService {
                 }
                 progress?.(undefined, `Applying the ${icon.environment} icon...`);
                 for (const path of targets) {
-                    await this.file.write(device, path, content);
+                    await this.replaceIcon(device, path, content);
                 }
                 // The list only re-reads icons it has no copy of.
                 this.iconCache.delete(pkg.id);
@@ -276,6 +276,29 @@ export class AppManagerService {
         } catch (e) {
             console.warn('[Install] Could not stamp the environment icons', e);
         }
+    }
+
+    /**
+     * Overwrites one icon file, and puts the old one back if the new one did not land.
+     *
+     * The SFTP write opens with TRUNCATE, so a write that fails half way leaves the app with a
+     * broken icon rather than the one it had — worse than never having tried. Reading the file
+     * back is two extra round trips on an operation that just spent seconds installing an IPK.
+     */
+    private async replaceIcon(device: Device, path: string, content: Uint8Array): Promise<void> {
+        const original = await this.file.read(device, path, undefined, 'buffer').catch(() => null);
+        await this.file.write(device, path, content);
+        const written = await this.file.read(device, path, undefined, 'buffer').catch(() => null);
+        if (written?.length === content.length && written.every((byte, i) => byte === content[i])) {
+            return;
+        }
+        const landed = `wrote ${content.length} bytes, read back ${written?.length ?? 'nothing'}`;
+        if (original?.length) {
+            await this.file.write(device, path, new Uint8Array(original))
+                .then(() => console.warn(`[Install] ${path}: ${landed} — put the old icon back`))
+                .catch(e => console.error(`[Install] ${path}: ${landed}, and restoring it failed`, e));
+        }
+        throw new Error(`Icon ${path} did not survive the write: ${landed}`);
     }
 
     /**
