@@ -177,9 +177,7 @@ export class AppManagerService {
     async installByPath(device: Device, localPath: string, progress?: InstallProgressHandler): Promise<void> {
         const hasHbChannel = await this.deviceManager.getHbChannelConfig(device).then(() => true)
             .catch(() => false);
-        let installedId: string | null;
         if (hasHbChannel) {
-            const before = await this.snapshotDevApps(device);
             const sha256 = await this.localFile.checksum(localPath, 'sha256');
             const serve: ServeInstance = await this.file.serveLocal(device, localPath);
             console.log('Installing', serve.host);
@@ -188,16 +186,15 @@ export class AppManagerService {
             } finally {
                 await serve.interrupt();
             }
-            installedId = await this.detectInstalledApp(device, before);
         } else {
             const ipkPath = await this.tempDownloadIpk(device, localPath, progress);
             try {
-                installedId = await this.devInstall(device, ipkPath, progress);
+                await this.devInstall(device, ipkPath, progress);
             } finally {
                 await this.file.rm(device, ipkPath, false);
             }
         }
-        await this.applyEnvironmentIcon(device, installedId, progress);
+        await this.applyEnvironmentIcons(device, progress);
         this.refresh(device).catch(noop);
     }
 
@@ -206,9 +203,8 @@ export class AppManagerService {
             .catch(() => false);
         if (hasHbChannel) {
             try {
-                const before = await this.snapshotDevApps(device);
                 await this.hbChannelInstall(device, manifest.ipkUrl, manifest.ipkHash?.sha256, progress);
-                await this.applyEnvironmentIcon(device, manifest.id || await this.detectInstalledApp(device, before), progress);
+                await this.applyEnvironmentIcons(device, progress);
                 await this.refresh(device).catch(noop);
                 return;
             } catch (e) {
@@ -220,47 +216,65 @@ export class AppManagerService {
         }
         const path = await this.tempDownloadIpk(device, new URL(manifest.ipkUrl), progress);
         await this.devInstall(device, path, progress)
-            .then((installedId) => this.applyEnvironmentIcon(device, installedId || manifest.id, progress))
+            .then(() => this.applyEnvironmentIcons(device, progress))
             .then(() => this.refresh(device).catch(noop))
             .finally(() => this.file.rm(device, path, false));
     }
 
     /**
-     * Replaces a freshly installed app's icon with the bundled one for its environment.
+     * Puts the badged environment icon on every sideloaded FreeTV build that has one.
      *
      * Every FreeTV build ships the same green icon, so a TV holding PreProd and UAT side by side
      * shows two identical tiles on the home screen. QA used to fix that by hand through Apps →
      * Change icon after every install — and it *is* every install, because installing the IPK puts
      * the packaged icon back.
      *
-     * Best-effort by design: an app we ship no icon for, or a write that fails, keeps whatever the
-     * IPK came with rather than failing the install that already succeeded.
+     * It walks the whole developer list rather than just the app that was installed, because
+     * neither install path reliably says which app that was: appinstalld's `packageId` is not
+     * guaranteed, and reinstalling the same version is invisible to a before/after diff. Walking
+     * the list also repairs an app whose earlier stamp failed. The one thing it does not respect is
+     * an icon set by hand through Change icon on an app we ship a badge for.
+     *
+     * Best-effort by design: a write that fails leaves whatever the IPK came with rather than
+     * failing an install that already succeeded.
      */
-    async applyEnvironmentIcon(device: Device, appId: string | null, progress?: InstallProgressHandler): Promise<boolean> {
-        if (!appId) return false;
+    private async applyEnvironmentIcons(device: Device, progress?: InstallProgressHandler): Promise<void> {
+        const stamped: string[] = [];
+        const bundled = new Map<string, Uint8Array>();
         try {
             // `list`, not `load`: pushing the app list now would race the icon cache we clear below.
-            const pkg = (await this.list(device)).find(p => p.id === appId);
-            if (!pkg) return false;
-            const icon = environmentIcon('webos', pkg.id, pkg.title);
-            if (!icon) return false;
-            // Only what dev mode owns — store and system apps live on read-only partitions.
-            const targets = this.environmentIconTargets(pkg)
-                .filter(path => path.startsWith('/media/developer/'));
-            if (!targets.length) return false;
-
-            progress?.(undefined, `Applying ${icon.environment} icon...`);
-            const content = await readBundledIcon(icon.asset);
-            for (const path of targets) {
-                await this.file.write(device, path, content);
+            for (const pkg of await this.list(device)) {
+                const icon = environmentIcon('webos', pkg.id, pkg.title);
+                if (!icon) continue;
+                // Only what dev mode owns — store and system apps live on read-only partitions.
+                const targets = this.environmentIconTargets(pkg)
+                    .filter(path => path.startsWith('/media/developer/'));
+                if (!targets.length) {
+                    console.warn(`[Install] ${pkg.id} has no writable icon path, leaving it alone`);
+                    continue;
+                }
+                let content = bundled.get(icon.asset);
+                if (!content) {
+                    content = await readBundledIcon(icon.asset);
+                    // Truncate-then-write: a bad payload here would leave the app with no icon.
+                    if (!isPng(content)) {
+                        throw new Error(`${icon.asset} is not a PNG (${content.length} bytes)`);
+                    }
+                    bundled.set(icon.asset, content);
+                }
+                progress?.(undefined, `Applying the ${icon.environment} icon...`);
+                for (const path of targets) {
+                    await this.file.write(device, path, content);
+                }
+                // The list only re-reads icons it has no copy of.
+                this.iconCache.delete(pkg.id);
+                stamped.push(`${pkg.id} → ${icon.environment} (${targets.join(', ')})`);
             }
-            // The list only re-reads icons it has no copy of.
-            this.iconCache.delete(appId);
-            console.log(`[Install] Stamped ${icon.environment} icon on ${appId}`);
-            return true;
+            console.log(stamped.length
+                ? `[Install] Stamped environment icons: ${stamped.join('; ')}`
+                : '[Install] No installed app matches a bundled environment icon');
         } catch (e) {
-            console.warn(`[Install] Could not stamp the environment icon on ${appId}`, e);
-            return false;
+            console.warn('[Install] Could not stamp the environment icons', e);
         }
     }
 
@@ -275,24 +289,6 @@ export class AppManagerService {
             .map(v => v.startsWith('/') ? v : `${pkg.folderPath}/${v}`);
         const paths = declared.length ? declared : [`${pkg.folderPath}/icon.png`];
         return [...new Set(paths.filter(path => path.startsWith('/')))];
-    }
-
-    /** id → version of every dev-installed app, to spot what an install changed. */
-    private async snapshotDevApps(device: Device): Promise<Map<string, string>> {
-        return this.list(device)
-            .then(pkgs => new Map(pkgs.map(pkg => [pkg.id, pkg.version] as const)))
-            .catch(() => new Map<string, string>());
-    }
-
-    /**
-     * Which app an install added or updated, for the Homebrew Channel path — its service, unlike
-     * appinstalld, doesn't report the package id. Reinstalling the very same version looks like
-     * nothing happened, so this can come back empty.
-     */
-    private async detectInstalledApp(device: Device, before: Map<string, string>): Promise<string | null> {
-        const changed = (await this.list(device).catch(() => [] as PackageInfo[]))
-            .filter(pkg => before.get(pkg.id) !== pkg.version);
-        return changed.length === 1 ? changed[0].id : null;
     }
 
     async remove(device: Device, id: string): Promise<void> {
@@ -477,11 +473,9 @@ export class AppManagerService {
         return targetPath;
     }
 
-    /** Returns the id appinstalld reports for the installed app, when it reports one. */
-    private async devInstall(device: Device, path: string, progress?: InstallProgressHandler): Promise<string | null> {
+    private async devInstall(device: Device, path: string, progress?: InstallProgressHandler): Promise<void> {
         console.log(`[Install] Starting dev install on ${device.name}: ${path}`);
         const INSTALL_TIMEOUT = 300000; // 5 minutes timeout
-        let installedId: string | null = null;
 
         const luna = await this.luna.subscribe(device, 'luna://com.webos.appInstallService/dev/install', {
             id: 'com.ares.defaultName',
@@ -493,7 +487,6 @@ export class AppManagerService {
             await lastValueFrom(luna.asObservable().pipe(
                 map(v => {
                     console.log(`[Install] Response: `, v);
-                    installedId = appinstalldPackageId(v) ?? installedId;
                     return mapAppinstalldResponse(v, /installed/i);
                 }),
                 timeout(INSTALL_TIMEOUT),
@@ -504,7 +497,6 @@ export class AppManagerService {
                 })))/* Unsubscribe when failed, and throw the error */)
             );
             console.log(`[Install] Installation completed successfully on ${device.name}`);
-            return installedId;
         } catch (error) {
             console.error(`[Install] Installation failed on ${device.name}:`, error);
             throw error;
@@ -565,13 +557,10 @@ export class AppManagerService {
 
 }
 
-/**
- * appinstalld names the app it is working on in its progress events. `com.ares.defaultName` is the
- * placeholder id we send in, not an answer.
- */
-function appinstalldPackageId(v: LunaResponse): string | null {
-    const id: string = _.get(v, ['details', 'packageId']) || _.get(v, ['details', 'id']) || '';
-    return id && id !== 'com.ares.defaultName' ? id : null;
+/** The 8-byte PNG signature — every bundled icon is a PNG. */
+function isPng(content: Uint8Array): boolean {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return content.length > signature.length && signature.every((byte, i) => content[i] === byte);
 }
 
 function mapAppinstalldResponse(v: LunaResponse, expectResult: string | RegExp): boolean {

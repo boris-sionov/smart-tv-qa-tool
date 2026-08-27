@@ -252,14 +252,19 @@ still holds its session. `sdb disconnect` sends a proper teardown so the TV rele
 - **Status:** Fully functional; planned migration to `DeviceProvider` interface
 
 #### Environment Icons After Install
-`AppManagerService.applyEnvironmentIcon()` runs as the last install step and overwrites the app's
-`icon` / `largeIcon` files over SFTP with the badged icon for its environment (see
-[Environment Icons](#environment-icons)).
+`AppManagerService.applyEnvironmentIcons()` runs as the last install step and overwrites the
+`icon` / `largeIcon` files of every sideloaded FreeTV build over SFTP with the badged icon for its
+environment (see [Environment Icons](#environment-icons)).
 
 Developer partition only, and best-effort — an unmapped environment or a failed write leaves the
 packaged icon. It re-runs on every install because installing the IPK puts the packaged icon back.
-The installed app is identified by `details.packageId` from appinstalld; the Homebrew Channel path
-diffs the app list instead.
+
+It walks the whole developer list rather than the app that was just installed: appinstalld does not
+reliably report a `packageId`, and reinstalling the same version is invisible to a before/after diff
+of the app list, so neither identifies the app well enough to rely on. Walking the list also repairs
+an app whose earlier stamp failed. Each run logs one of `[Install] Stamped environment icons: …`,
+`[Install] No installed app matches a bundled environment icon`, or `[Install] Could not stamp …` —
+start there when an icon does not turn up.
 
 ### Environment Icons
 
