@@ -25,6 +25,7 @@ export class InstalledComponent implements OnDestroy {
     packages: PackageInfo[] | null = null;
     search = '';
     private scoped: PackageInfo[] | null = null;
+    private brokenIcons = new Set<string>();
 
     private subscription?: Subscription;
     private installedField?: Observable<PackageInfo[] | null>;
@@ -45,6 +46,7 @@ export class InstalledComponent implements OnDestroy {
         this.subscription = value?.subscribe({
             next: (pkgs) => {
                 this.installedError = undefined;
+                this.brokenIcons.clear();
                 this.htmlVersions.clear();
                 this.packages = pkgs;
                 this.applyScope();
@@ -144,7 +146,26 @@ export class InstalledComponent implements OnDestroy {
         }
     }
 
+    /**
+     * The icon to draw, or nothing so the placeholder takes over.
+     *
+     * This used to be an `<img>` that was always in the DOM, `display:none` until its own `load`
+     * event turned it on. With `loading="lazy"` on it that never happened: a display:none image is
+     * never in the viewport, so it is never fetched, so `load` never fires — every row kept the
+     * placeholder no matter what was in the cache.
+     */
+    iconSrc(pkg: PackageInfo): string | null {
+        if (this.brokenIcons.has(pkg.id)) return null;
+        return this.iconCache.get(pkg.id) ?? pkg.iconUri ?? null;
+    }
+
+    /** A URI the webview would not decode — show the placeholder rather than a broken image. */
+    iconFailed(pkgId: string): void {
+        this.brokenIcons.add(pkgId);
+    }
+
     forceReloadIcon(pkgId: string): void {
+        this.brokenIcons.delete(pkgId);
         this.iconCache.delete(pkgId);
         const pkg = this.packages?.find(p => p.id === pkgId);
         if (pkg && this.parent.device) {
