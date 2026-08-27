@@ -4,7 +4,6 @@ import {noop, Observable, Subscription} from 'rxjs';
 import {Device, PackageInfo, RawPackageInfo} from '../types';
 import {AppManagerService, DeviceManagerService, RepositoryItem} from '../core/services';
 import {IconStampResult} from '../core/services/app-manager.service';
-import {LgRemoteService} from '../core/services/lg-remote.service';
 import {fetch as tauriFetch} from '@tauri-apps/plugin-http';
 import {RemoteFileService} from '../core/services/remote-file.service';
 import {MessageDialogComponent} from '../shared/components/message-dialog/message-dialog.component';
@@ -50,7 +49,6 @@ export class AppsComponent implements OnInit, OnDestroy {
         private modalService: NgbModal,
         private appManager: AppManagerService,
         private fileService: RemoteFileService,
-        private lgRemote: LgRemoteService,
     ) {
     }
 
@@ -386,16 +384,6 @@ export class AppsComponent implements OnInit, OnDestroy {
                 }
             }, step);
         });
-    }
-
-    async pressDown(): Promise<void> {
-        if (!this.device) return;
-        try {
-            await this.lgRemote.pressButton(this.device, 'DOWN');
-            console.log('[Remote] DOWN sent');
-        } catch (e) {
-            console.error('[Remote] DOWN failed:', e);
-        }
     }
 
     inspectApp(): void {
