@@ -66,8 +66,8 @@
             <article class="android-app-row">
               <div class="app-identity">
                 <div class="app-icon-frame">
-                  @if (hasIcon(pkg.id)) {
-                    <img [src]="getIconPath(pkg.id)" [alt]="pkg.name" class="app-icon-img">
+                  @if (iconPath(pkg.id); as icon) {
+                    <img [src]="icon" [alt]="pkg.name" class="app-icon-img">
                   } @else {
                     <div class="app-icon-placeholder">ATV</div>
                   }

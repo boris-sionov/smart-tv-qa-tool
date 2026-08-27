@@ -6,6 +6,10 @@ import {AdbStateService, deviceSerial, SavedDevice} from '../adb-state.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {ProgressDialogComponent} from '../../shared/components/progress-dialog/progress-dialog.component';
 import {extractMessage} from '../../core/utils/error.utils';
+import {environmentIcon} from '../../shared/app-environment-icons';
+
+// OTT apps whose icon was extracted from the APK and bundled under assets/app-icons.
+const EXTRACTED_ICONS = ['tv.freetv.androidtv', 'tv.freetv.androidtv.uat', 'il.co.stingtv.staging', 'il.co.partnertv.atv', 'com.stingtv.androidtv', 'com.stingtv.androidtv.staging', 'il.co.partnertv.atv.staging', 'tv.partner.androidtv', 'tv.partner.androidtv.staging', 'tv.yes.androidtv', 'com.yes.yestv', 'com.cellcom.cellcom_tv', 'tv.cellcom.androidtv', 'tv.cellcom.androidtv.stg', 'com.netflix.ninja', 'com.hbo.hbomax', 'com.disneyplus', 'com.hotstar.androidtv'];
 
 @Component({
     selector: 'app-android-tv-apps',
@@ -20,25 +24,40 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
     selected: SavedDevice | null = null;
     devices: SavedDevice[] = [];
     private sub?: Subscription;
-
-    getIconPath(packageId: string): string {
-        return `assets/app-icons/${packageId}.png`;
-    }
-
-    hasIcon(packageId: string): boolean {
-        // OTT streaming apps with extracted icons
-        const extracted = ['tv.freetv.androidtv', 'tv.freetv.androidtv.uat', 'il.co.stingtv.staging', 'il.co.partnertv.atv', 'com.stingtv.androidtv', 'com.stingtv.androidtv.staging', 'il.co.partnertv.atv.staging', 'tv.partner.androidtv', 'tv.partner.androidtv.staging', 'tv.yes.androidtv', 'com.yes.yestv', 'com.cellcom.cellcom_tv', 'tv.cellcom.androidtv', 'tv.cellcom.androidtv.stg', 'com.netflix.ninja', 'com.hbo.hbomax', 'com.disneyplus', 'com.hotstar.androidtv'];
-        return extracted.includes(packageId);
-    }
+    private iconPaths = new Map<string, string>();
 
     constructor(private adb: AdbService, private state: AdbStateService, private modalService: NgbModal) {}
+
+    /** The icon to draw for an app, or `null` for the ATV placeholder. */
+    iconPath(packageId: string): string | null {
+        return this.iconPaths.get(packageId) ?? null;
+    }
+
+    /**
+     * Takes a new app list and works out what each row's icon is.
+     *
+     * A FreeTV build gets the badged icon for its environment — PREPROD, UAT, PROD TEST — because
+     * every FreeTV APK ships the same green icon and the list would otherwise be a row of
+     * identical tiles. Everything else keeps the icon extracted from its APK.
+     *
+     * Resolved here rather than in `iconPath`, which the template calls on every row on every
+     * change-detection pass.
+     */
+    private setPackages(packages: AdbPackageInfo[] | null): void {
+        this.packages = packages;
+        this.iconPaths = new Map((packages ?? []).flatMap(pkg => {
+            const asset = environmentIcon('android-tv', pkg.id, pkg.name)?.asset
+                ?? (EXTRACTED_ICONS.includes(pkg.id) ? `assets/app-icons/${pkg.id}.png` : null);
+            return asset ? [[pkg.id, asset] as const] : [];
+        }));
+    }
 
     ngOnInit(): void {
         this.sub = new Subscription();
 
         this.sub.add(this.state.selected$.subscribe(dev => {
             this.selected = dev;
-            this.packages = null;
+            this.setPackages(null);
             this.packagesError = undefined;
             if (dev) this.loadPackages();
         }));
@@ -74,16 +93,17 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         if (!force) {
             const cached = this.state.getCachedPackages(this.serial);
             if (cached) {
-                this.packages = cached;
+                this.setPackages(cached);
                 return;
             }
         }
         this.packagesError = undefined;
         this.loading = true;
-        this.packages = null;
+        this.setPackages(null);
         try {
-            this.packages = await this.adb.listPackages(this.serial);
-            this.state.setCachedPackages(this.serial, this.packages);
+            const packages = await this.adb.listPackages(this.serial);
+            this.setPackages(packages);
+            this.state.setCachedPackages(this.serial, packages);
         } catch (e) {
             this.packagesError = new Error(extractMessage(e, 'Failed to load apps'));
         } finally {

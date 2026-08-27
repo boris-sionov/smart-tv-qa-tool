@@ -21,7 +21,7 @@ import {HomebrewChannelConfiguration} from "../../types/luna-apis";
 import {download} from "@tauri-apps/plugin-upload";
 import {LgRemoteService, SsapApp} from "./lg-remote.service";
 import {IconCacheService} from "./icon-cache.service";
-import {lgEnvironmentIcon, readBundledIcon} from "../../shared/lg-app-icons";
+import {environmentIcon, readBundledIcon} from "../../shared/app-environment-icons";
 
 const APP_ROOTS: ReadonlyArray<[string, PackageSource]> = [
     ['/media/developer/apps/usr/palm/applications', 'developer'],
@@ -242,7 +242,7 @@ export class AppManagerService {
             // `list`, not `load`: pushing the app list now would race the icon cache we clear below.
             const pkg = (await this.list(device)).find(p => p.id === appId);
             if (!pkg) return false;
-            const icon = lgEnvironmentIcon(pkg.id, pkg.title);
+            const icon = environmentIcon('webos', pkg.id, pkg.title);
             if (!icon) return false;
             // Only what dev mode owns — store and system apps live on read-only partitions.
             const targets = this.environmentIconTargets(pkg)
