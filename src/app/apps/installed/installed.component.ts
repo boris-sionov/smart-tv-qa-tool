@@ -2,7 +2,7 @@ import {Component, Host, Input, NgZone, OnDestroy} from '@angular/core';
 import {AppsComponent, AppsScope} from '../apps.component';
 import {Device, PackageInfo, PackageSource} from "../../types";
 import {Observable, Subscription} from "rxjs";
-import {AppsRepoService, RepositoryItem} from "../../core/services";
+import {AppManagerService, AppsRepoService, RepositoryItem} from "../../core/services";
 import {RemoteFileService} from "../../core/services/remote-file.service";
 import {IconCacheService} from "../../core/services/icon-cache.service";
 import {LgHostedAppVersionService} from "../../core/services/lg-hosted-app-version.service";
@@ -36,6 +36,7 @@ export class InstalledComponent implements OnDestroy {
         public iconCache: IconCacheService,
         private ngZone: NgZone,
         private lgHostedVersion: LgHostedAppVersionService,
+        private appManager: AppManagerService,
     ) {}
 
     @Input()
@@ -216,6 +217,28 @@ export class InstalledComponent implements OnDestroy {
         await Promise.all(missed.map(pkg => this.loadIconOnce(pkg)));
     }
 
+    /**
+     * Asks the TV where the icon really is, for an app the guesses could not place.
+     *
+     * `iconCandidates` works off what the app list reported, which is a bare name, an absolute
+     * path, or an https URL we cannot read — and then guesses `icon.png`. When that comes up
+     * empty the app's own `appinfo.json` and folder listing have the answer, at the cost of one
+     * command per app that needs it.
+     */
+    private async loadIconFromFolder(pkg: PackageInfo): Promise<void> {
+        const device = this.parent.device;
+        if (!device || this.iconCache.has(pkg.id)) return;
+        const paths = await this.appManager.findIconPaths(device, pkg).catch(() => [] as string[]);
+        for (const path of paths) {
+            const buffer = await this.fileService.read(device, path, undefined, 'buffer')
+                .catch(() => null);
+            if (!buffer?.length) continue;
+            await this.storeIcon(pkg.id, path, buffer);
+            return;
+        }
+        console.warn(`installed: no readable icon for ${pkg.id} in ${pkg.folderPath}`, paths);
+    }
+
     private async loadIconOnce(pkg: PackageInfo): Promise<void> {
         if (this.iconCache.has(pkg.id)) return;
         const device = this.parent.device;
@@ -228,6 +251,7 @@ export class InstalledComponent implements OnDestroy {
             await this.storeIcon(pkg.id, path, buffer);
             return;
         }
+        await this.loadIconFromFolder(pkg);
     }
 
     private async storeIcon(pkgId: string, path: string, buffer: Buffer): Promise<void> {

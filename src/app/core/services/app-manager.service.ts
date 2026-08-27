@@ -33,6 +33,10 @@ const APP_ROOTS: ReadonlyArray<[string, PackageSource]> = [
 
 const SCAN_MARKER = '@@stvqa-app@@';
 
+const ICON_SCAN_MARKER = '@@stvqa-icons@@';
+
+const IMAGE_NAME = /\.(png|jpe?g|webp|gif)$/i;
+
 const SOURCE_ORDER: Record<PackageSource, number> = {developer: 0, store: 1, system: 2};
 
 function sourceForFolder(folderPath: string): PackageSource {
@@ -259,12 +263,13 @@ export class AppManagerService {
                     continue;
                 }
                 // Only what dev mode owns — store and system apps live on read-only partitions.
-                const targets = this.environmentIconTargets(pkg)
+                const targets = (await this.findIconPaths(device, pkg))
                     .filter(path => path.startsWith('/media/developer/'));
                 if (!targets.length) {
-                    result.problems.push(`${pkg.id}: no writable icon path (icon="${pkg.icon}", largeIcon="${pkg.largeIcon}", folderPath="${pkg.folderPath}")`);
+                    result.problems.push(`${pkg.id}: found no icon file in ${pkg.folderPath} (it reports icon="${pkg.icon}", largeIcon="${pkg.largeIcon}")`);
                     continue;
                 }
+                installLog(`${pkg.id}: icon files ${targets.join(', ')}`);
                 let content = bundled.get(icon.asset);
                 if (!content) {
                     content = await readBundledIcon(icon.asset);
@@ -336,16 +341,50 @@ export class AppManagerService {
     }
 
     /**
-     * Where the icon files of an app live. `icon`/`largeIcon` come back either as a bare file name
-     * or as an absolute path, and an app that declares neither still gets the `icon.png` every
-     * webOS app folder has.
+     * Where an app's icon files actually are, asked of the TV rather than guessed.
+     *
+     * `icon` arrives in three shapes depending on who reported the app — a bare file name, an
+     * absolute path, or an https URL on the TV's own port 3001 — and `dev/listApps` is happy to
+     * report a name that is not what is on disk. Guessing `<folder>/icon.png` when it is unusable
+     * is how an app ends up with no icon in the list and a stamp written to a file nothing reads.
+     *
+     * So this reads the app's own `appinfo.json` and lists its folder in one command, and returns
+     * only paths that are really there, best first.
      */
-    private environmentIconTargets(pkg: PackageInfo): string[] {
-        const declared = [pkg.icon, pkg.largeIcon]
+    async findIconPaths(device: Device, pkg: PackageInfo): Promise<string[]> {
+        const folder = pkg.folderPath?.replace(/\/+$/, '');
+        if (!folder) return [];
+        const quoted = `'${folder.replace(/'/g, `'\\''`)}'`;
+        const output = await this.cmd.exec(device,
+            `cat ${quoted}/appinfo.json 2>/dev/null; echo; echo '${ICON_SCAN_MARKER}'; ls -1 ${quoted} 2>/dev/null; true`,
+            'utf-8').catch((e) => {
+            installLog(`${pkg.id}: could not inspect ${folder}`, e);
+            return '';
+        });
+
+        const [rawInfo = '', rawList = ''] = output.split(ICON_SCAN_MARKER);
+        let declared: RawPackageInfo | undefined;
+        try {
+            declared = JSON.parse(rawInfo.trim());
+        } catch {
+            // An app without a readable appinfo.json still has its folder listing.
+        }
+        const present = new Set(rawList.split('\n').map(name => name.trim()).filter(Boolean));
+
+        const named = [declared?.icon, declared?.largeIcon, pkg.icon, pkg.largeIcon]
             .filter((v): v is string => !!v && !/^https?:\/\//i.test(v))
-            .map(v => v.startsWith('/') ? v : `${pkg.folderPath}/${v}`);
-        const paths = declared.length ? declared : [`${pkg.folderPath}/icon.png`];
-        return [...new Set(paths.filter(path => path.startsWith('/')))];
+            .map(v => v.replace(/^\.\//, ''));
+        // Whatever the folder holds, icon-looking names first, as a last resort.
+        const scanned = [...present]
+            .filter(name => IMAGE_NAME.test(name))
+            .sort((a, b) => Number(/icon/i.test(b)) - Number(/icon/i.test(a)));
+
+        const paths = [...named, ...scanned].map(name =>
+            name.startsWith('/') ? name : `${folder}/${name}`);
+        return [...new Set(paths)].filter(path =>
+            // A name from appinfo.json is only real if the listing agrees, unless it points
+            // somewhere else entirely, which we cannot check from here.
+            !path.startsWith(`${folder}/`) || present.has(path.slice(folder.length + 1)));
     }
 
     async remove(device: Device, id: string): Promise<void> {
