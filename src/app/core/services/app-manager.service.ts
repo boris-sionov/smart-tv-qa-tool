@@ -269,7 +269,6 @@ export class AppManagerService {
                     result.problems.push(`${pkg.id}: found no icon file in ${pkg.folderPath} (it reports icon="${pkg.icon}", largeIcon="${pkg.largeIcon}")`);
                     continue;
                 }
-                installLog(`${pkg.id}: icon files ${targets.join(', ')}`);
                 let content = bundled.get(icon.asset);
                 if (!content) {
                     content = await readBundledIcon(icon.asset);
@@ -381,10 +380,13 @@ export class AppManagerService {
 
         const paths = [...named, ...scanned].map(name =>
             name.startsWith('/') ? name : `${folder}/${name}`);
-        return [...new Set(paths)].filter(path =>
+        const found = [...new Set(paths)].filter(path =>
             // A name from appinfo.json is only real if the listing agrees, unless it points
             // somewhere else entirely, which we cannot check from here.
             !path.startsWith(`${folder}/`) || present.has(path.slice(folder.length + 1)));
+        // Both callers are otherwise silent about it, and this is the answer to "why no icon".
+        installLog(`${pkg.id}: icon files ${found.join(', ') || `(none in ${folder}, which holds ${[...present].join(', ') || 'nothing readable'})`}`);
+        return found;
     }
 
     async remove(device: Device, id: string): Promise<void> {
