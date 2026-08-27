@@ -23,15 +23,16 @@ npm run build           # Production build (bumps the build number first — see
 
 # Angular CLI — use npm run ng, NOT npx ng (wrapper sets required Tauri env vars)
 npm run ng -- generate component foo
-npm run ng -- test --browsers=Tauri                            # unit tests (Karma + Jasmine)
-npm run ng -- test --browsers=Tauri --include='**/foo.spec.ts' # single spec file
+npm run ng -- test --browsers=TauriDesktop                            # unit tests (Karma + Jasmine)
+npm run ng -- test --browsers=TauriDesktop --include='**/foo.spec.ts' # single spec file
 
 # Rust tests
 cargo test -p devman
 ```
 
-Karma does not use Chrome — `scripts/karma-tauri-launcher.js` registers a `Tauri` launcher that
-runs the specs inside a real Tauri window (so `invoke()` works). `autoWatch` is on and
+Karma does not use Chrome — `scripts/karma-tauri-launcher.js` registers `TauriDesktop` and
+`TauriAndroid` launchers that run the specs inside a real Tauri window (so `invoke()` works).
+`--browsers=Tauri` is not a launcher name and fails with "it is not registered". `autoWatch` is on and
 `singleRun` is false by default; add `--watch=false` for one-shot runs.
 
 **Build outputs** land in the *workspace* target dir at the repo root (`Cargo.toml` declares a

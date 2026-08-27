@@ -22,6 +22,8 @@ import {download} from "@tauri-apps/plugin-upload";
 import {LgRemoteService, SsapApp} from "./lg-remote.service";
 import {IconCacheService} from "./icon-cache.service";
 import {environmentIcon, readBundledIcon} from "../../shared/app-environment-icons";
+import {appEnvironment, isPriorityApp} from "../../shared/known-apps";
+import {info as logInfo, warn as logWarn} from "@tauri-apps/plugin-log";
 
 const APP_ROOTS: ReadonlyArray<[string, PackageSource]> = [
     ['/media/developer/apps/usr/palm/applications', 'developer'],
@@ -174,7 +176,7 @@ export class AppManagerService {
             .then(l => l.find(p => p.id === id) ?? null);
     }
 
-    async installByPath(device: Device, localPath: string, progress?: InstallProgressHandler): Promise<void> {
+    async installByPath(device: Device, localPath: string, progress?: InstallProgressHandler): Promise<IconStampResult> {
         const hasHbChannel = await this.deviceManager.getHbChannelConfig(device).then(() => true)
             .catch(() => false);
         if (hasHbChannel) {
@@ -194,8 +196,9 @@ export class AppManagerService {
                 await this.file.rm(device, ipkPath, false);
             }
         }
-        await this.applyEnvironmentIcons(device, progress);
+        const icons = await this.applyEnvironmentIcons(device, progress);
         this.refresh(device).catch(noop);
+        return icons;
     }
 
     async installByManifest(device: Device, manifest: PackageManifest, progress?: InstallProgressHandler): Promise<void> {
@@ -238,19 +241,28 @@ export class AppManagerService {
      * Best-effort by design: a write that fails leaves whatever the IPK came with rather than
      * failing an install that already succeeded.
      */
-    private async applyEnvironmentIcons(device: Device, progress?: InstallProgressHandler): Promise<void> {
-        const stamped: string[] = [];
+    async applyEnvironmentIcons(device: Device, progress?: InstallProgressHandler): Promise<IconStampResult> {
+        const result: IconStampResult = {stamped: [], problems: []};
         const bundled = new Map<string, Uint8Array>();
         try {
             // `list`, not `load`: pushing the app list now would race the icon cache we clear below.
-            for (const pkg of await this.list(device)) {
+            const packages = await this.list(device);
+            installLog(`Looking for environment icons among ${packages.map(p => p.id).join(', ') || '(no apps)'}`);
+            for (const pkg of packages) {
                 const icon = environmentIcon('webos', pkg.id, pkg.title);
-                if (!icon) continue;
+                if (!icon) {
+                    // A FreeTV build we can't place is worth saying out loud. Anything else is
+                    // simply not ours to touch.
+                    if (isPriorityApp(pkg.id, pkg.title)) {
+                        result.problems.push(`${pkg.id}: no bundled icon for environment "${appEnvironment(pkg.id, pkg.title) ?? 'unknown'}"`);
+                    }
+                    continue;
+                }
                 // Only what dev mode owns — store and system apps live on read-only partitions.
                 const targets = this.environmentIconTargets(pkg)
                     .filter(path => path.startsWith('/media/developer/'));
                 if (!targets.length) {
-                    console.warn(`[Install] ${pkg.id} has no writable icon path, leaving it alone`);
+                    result.problems.push(`${pkg.id}: no writable icon path (icon="${pkg.icon}", largeIcon="${pkg.largeIcon}", folderPath="${pkg.folderPath}")`);
                     continue;
                 }
                 let content = bundled.get(icon.asset);
@@ -263,19 +275,27 @@ export class AppManagerService {
                     bundled.set(icon.asset, content);
                 }
                 progress?.(undefined, `Applying the ${icon.environment} icon...`);
-                for (const path of targets) {
-                    await this.replaceIcon(device, path, content);
+                try {
+                    for (const path of targets) {
+                        await this.replaceIcon(device, path, content);
+                    }
+                } catch (e) {
+                    result.problems.push(`${pkg.id}: ${e instanceof Error ? e.message : String(e)}`);
+                    continue;
                 }
                 // The list only re-reads icons it has no copy of.
                 this.iconCache.delete(pkg.id);
-                stamped.push(`${pkg.id} → ${icon.environment} (${targets.join(', ')})`);
+                result.stamped.push(`${pkg.id} → ${icon.environment}`);
             }
-            console.log(stamped.length
-                ? `[Install] Stamped environment icons: ${stamped.join('; ')}`
-                : '[Install] No installed app matches a bundled environment icon');
+            installLog(result.stamped.length
+                ? `Stamped environment icons: ${result.stamped.join('; ')}`
+                : 'No installed app matches a bundled environment icon');
+            result.problems.forEach(problem => installLog(problem));
         } catch (e) {
-            console.warn('[Install] Could not stamp the environment icons', e);
+            installLog('Could not stamp the environment icons', e);
+            result.problems.push(e instanceof Error ? e.message : String(e));
         }
+        return result;
     }
 
     /**
@@ -295,8 +315,8 @@ export class AppManagerService {
         const landed = `wrote ${content.length} bytes, read back ${written?.length ?? 'nothing'}`;
         if (original?.length) {
             await this.file.write(device, path, new Uint8Array(original))
-                .then(() => console.warn(`[Install] ${path}: ${landed} — put the old icon back`))
-                .catch(e => console.error(`[Install] ${path}: ${landed}, and restoring it failed`, e));
+                .then(() => installLog(`${path}: ${landed} — put the old icon back`))
+                .catch(e => installLog(`${path}: ${landed}, and restoring it failed`, e));
         }
         throw new Error(`Icon ${path} did not survive the write: ${landed}`);
     }
@@ -580,6 +600,23 @@ export class AppManagerService {
 
 }
 
+/**
+ * Reports an install step to the devtools console *and* to the app's own log.
+ *
+ * Stamping an icon is best-effort and swallows its own failures, which makes it invisible unless
+ * someone happens to have devtools open on a dev build. Everything it decides goes to the Tauri
+ * log too, where `npm run start` prints it and a packaged build keeps it in the log file.
+ */
+function installLog(message: string, error?: unknown): void {
+    if (error === undefined) {
+        console.log(`[Install] ${message}`);
+        logInfo(`[Install] ${message}`).catch(noop);
+        return;
+    }
+    console.warn(`[Install] ${message}`, error);
+    logWarn(`[Install] ${message}: ${error instanceof Error ? error.message : String(error)}`).catch(noop);
+}
+
 /** The 8-byte PNG signature — every bundled icon is a PNG. */
 function isPng(content: Uint8Array): boolean {
     const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -604,6 +641,14 @@ function mapAppinstalldResponse(v: LunaResponse, expectResult: string | RegExp):
     }
     console.debug('appinstalld output', v);
     return false;
+}
+
+/** What `applyEnvironmentIcons` did, so the caller can tell the user rather than only the log. */
+export interface IconStampResult {
+    /** `"tv.freetv.portal.preprod → PreProd"` for each app that got its icon replaced. */
+    stamped: string[];
+    /** Why a FreeTV build did not get one, in words a person can act on. */
+    problems: string[];
 }
 
 export interface InstallProgressHandler {

@@ -3,13 +3,16 @@ const TauriLauncher = /** @class */ (function () {
   function TauriLauncher(baseBrowserDecorator, name, logger) {
     baseBrowserDecorator(this);
     let tauriCommand = ['dev'];
-    if (name === 'TauriAndroid') {
+    const isAndroid = name === 'TauriAndroid';
+    if (isAndroid) {
       tauriCommand = ['android', 'dev'];
     }
     this._getOptions = function (url) {
       const tauriConfOverride = {
         build: {
-          beforeDevCommand: 'adb reverse tcp:9876 tcp:9876',
+          // Only Android needs the port forwarded to reach Karma on the host. On desktop this
+          // command fails whenever no phone happens to be attached, which aborts the launch.
+          beforeDevCommand: isAndroid ? 'adb reverse tcp:9876 tcp:9876' : '',
           devUrl: url
         },
         app: {

@@ -90,6 +90,7 @@ async fn write<R: Runtime>(
     path: String,
     content: Vec<u8>,
 ) -> Result<(), Error> {
+    log::info!("write {} ({} bytes)", path, content.len());
     tauri::async_runtime::spawn_blocking(move || {
         let sessions = app.state::<SessionManager>();
         return Ok(sessions.with_session(device, |session| {
