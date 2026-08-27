@@ -41,8 +41,19 @@ describe('environmentIcon', () => {
         expect(environmentIcon('android-tv', 'com.netflix.ninja', 'Netflix')).toBeNull();
         // FreeTV, but an environment with no badged icon.
         expect(environmentIcon('android-tv', 'tv.freetv.androidtv.stg', 'FreeTV Staging')).toBeNull();
-        // No environment marker at all — the Play Store build looks like this.
-        expect(environmentIcon('android-tv', 'tv.freetv.androidtv', 'FreeTV')).toBeNull();
+    });
+
+    it('reads an unmarked Android TV build as prod', () => {
+        // What QA installs is prod or uat, and only uat is marked.
+        const unmarked = environmentIcon('android-tv', 'tv.freetv.androidtv', 'FreeTV');
+        expect(unmarked?.environment).toBe('Prod');
+        expect(unmarked?.asset).toBe('assets/android-tv-icons/freetv-atv-prod-icon.png');
+        expect(environmentIcon('android-tv', 'tv.freetv.androidtv.prod', 'FreeTV')?.asset)
+            .toBe(unmarked?.asset);
+        // Still nothing for a non-FreeTV app with no marker.
+        expect(environmentIcon('android-tv', 'com.netflix.ninja', 'Netflix')).toBeNull();
+        // webOS writes to the TV, so it never guesses at an unmarked build.
+        expect(environmentIcon('webos', 'tv.freetv.portal', 'FreeTV')).toBeNull();
     });
 
     it('reads the environment off the title when the id has none', () => {

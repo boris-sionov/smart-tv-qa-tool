@@ -279,11 +279,16 @@ environment `appEnvironment()` reports onto the badged icon for that platform:
 | PreProd Test, Test | `freetv-lg-prod-test-icon.png` | `freetv-atv-prod-test-icon.png` |
 | UAT, Prod on UAT | `freetv-lg-uat-icon.png` | `freetv-atv-uat-icon.png` |
 | Prod | `freetv-lg-store-icon.png` | `freetv-atv-prod-icon.png` |
+| *(no marker)* | — | `freetv-atv-prod-icon.png` |
 
 FreeTV builds only — every bundled icon is a FreeTV one. An environment with no icon of its own
-(Staging, QA, Debug) is left alone, as is a FreeTV app with no environment marker at all, which is
-what the Play Store build looks like. webOS ships no PROD badge, hence the STORE fallback there;
+(Staging, QA, Debug) is left alone. webOS ships no PROD badge, hence the STORE fallback there;
 `freetv-atv-store-icon.png` is currently unused for the same reason in reverse.
+
+The unmarked row is the `unmarked` field of each platform's `IconFamily`. What QA installs on an
+Android TV is prod or uat and only uat carries a marker, so an unmarked FreeTV APK —
+`tv.freetv.androidtv` — is the prod build and gets the PROD badge. webOS has no such default: there
+the icon is written to the TV, and an unmarked build there is the Content Store one.
 
 ### VIDAA TV (Hisense) — Planned
 - **Connection:** MQTT-over-TLS port 36669, credentials `hisenseservice` / `multimqttservice`
