@@ -31,7 +31,7 @@ describe('environmentIcon', () => {
         expect(environmentIcon('webos', 'tv.freetv.portal.prod', 'FreeTV')?.asset)
             .toBe('assets/lg-icons/freetv-lg-store-icon.png');
         expect(environmentIcon('android-tv', 'tv.freetv.androidtv.prod', 'FreeTV')?.asset)
-            .toBe('assets/android-tv-icons/freetv-atv-prod-icon.png');
+            .toBe('assets/android-tv-icons/freetv-atv-store-icon.png');
     });
 
     it('leaves apps we ship no icon for alone', () => {
@@ -47,7 +47,7 @@ describe('environmentIcon', () => {
         // What QA installs is prod or uat, and only uat is marked.
         const unmarked = environmentIcon('android-tv', 'tv.freetv.androidtv', 'FreeTV');
         expect(unmarked?.environment).toBe('Prod');
-        expect(unmarked?.asset).toBe('assets/android-tv-icons/freetv-atv-prod-icon.png');
+        expect(unmarked?.asset).toBe('assets/android-tv-icons/freetv-atv-store-icon.png');
         expect(environmentIcon('android-tv', 'tv.freetv.androidtv.prod', 'FreeTV')?.asset)
             .toBe(unmarked?.asset);
         // Still nothing for a non-FreeTV app with no marker.

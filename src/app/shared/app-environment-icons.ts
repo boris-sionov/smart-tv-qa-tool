@@ -20,6 +20,11 @@ interface IconFamily {
  *
  * `preprodtest` gets the PROD TEST badge, the only "test" icon we ship. An environment with no icon
  * of its own (Staging, QA, Debug…) is left alone.
+ *
+ * Only the icons drawn in the current style are referenced — logo large in the middle, one wide
+ * badge with a white outline below it. `freetv-atv-prod-icon.png` and the two files under
+ * `lg-icons/previews/` are the older style, with a small badge tucked into a corner, and are
+ * deliberately unused.
  */
 const FREETV_ICONS: Readonly<Record<IconPlatform, IconFamily>> = {
     'webos': {
@@ -43,11 +48,13 @@ const FREETV_ICONS: Readonly<Record<IconPlatform, IconFamily>> = {
             ['Test', 'assets/android-tv-icons/freetv-atv-prod-test-icon.png'],
             ['UAT', 'assets/android-tv-icons/freetv-atv-uat-icon.png'],
             ['Prod on UAT', 'assets/android-tv-icons/freetv-atv-uat-icon.png'],
-            ['Prod', 'assets/android-tv-icons/freetv-atv-prod-icon.png'],
+            // Not `freetv-atv-prod-icon.png`: that one is from the older style, with a small badge
+            // in the corner instead of the centred one every other icon here uses.
+            ['Prod', 'assets/android-tv-icons/freetv-atv-store-icon.png'],
         ]),
         // What QA installs on an Android TV is prod or uat, and only uat carries a marker — so a
         // FreeTV APK with no marker is the prod build, `tv.freetv.androidtv` included.
-        unmarked: 'assets/android-tv-icons/freetv-atv-prod-icon.png',
+        unmarked: 'assets/android-tv-icons/freetv-atv-store-icon.png',
     },
 };
 

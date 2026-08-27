@@ -278,12 +278,17 @@ environment `appEnvironment()` reports onto the badged icon for that platform:
 | PreProd | `freetv-lg-preprod-icon.png` | `freetv-atv-preprod-icon.png` |
 | PreProd Test, Test | `freetv-lg-prod-test-icon.png` | `freetv-atv-prod-test-icon.png` |
 | UAT, Prod on UAT | `freetv-lg-uat-icon.png` | `freetv-atv-uat-icon.png` |
-| Prod | `freetv-lg-store-icon.png` | `freetv-atv-prod-icon.png` |
-| *(no marker)* | — | `freetv-atv-prod-icon.png` |
+| Prod | `freetv-lg-store-icon.png` | `freetv-atv-store-icon.png` |
+| *(no marker)* | — | `freetv-atv-store-icon.png` |
 
 FreeTV builds only — every bundled icon is a FreeTV one. An environment with no icon of its own
-(Staging, QA, Debug) is left alone. webOS ships no PROD badge, hence the STORE fallback there;
-`freetv-atv-store-icon.png` is currently unused for the same reason in reverse.
+(Staging, QA, Debug) is left alone.
+
+Only icons drawn in the current style are referenced: the logo large in the middle with one wide
+badge, white-outlined, below it. `freetv-atv-prod-icon.png` and both files under
+`lg-icons/previews/` are the older style — small badge tucked into a corner — and are deliberately
+unused, which is why a prod build takes the STORE icon on both platforms. `freetv-lg-uat-icon.png`
+was in that older style too and has been replaced with the current one.
 
 The unmarked row is the `unmarked` field of each platform's `IconFamily`. What QA installs on an
 Android TV is prod or uat and only uat carries a marker, so an unmarked FreeTV APK —
