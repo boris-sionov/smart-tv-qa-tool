@@ -56,6 +56,18 @@ describe('environmentIcon', () => {
         expect(environmentIcon('webos', 'tv.freetv.portal', 'FreeTV')).toBeNull();
     });
 
+    it('gives the 2.0 rewrite its own icon', () => {
+        const webos = environmentIcon('webos', 'com.freetv.smarttv', 'FreeTV');
+        expect(webos?.environment).toBe('2.0');
+        expect(webos?.asset).toBe('assets/lg-icons/freetv-lg-2.0-icon.png');
+        expect(environmentIcon('android-tv', 'com.freetv.smarttv', 'FreeTV')?.asset)
+            .toBe('assets/android-tv-icons/freetv-atv-2.0-icon.png');
+        // It wins over the Android TV unmarked-is-prod default, being a 2.0 build not a 1.x one.
+        expect(environmentIcon('android-tv', 'com.freetv.smarttv', 'FreeTV')?.environment).toBe('2.0');
+        // A marked 2.0 build keeps its environment rather than collapsing to "2.0".
+        expect(environmentIcon('webos', 'com.freetv.smarttv.uat', 'FreeTV')?.environment).toBe('UAT');
+    });
+
     it('reads the environment off the title when the id has none', () => {
         expect(environmentIcon('android-tv', 'com.example.player', 'FreeTV UAT')?.environment).toBe('UAT');
     });

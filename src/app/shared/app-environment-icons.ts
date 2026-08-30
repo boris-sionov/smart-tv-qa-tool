@@ -6,9 +6,19 @@ export type IconPlatform = 'webos' | 'android-tv';
 interface IconFamily {
     /** Bundled icon per environment label, as `appEnvironment` reports it. */
     environments: ReadonlyMap<string, string>;
+    /** The 2.0 rewrite's own icon — different artwork, not just a badge over the 1.x one. */
+    version2: string | null;
     /** What a FreeTV build with no environment marker at all gets, or `null` to leave it alone. */
     unmarked: string | null;
 }
+
+/**
+ * The 2.0 rewrite, which ships under a new id (`com.freetv.smarttv` on webOS and Android TV,
+ * `Plusdrie00.FreeTV` on Tizen) and carries no environment marker, so `appEnvironment` sees
+ * nothing on it. Its artwork is a different design entirely — dark ground, gradient logo — so it
+ * gets its own badged icon rather than a badge over the 1.x one.
+ */
+const VERSION_2_APP = /^com\.freetv\.smarttv|^Plusdrie00\.FreeTV/i;
 
 /**
  * The badged FreeTV icons bundled with the app, keyed by the environment label `appEnvironment`
@@ -37,6 +47,7 @@ const FREETV_ICONS: Readonly<Record<IconPlatform, IconFamily>> = {
             // webOS ships no PROD badge of its own.
             ['Prod', 'assets/lg-icons/freetv-lg-store-icon.png'],
         ]),
+        version2: 'assets/lg-icons/freetv-lg-2.0-icon.png',
         // Nothing: on webOS the icon is written to the TV, and an unmarked build there is the
         // Content Store one — badging it would be writing a guess onto a real app.
         unmarked: null,
@@ -52,6 +63,7 @@ const FREETV_ICONS: Readonly<Record<IconPlatform, IconFamily>> = {
             // in the corner instead of the centred one every other icon here uses.
             ['Prod', 'assets/android-tv-icons/freetv-atv-store-icon.png'],
         ]),
+        version2: 'assets/android-tv-icons/freetv-atv-2.0-icon.png',
         // What QA installs on an Android TV is prod or uat, and only uat carries a marker — so a
         // FreeTV APK with no marker is the prod build, `tv.freetv.androidtv` included.
         unmarked: 'assets/android-tv-icons/freetv-atv-store-icon.png',
@@ -76,6 +88,11 @@ export function environmentIcon(platform: IconPlatform, ...fields: (string | nul
     const family = FREETV_ICONS[platform];
     const environment = appEnvironment(...fields);
     if (!environment) {
+        // An environment marker still wins when there is one, so a future `…smarttv.uat` reads as
+        // UAT rather than losing which environment it is.
+        if (family.version2 && fields.some(field => !!field && VERSION_2_APP.test(field))) {
+            return {environment: '2.0', asset: family.version2};
+        }
         return family.unmarked ? {environment: 'Prod', asset: family.unmarked} : null;
     }
     const asset = family.environments.get(environment);
