@@ -269,6 +269,9 @@ export class AppManagerService {
                     result.problems.push(`${pkg.id}: found no icon file in ${pkg.folderPath} (it reports icon="${pkg.icon}", largeIcon="${pkg.largeIcon}")`);
                     continue;
                 }
+                // Logged here rather than in findIconPaths, which the app list also calls on every
+                // refresh — an app whose icon it cannot read would reprint this forever.
+                installLog(`${pkg.id}: writing ${targets.join(', ')}`);
                 let content = bundled.get(icon.asset);
                 if (!content) {
                     content = await readBundledIcon(icon.asset);
@@ -387,10 +390,6 @@ export class AppManagerService {
 
         const declaredPaths = [...new Set(named.map(absolute))].filter(exists);
         const candidates = [...new Set([...named, ...scanned].map(absolute))].filter(exists);
-        // Both callers are otherwise silent about it, and this is the answer to "why no icon".
-        installLog(`${pkg.id}: declares ${declaredPaths.join(', ') || '(no icon)'}`
-            + (candidates.length > declaredPaths.length
-                ? `; folder also holds ${candidates.slice(declaredPaths.length).join(', ')}` : ''));
         return {declared: declaredPaths, candidates};
     }
 
