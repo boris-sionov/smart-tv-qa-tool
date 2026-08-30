@@ -17,6 +17,9 @@ use crate::remote_files::serve;
 use crate::remote_files::{FileItem, PermInfo};
 use crate::session_manager::SessionManager;
 
+/// How much of a file goes into one SFTP write. Shared by `write` and `copy`.
+const WRITE_CHUNK: usize = 8192;
+
 #[derive(Copy, Clone, Serialize)]
 pub(crate) struct CopyProgress {
     copied: usize,
@@ -87,6 +90,7 @@ async fn write<R: Runtime>(
     path: String,
     content: Vec<u8>,
 ) -> Result<(), Error> {
+    log::info!("write {} ({} bytes)", path, content.len());
     tauri::async_runtime::spawn_blocking(move || {
         let sessions = app.state::<SessionManager>();
         return Ok(sessions.with_session(device, |session| {
@@ -96,7 +100,12 @@ async fn write<R: Runtime>(
                 OpenFlags::WRITE_ONLY | OpenFlags::CREATE | OpenFlags::TRUNCATE,
                 0o644,
             )?;
-            file.write_all(&content)?;
+            // Chunked exactly like `put`, which is the upload path that sees real traffic:
+            // libssh's `sftp_write` is handed one buffer per call, and a whole file at once is a
+            // size this code has never had to survive.
+            for chunk in content.chunks(WRITE_CHUNK) {
+                file.write_all(chunk)?;
+            }
             return Ok(());
         })?);
     })
@@ -194,7 +203,7 @@ where
     R: Read,
     W: Write,
 {
-    let mut buf = [0; 8192];
+    let mut buf = [0; WRITE_CHUNK];
     let mut copied: usize = 0;
     loop {
         let bytes = reader.read(&mut buf)?;

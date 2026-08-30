@@ -20,6 +20,10 @@ import {DeviceManagerService} from "./device-manager.service";
 import {HomebrewChannelConfiguration} from "../../types/luna-apis";
 import {download} from "@tauri-apps/plugin-upload";
 import {LgRemoteService, SsapApp} from "./lg-remote.service";
+import {IconCacheService} from "./icon-cache.service";
+import {environmentIcon, readBundledIcon} from "../../shared/app-environment-icons";
+import {appEnvironment, isPriorityApp} from "../../shared/known-apps";
+import {info as logInfo, warn as logWarn} from "@tauri-apps/plugin-log";
 
 const APP_ROOTS: ReadonlyArray<[string, PackageSource]> = [
     ['/media/developer/apps/usr/palm/applications', 'developer'],
@@ -28,6 +32,10 @@ const APP_ROOTS: ReadonlyArray<[string, PackageSource]> = [
 ];
 
 const SCAN_MARKER = '@@stvqa-app@@';
+
+const ICON_SCAN_MARKER = '@@stvqa-icons@@';
+
+const IMAGE_NAME = /\.(png|jpe?g|webp|gif)$/i;
 
 const SOURCE_ORDER: Record<PackageSource, number> = {developer: 0, store: 1, system: 2};
 
@@ -57,7 +65,7 @@ export class AppManagerService {
 
     constructor(private luna: RemoteLunaService, private cmd: RemoteCommandService, private file: RemoteFileService,
                 private localFile: LocalFileService, private deviceManager: DeviceManagerService,
-                private lgRemote: LgRemoteService) {
+                private lgRemote: LgRemoteService, private iconCache: IconCacheService) {
         this.packagesSubjects = new Map();
         this.allPackagesSubjects = new Map();
     }
@@ -172,7 +180,7 @@ export class AppManagerService {
             .then(l => l.find(p => p.id === id) ?? null);
     }
 
-    async installByPath(device: Device, localPath: string, progress?: InstallProgressHandler): Promise<void> {
+    async installByPath(device: Device, localPath: string, progress?: InstallProgressHandler): Promise<IconStampResult> {
         const hasHbChannel = await this.deviceManager.getHbChannelConfig(device).then(() => true)
             .catch(() => false);
         if (hasHbChannel) {
@@ -192,7 +200,9 @@ export class AppManagerService {
                 await this.file.rm(device, ipkPath, false);
             }
         }
+        const icons = await this.applyEnvironmentIcons(device, progress);
         this.refresh(device).catch(noop);
+        return icons;
     }
 
     async installByManifest(device: Device, manifest: PackageManifest, progress?: InstallProgressHandler): Promise<void> {
@@ -201,6 +211,7 @@ export class AppManagerService {
         if (hasHbChannel) {
             try {
                 await this.hbChannelInstall(device, manifest.ipkUrl, manifest.ipkHash?.sha256, progress);
+                await this.applyEnvironmentIcons(device, progress);
                 await this.refresh(device).catch(noop);
                 return;
             } catch (e) {
@@ -212,8 +223,174 @@ export class AppManagerService {
         }
         const path = await this.tempDownloadIpk(device, new URL(manifest.ipkUrl), progress);
         await this.devInstall(device, path, progress)
+            .then(() => this.applyEnvironmentIcons(device, progress))
             .then(() => this.refresh(device).catch(noop))
             .finally(() => this.file.rm(device, path, false));
+    }
+
+    /**
+     * Puts the badged environment icon on every sideloaded FreeTV build that has one.
+     *
+     * Every FreeTV build ships the same green icon, so a TV holding PreProd and UAT side by side
+     * shows two identical tiles on the home screen. QA used to fix that by hand through Apps →
+     * Change icon after every install — and it *is* every install, because installing the IPK puts
+     * the packaged icon back.
+     *
+     * It walks the whole developer list rather than just the app that was installed, because
+     * neither install path reliably says which app that was: appinstalld's `packageId` is not
+     * guaranteed, and reinstalling the same version is invisible to a before/after diff. Walking
+     * the list also repairs an app whose earlier stamp failed. The one thing it does not respect is
+     * an icon set by hand through Change icon on an app we ship a badge for.
+     *
+     * Best-effort by design: a write that fails leaves whatever the IPK came with rather than
+     * failing an install that already succeeded.
+     */
+    async applyEnvironmentIcons(device: Device, progress?: InstallProgressHandler): Promise<IconStampResult> {
+        const result: IconStampResult = {stamped: [], problems: []};
+        const bundled = new Map<string, Uint8Array>();
+        try {
+            // `list`, not `load`: pushing the app list now would race the icon cache we clear below.
+            const packages = await this.list(device);
+            installLog(`Looking for environment icons among ${packages.map(p => p.id).join(', ') || '(no apps)'}`);
+            for (const pkg of packages) {
+                const icon = environmentIcon('webos', pkg.id, pkg.title);
+                if (!icon) {
+                    // A FreeTV build we can't place is worth saying out loud. Anything else is
+                    // simply not ours to touch.
+                    if (isPriorityApp(pkg.id, pkg.title)) {
+                        result.problems.push(`${pkg.id}: no bundled icon for environment "${appEnvironment(pkg.id, pkg.title) ?? 'unknown'}"`);
+                    }
+                    continue;
+                }
+                // Only what dev mode owns — store and system apps live on read-only partitions.
+                const targets = (await this.findIconPaths(device, pkg)).declared
+                    .filter(path => path.startsWith('/media/developer/'));
+                if (!targets.length) {
+                    result.problems.push(`${pkg.id}: found no icon file in ${pkg.folderPath} (it reports icon="${pkg.icon}", largeIcon="${pkg.largeIcon}")`);
+                    continue;
+                }
+                // Logged here rather than in findIconPaths, which the app list also calls on every
+                // refresh — an app whose icon it cannot read would reprint this forever.
+                installLog(`${pkg.id}: writing ${targets.join(', ')}`);
+                let content = bundled.get(icon.asset);
+                if (!content) {
+                    content = await readBundledIcon(icon.asset);
+                    // Truncate-then-write: a bad payload here would leave the app with no icon.
+                    if (!isPng(content)) {
+                        throw new Error(`${icon.asset} is not a PNG (${content.length} bytes)`);
+                    }
+                    bundled.set(icon.asset, content);
+                }
+                progress?.(undefined, `Applying the ${icon.environment} icon...`);
+                try {
+                    for (const path of targets) {
+                        await this.replaceIcon(device, path, content);
+                    }
+                } catch (e) {
+                    result.problems.push(`${pkg.id}: ${e instanceof Error ? e.message : String(e)}`);
+                    continue;
+                }
+                // The list only re-reads icons it has no copy of.
+                this.iconCache.delete(pkg.id);
+                result.stamped.push(`${pkg.id} → ${icon.environment}`);
+            }
+            installLog(result.stamped.length
+                ? `Stamped environment icons: ${result.stamped.join('; ')}`
+                : result.problems.length
+                    ? `Stamped nothing, ${result.problems.length} app(s) in the way`
+                    : 'No installed app matches a bundled environment icon');
+            result.problems.forEach(problem => installLog(problem));
+        } catch (e) {
+            installLog('Could not stamp the environment icons', e);
+            result.problems.push(e instanceof Error ? e.message : String(e));
+        }
+        return result;
+    }
+
+    /**
+     * Overwrites one icon file, and puts the old one back if the new one did not land.
+     *
+     * The old file is unlinked rather than overwritten in place, which is the only way `prisoner`
+     * gets to replace a root-owned icon. That makes a failed write destructive, so the original is
+     * read first and put back when the new one does not land. Two extra round trips on an
+     * operation that just spent seconds installing an IPK.
+     */
+    private async replaceIcon(device: Device, path: string, content: Uint8Array): Promise<void> {
+        const original = await this.file.read(device, path, undefined, 'buffer').catch(() => null);
+        // appinstalld unpacks the IPK as root, so the icon it leaves behind cannot be opened for
+        // writing by `prisoner` — SFTP answers "permission denied". Unlinking it and creating a
+        // fresh one is what dev mode does have rights for, and what Change icon has always done.
+        await this.file.rm(device, path, false).catch(() => undefined);
+        try {
+            await this.file.write(device, path, content);
+        } catch (e) {
+            if (original?.length) {
+                await this.file.write(device, path, new Uint8Array(original)).catch(noop);
+            }
+            throw e;
+        }
+        const written = await this.file.read(device, path, undefined, 'buffer').catch(() => null);
+        if (written?.length === content.length && written.every((byte, i) => byte === content[i])) {
+            return;
+        }
+        const landed = `wrote ${content.length} bytes, read back ${written?.length ?? 'nothing'}`;
+        if (original?.length) {
+            await this.file.write(device, path, new Uint8Array(original))
+                .then(() => installLog(`${path}: ${landed} — put the old icon back`))
+                .catch(e => installLog(`${path}: ${landed}, and restoring it failed`, e));
+        }
+        throw new Error(`Icon ${path} did not survive the write: ${landed}`);
+    }
+
+    /**
+     * Where an app's icon files actually are, asked of the TV rather than guessed.
+     *
+     * `icon` arrives in three shapes depending on who reported the app — a bare file name, an
+     * absolute path, or an https URL on the TV's own port 3001 — and `dev/listApps` is happy to
+     * report a name that is not what is on disk. Guessing `<folder>/icon.png` when it is unusable
+     * is how an app ends up with no icon in the list and a stamp written to a file nothing reads.
+     *
+     * So this reads the app's own `appinfo.json` and lists its folder in one command, and returns
+     * only paths that are really there, best first.
+     *
+     * `declared` is what the app calls its icon, and is the only thing safe to overwrite. The
+     * folder scan in `candidates` exists so the list can still show *something* for an app whose
+     * declared icon is missing — writing to those would clobber splash screens and logos.
+     */
+    async findIconPaths(device: Device, pkg: PackageInfo): Promise<IconPaths> {
+        const folder = pkg.folderPath?.replace(/\/+$/, '');
+        if (!folder) return {declared: [], candidates: []};
+        const quoted = `'${folder.replace(/'/g, `'\\''`)}'`;
+        const output = await this.cmd.exec(device,
+            `cat ${quoted}/appinfo.json 2>/dev/null; echo; echo '${ICON_SCAN_MARKER}'; ls -1 ${quoted} 2>/dev/null; true`,
+            'utf-8').catch((e) => {
+            installLog(`${pkg.id}: could not inspect ${folder}`, e);
+            return '';
+        });
+        const exists = (path: string) =>
+            !path.startsWith(`${folder}/`) || present.has(path.slice(folder.length + 1));
+        const absolute = (name: string) => name.startsWith('/') ? name : `${folder}/${name}`;
+
+        const [rawInfo = '', rawList = ''] = output.split(ICON_SCAN_MARKER);
+        let declared: RawPackageInfo | undefined;
+        try {
+            declared = JSON.parse(rawInfo.trim());
+        } catch {
+            // An app without a readable appinfo.json still has its folder listing.
+        }
+        const present = new Set(rawList.split('\n').map(name => name.trim()).filter(Boolean));
+
+        const named = [declared?.icon, declared?.largeIcon, pkg.icon, pkg.largeIcon]
+            .filter((v): v is string => !!v && !/^https?:\/\//i.test(v))
+            .map(v => v.replace(/^\.\//, ''));
+        // Whatever the folder holds, icon-looking names first, as a last resort.
+        const scanned = [...present]
+            .filter(name => IMAGE_NAME.test(name))
+            .sort((a, b) => Number(/icon/i.test(b)) - Number(/icon/i.test(a)));
+
+        const declaredPaths = [...new Set(named.map(absolute))].filter(exists);
+        const candidates = [...new Set([...named, ...scanned].map(absolute))].filter(exists);
+        return {declared: declaredPaths, candidates};
     }
 
     async remove(device: Device, id: string): Promise<void> {
@@ -482,6 +659,29 @@ export class AppManagerService {
 
 }
 
+/**
+ * Reports an install step to the devtools console *and* to the app's own log.
+ *
+ * Stamping an icon is best-effort and swallows its own failures, which makes it invisible unless
+ * someone happens to have devtools open on a dev build. Everything it decides goes to the Tauri
+ * log too, where `npm run start` prints it and a packaged build keeps it in the log file.
+ */
+function installLog(message: string, error?: unknown): void {
+    if (error === undefined) {
+        console.log(`[Install] ${message}`);
+        logInfo(`[Install] ${message}`).catch(noop);
+        return;
+    }
+    console.warn(`[Install] ${message}`, error);
+    logWarn(`[Install] ${message}: ${error instanceof Error ? error.message : String(error)}`).catch(noop);
+}
+
+/** The 8-byte PNG signature — every bundled icon is a PNG. */
+function isPng(content: Uint8Array): boolean {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return content.length > signature.length && signature.every((byte, i) => content[i] === byte);
+}
+
 function mapAppinstalldResponse(v: LunaResponse, expectResult: string | RegExp): boolean {
     const resultValue: string = _.get(v, ['details', 'state']) || '';
     if (resultValue.match(/FAILED/i)) {
@@ -500,6 +700,22 @@ function mapAppinstalldResponse(v: LunaResponse, expectResult: string | RegExp):
     }
     console.debug('appinstalld output', v);
     return false;
+}
+
+/** Where an app's icon lives, split by how safe each path is to write to. */
+export interface IconPaths {
+    /** What the app's own appinfo.json calls its icon — the only files a stamp may overwrite. */
+    declared: string[];
+    /** Everything that might hold the icon, declared first — for reading only. */
+    candidates: string[];
+}
+
+/** What `applyEnvironmentIcons` did, so the caller can tell the user rather than only the log. */
+export interface IconStampResult {
+    /** `"tv.freetv.portal.preprod → PreProd"` for each app that got its icon replaced. */
+    stamped: string[];
+    /** Why a FreeTV build did not get one, in words a person can act on. */
+    problems: string[];
 }
 
 export interface InstallProgressHandler {

@@ -2,7 +2,7 @@ import {Component, Host, Input, NgZone, OnDestroy} from '@angular/core';
 import {AppsComponent, AppsScope} from '../apps.component';
 import {Device, PackageInfo, PackageSource} from "../../types";
 import {Observable, Subscription} from "rxjs";
-import {AppsRepoService, RepositoryItem} from "../../core/services";
+import {AppManagerService, AppsRepoService, RepositoryItem} from "../../core/services";
 import {RemoteFileService} from "../../core/services/remote-file.service";
 import {IconCacheService} from "../../core/services/icon-cache.service";
 import {LgHostedAppVersionService} from "../../core/services/lg-hosted-app-version.service";
@@ -25,6 +25,7 @@ export class InstalledComponent implements OnDestroy {
     packages: PackageInfo[] | null = null;
     search = '';
     private scoped: PackageInfo[] | null = null;
+    private brokenIcons = new Set<string>();
 
     private subscription?: Subscription;
     private installedField?: Observable<PackageInfo[] | null>;
@@ -36,6 +37,7 @@ export class InstalledComponent implements OnDestroy {
         public iconCache: IconCacheService,
         private ngZone: NgZone,
         private lgHostedVersion: LgHostedAppVersionService,
+        private appManager: AppManagerService,
     ) {}
 
     @Input()
@@ -44,6 +46,7 @@ export class InstalledComponent implements OnDestroy {
         this.subscription = value?.subscribe({
             next: (pkgs) => {
                 this.installedError = undefined;
+                this.brokenIcons.clear();
                 this.htmlVersions.clear();
                 this.packages = pkgs;
                 this.applyScope();
@@ -143,7 +146,26 @@ export class InstalledComponent implements OnDestroy {
         }
     }
 
+    /**
+     * The icon to draw, or nothing so the placeholder takes over.
+     *
+     * This used to be an `<img>` that was always in the DOM, `display:none` until its own `load`
+     * event turned it on. With `loading="lazy"` on it that never happened: a display:none image is
+     * never in the viewport, so it is never fetched, so `load` never fires — every row kept the
+     * placeholder no matter what was in the cache.
+     */
+    iconSrc(pkg: PackageInfo): string | null {
+        if (this.brokenIcons.has(pkg.id)) return null;
+        return this.iconCache.get(pkg.id) ?? pkg.iconUri ?? null;
+    }
+
+    /** A URI the webview would not decode — show the placeholder rather than a broken image. */
+    iconFailed(pkgId: string): void {
+        this.brokenIcons.add(pkgId);
+    }
+
     forceReloadIcon(pkgId: string): void {
+        this.brokenIcons.delete(pkgId);
         this.iconCache.delete(pkgId);
         const pkg = this.packages?.find(p => p.id === pkgId);
         if (pkg && this.parent.device) {
@@ -216,6 +238,29 @@ export class InstalledComponent implements OnDestroy {
         await Promise.all(missed.map(pkg => this.loadIconOnce(pkg)));
     }
 
+    /**
+     * Asks the TV where the icon really is, for an app the guesses could not place.
+     *
+     * `iconCandidates` works off what the app list reported, which is a bare name, an absolute
+     * path, or an https URL we cannot read — and then guesses `icon.png`. When that comes up
+     * empty the app's own `appinfo.json` and folder listing have the answer, at the cost of one
+     * command per app that needs it.
+     */
+    private async loadIconFromFolder(pkg: PackageInfo): Promise<void> {
+        const device = this.parent.device;
+        if (!device || this.iconCache.has(pkg.id)) return;
+        const paths = await this.appManager.findIconPaths(device, pkg)
+            .then(found => found.candidates).catch(() => [] as string[]);
+        for (const path of paths) {
+            const buffer = await this.fileService.read(device, path, undefined, 'buffer')
+                .catch(() => null);
+            if (!buffer?.length) continue;
+            await this.storeIcon(pkg.id, path, buffer);
+            return;
+        }
+        console.warn(`installed: no readable icon for ${pkg.id} in ${pkg.folderPath}`, paths);
+    }
+
     private async loadIconOnce(pkg: PackageInfo): Promise<void> {
         if (this.iconCache.has(pkg.id)) return;
         const device = this.parent.device;
@@ -228,6 +273,7 @@ export class InstalledComponent implements OnDestroy {
             await this.storeIcon(pkg.id, path, buffer);
             return;
         }
+        await this.loadIconFromFolder(pkg);
     }
 
     private async storeIcon(pkgId: string, path: string, buffer: Buffer): Promise<void> {

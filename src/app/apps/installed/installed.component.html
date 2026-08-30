@@ -65,12 +65,12 @@
             <div class="app-identity">
               <div class="app-icon-frame">
                 <!--suppress AngularNgOptimizedImage -->
-                <img class="app-icon" [src]="(iconCache.get(pkg.id) ?? pkg.iconUri) | trustUri" [alt]="pkg.title"
-                     loading="lazy"
-                     style="display:none"
-                     (load)="$any($event.target).style.display='block'; $any($event.target).nextElementSibling.style.display='none'"
-                     (error)="$any($event.target).style.display='none'; $any($event.target).nextElementSibling.style.display='flex'">
-                <div class="app-icon-placeholder">STV</div>
+                @if (iconSrc(pkg); as icon) {
+                  <img class="app-icon" [src]="icon | trustUri" [alt]="pkg.title"
+                       (error)="iconFailed(pkg.id)">
+                } @else {
+                  <div class="app-icon-placeholder">STV</div>
+                }
               </div>
               <div class="app-copy">
                 <div class="app-title">

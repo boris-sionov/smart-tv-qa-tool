@@ -23,15 +23,16 @@ npm run build           # Production build (bumps the build number first — see
 
 # Angular CLI — use npm run ng, NOT npx ng (wrapper sets required Tauri env vars)
 npm run ng -- generate component foo
-npm run ng -- test --browsers=Tauri                            # unit tests (Karma + Jasmine)
-npm run ng -- test --browsers=Tauri --include='**/foo.spec.ts' # single spec file
+npm run ng -- test --browsers=TauriDesktop                            # unit tests (Karma + Jasmine)
+npm run ng -- test --browsers=TauriDesktop --include='**/foo.spec.ts' # single spec file
 
 # Rust tests
 cargo test -p devman
 ```
 
-Karma does not use Chrome — `scripts/karma-tauri-launcher.js` registers a `Tauri` launcher that
-runs the specs inside a real Tauri window (so `invoke()` works). `autoWatch` is on and
+Karma does not use Chrome — `scripts/karma-tauri-launcher.js` registers `TauriDesktop` and
+`TauriAndroid` launchers that run the specs inside a real Tauri window (so `invoke()` works).
+`--browsers=Tauri` is not a launcher name and fails with "it is not registered". `autoWatch` is on and
 `singleRun` is false by default; add `--watch=false` for one-shot runs.
 
 **Build outputs** land in the *workspace* target dir at the repo root (`Cargo.toml` declares a
@@ -238,6 +239,11 @@ still holds its session. `sdb disconnect` sends a proper teardown so the TV rele
 - **App format:** APK
 - **Commands:** bundled ADB sidecar binary, orchestrated from Rust via `adb-manager` plugin
 - **`getAppIcon`** is still in TypeScript (APK icon extraction) — planned migration to Rust + zip crate
+- **Icons in the app list** are bundled assets, resolved in `AndroidTvAppsComponent.setPackages()`:
+  the badged environment icon for a FreeTV build (see [Environment Icons](#environment-icons)),
+  otherwise `assets/app-icons/<packageId>.png` for the ids in `EXTRACTED_ICONS`, otherwise the ATV
+  placeholder. Nothing is written to the device — an installed APK's launcher banner is baked into
+  the APK and cannot be changed over ADB, so this is our list only, not the TV's home screen.
 
 ### LG WebOS (Luna API)
 - **Connection:** SSH port 22 / 9922, Ed25519 key auth
@@ -245,6 +251,56 @@ still holds its session. `sdb disconnect` sends a proper teardown so the TV rele
 - **Architecture:** SSH connection pool (`conn_pool/`, `session_manager/`) via `libssh-rs`; Luna
   service calls over SSH; PTY shells via `shell_manager/`
 - **Status:** Fully functional; planned migration to `DeviceProvider` interface
+
+#### Environment Icons After Install
+`AppManagerService.applyEnvironmentIcons()` runs as the last install step and overwrites the
+`icon` / `largeIcon` files of every sideloaded FreeTV build over SFTP with the badged icon for its
+environment (see [Environment Icons](#environment-icons)).
+
+Developer partition only, and best-effort — an unmapped environment or a failed write leaves the
+packaged icon. It re-runs on every install because installing the IPK puts the packaged icon back.
+
+It walks the whole developer list rather than the app that was just installed: appinstalld does not
+reliably report a `packageId`, and reinstalling the same version is invisible to a before/after diff
+of the app list, so neither identifies the app well enough to rely on. Walking the list also repairs
+an app whose earlier stamp failed. Each run logs one of `[Install] Stamped environment icons: …`,
+`[Install] No installed app matches a bundled environment icon`, or `[Install] Could not stamp …` —
+start there when an icon does not turn up.
+
+### Environment Icons
+
+Every FreeTV build ships the same green icon, so two of them side by side — on a TV's home screen,
+or in our own app list — are indistinguishable. `src/app/shared/app-environment-icons.ts` maps the
+environment `appEnvironment()` reports onto the badged icon for that platform:
+
+| Environment | webOS (`assets/lg-icons/`) | Android TV (`assets/android-tv-icons/`) |
+|---|---|---|
+| PreProd | `freetv-lg-preprod-icon.png` | `freetv-atv-preprod-icon.png` |
+| PreProd Test, Test | `freetv-lg-prod-test-icon.png` | `freetv-atv-prod-test-icon.png` |
+| UAT, Prod on UAT | `freetv-lg-uat-icon.png` | `freetv-atv-uat-icon.png` |
+| Prod | `freetv-lg-store-icon.png` | `freetv-atv-store-icon.png` |
+| *(no marker)* | — | `freetv-atv-store-icon.png` |
+| **2.0 rewrite** | `freetv-lg-2.0-icon.png` | `freetv-atv-2.0-icon.png` |
+
+FreeTV builds only — every bundled icon is a FreeTV one. An environment with no icon of its own
+(Staging, QA, Debug) is left alone.
+
+Only icons drawn in the current style are referenced: the logo large in the middle with one wide
+badge, white-outlined, below it. `freetv-atv-prod-icon.png` and both files under
+`lg-icons/previews/` are the older style — small badge tucked into a corner — and are deliberately
+unused, which is why a prod build takes the STORE icon on both platforms. `freetv-lg-uat-icon.png`
+was in that older style too and has been replaced with the current one.
+
+The 2.0 row is the `version2` field, matched on app id rather than environment: the rewrite ships
+as `com.freetv.smarttv` (webOS, Android TV) and `Plusdrie00.FreeTV` (Tizen), carries no environment
+marker, and has its own artwork — dark ground with a gradient logo, taken from the app repo's
+`platforms/lg/icon.png` — rather than a badge over the 1.x icon. A 2.0 build that *does* carry an
+environment marker keeps that environment instead.
+
+The unmarked row is the `unmarked` field of each platform's `IconFamily`. What QA installs on an
+Android TV is prod or uat and only uat carries a marker, so an unmarked FreeTV APK —
+`tv.freetv.androidtv` — is the prod build and gets the PROD badge. webOS has no such default: there
+the icon is written to the TV, and an unmarked build there is the Content Store one.
 
 ### VIDAA TV (Hisense) — Planned
 - **Connection:** MQTT-over-TLS port 36669, credentials `hisenseservice` / `multimqttservice`

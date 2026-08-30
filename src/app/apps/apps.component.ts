@@ -3,7 +3,7 @@ import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {noop, Observable, Subscription} from 'rxjs';
 import {Device, PackageInfo, RawPackageInfo} from '../types';
 import {AppManagerService, DeviceManagerService, RepositoryItem} from '../core/services';
-import {LgRemoteService} from '../core/services/lg-remote.service';
+import {IconStampResult} from '../core/services/app-manager.service';
 import {fetch as tauriFetch} from '@tauri-apps/plugin-http';
 import {RemoteFileService} from '../core/services/remote-file.service';
 import {MessageDialogComponent} from '../shared/components/message-dialog/message-dialog.component';
@@ -49,7 +49,6 @@ export class AppsComponent implements OnInit, OnDestroy {
         private modalService: NgbModal,
         private appManager: AppManagerService,
         private fileService: RemoteFileService,
-        private lgRemote: LgRemoteService,
     ) {
     }
 
@@ -109,14 +108,26 @@ export class AppsComponent implements OnInit, OnDestroy {
         }
         const progress = ProgressDialogComponent.open(this.modalService);
         const component = progress.componentInstance as ProgressDialogComponent;
+        let icons: IconStampResult | undefined;
         try {
-            await this.appManager.installByPath(this.device, path,
+            icons = await this.appManager.installByPath(this.device, path,
                 (progress, statusText) => component.update(statusText, progress));
         } catch (e) {
             console.warn(e);
             this.handleInstallationError(await basename(path), e as Error);
         } finally {
             progress.close(true);
+        }
+        // The install itself worked; say so when the environment icon didn't follow, instead of
+        // leaving a generic tile and no explanation.
+        if (icons?.problems.length) {
+            MessageDialogComponent.open(this.modalService, {
+                title: 'App icon not updated',
+                message: `${icons.stamped.length ? `Stamped ${icons.stamped.join(', ')}. ` : ''}`
+                    + `The app is installed, but its icon was left as the IPK shipped it:\n\n`
+                    + icons.problems.join('\n'),
+                positive: 'Close',
+            });
         }
     }
 
@@ -373,16 +384,6 @@ export class AppsComponent implements OnInit, OnDestroy {
                 }
             }, step);
         });
-    }
-
-    async pressDown(): Promise<void> {
-        if (!this.device) return;
-        try {
-            await this.lgRemote.pressButton(this.device, 'DOWN');
-            console.log('[Remote] DOWN sent');
-        } catch (e) {
-            console.error('[Remote] DOWN failed:', e);
-        }
     }
 
     inspectApp(): void {
