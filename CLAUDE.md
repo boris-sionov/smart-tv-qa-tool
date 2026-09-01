@@ -205,8 +205,8 @@ Pipeline:
 1. `sdb disconnect <ip>:26101` — TV daemon releases session
 2. `sdb kill-server` — drops local daemon + any TizenBrew reverse tunnel
 3. Wait 1000ms
-4. `sdb connect <ip>:26101` — retry up to 4×, 1.5s apart
-5. Match the certificate profile to the TV (see below)
+4. Match the certificate profile to the TV (see below) — **before** the connect
+5. `sdb connect <ip>:26101` — retry up to 4×, 1.5s apart
 6. Repack — strip root entries, keep only `.buildResult/` content
 7. Sign — `tizen package -t wgt -s <profile>`
 8. `tizen install -n file.wgt -s <ip>:26101`
@@ -229,7 +229,12 @@ The app stores one cert profile (`smart-tv-qa-tizen-cert-profile`) for all devic
 in the picker used to keep signing with the previous TV's certificate. `tizen_install_signed` now
 resolves the profile per install instead:
 
-- `read_duid(serial)` reads the TV's DUID over the raw SDB protocol (after the connect step).
+- `read_duid(serial)` reads the TV's DUID over the raw SDB protocol, in the window between
+  `kill-server` and `sdb connect`. **The order matters**: the TV's SDB daemon serves one session at
+  a time, and while the local sdb server holds it every other socket to port 26101 is reset by peer
+  (`ConnectionResetError`), so a DUID read placed after the connect silently returns nothing and the
+  match falls back to the saved profile. Reading it first also fails a hopeless certificate before
+  the install spends time connecting and signing.
   `0 getduid` is the command that answers on current firmware; `0 duid`, `0 /usr/bin/duid` and
   `0 getprop _duid` all return empty there and are kept only as fallbacks.
 - `parse_cert_profiles()` reads `tizen-studio-data/profile/profiles.xml`, and for each profile's

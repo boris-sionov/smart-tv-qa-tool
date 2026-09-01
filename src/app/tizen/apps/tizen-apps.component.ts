@@ -161,9 +161,9 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         const INSTALL_STEPS: ProgressStep[] = [
             {key: 'disconnecting', label: 'Disconnecting from TizenBrew'},
             {key: 'waiting',       label: 'Waiting for port to release'},
+            {key: 'certificate',   label: 'Matching certificate to TV'},
             {key: 'connecting',    label: 'Connecting with SDB'},
             {key: 'connected',     label: 'Connection established'},
-            {key: 'certificate',   label: 'Matching certificate to TV'},
             {key: 'building',      label: 'Building package'},
             {key: 'installing',    label: 'Installing on TV'},
         ];

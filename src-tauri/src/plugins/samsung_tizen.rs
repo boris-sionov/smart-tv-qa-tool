@@ -1063,7 +1063,26 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
     emit!("waiting", "Waiting for port to release…", 15);
     tokio::time::sleep(Duration::from_millis(1000)).await;
 
-    // Step 3 — Connect fresh via SDB (retry up to 4 times, 1.5 s apart)
+    // Step 3 — Match the certificate profile to this TV (see `pick_cert_profile`).
+    //
+    // Before the connect, not after: the TV's SDB daemon serves one session at a time, and once
+    // the local sdb server holds it every other socket to port 26101 is reset by peer. Reading the
+    // DUID here — the tunnel dropped, the server not yet reconnected — is the one window where it
+    // answers. It also means a certificate that cannot work fails the install before it spends
+    // time connecting and signing.
+    emit!("certificate", "Matching certificate to TV…", 20);
+    let profiles = parse_cert_profiles(&cert_profiles_path(&tizen_studio_path));
+    let duid = {
+        let s = serial.clone();
+        tokio::task::spawn_blocking(move || read_duid(&s))
+            .await
+            .ok()
+            .and_then(Result::ok)
+    };
+    let (cert_profile, note) = pick_cert_profile(cert_profile, duid.as_deref(), &profiles)?;
+    emit!("certificate", &note, 22);
+
+    // Step 4 — Connect fresh via SDB (retry up to 4 times, 1.5 s apart)
     emit!("connecting", "Connecting with SDB…", 25);
     const MAX_ATTEMPTS: u8 = 4;
     let mut last_err = String::new();
@@ -1095,20 +1114,7 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
     }
     emit!("connected", "Connection established", 35);
 
-    // Step 3b — Match the certificate profile to this TV (see `pick_cert_profile`).
-    emit!("certificate", "Matching certificate to TV…", 38);
-    let profiles = parse_cert_profiles(&cert_profiles_path(&tizen_studio_path));
-    let duid = {
-        let s = serial.clone();
-        tokio::task::spawn_blocking(move || read_duid(&s))
-            .await
-            .ok()
-            .and_then(Result::ok)
-    };
-    let (cert_profile, note) = pick_cert_profile(cert_profile, duid.as_deref(), &profiles)?;
-    emit!("certificate", &note, 40);
-
-    // Step 4 — Repack + Sign (building)
+    // Step 5 — Repack + Sign (building)
     emit!("building", "Checking package structure…", 42);
     let work_path = tokio::task::spawn_blocking({
         let fp = file_path.clone();
@@ -1138,7 +1144,7 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
     };
     drop(sign_ok);
 
-    // Step 5 — Install via tizen CLI
+    // Step 6 — Install via tizen CLI
     emit!("installing", "Installing on device…", 68);
     let serial_d = serial.clone();
     let install_result = tokio::task::spawn_blocking({
