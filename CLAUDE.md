@@ -275,11 +275,21 @@ of PNGs to bundle. `tizenEnvironmentIcon()` picks the artwork and the label;
 | | |
 |---|---|
 | Base artwork | `assets/tizen-icons/freetv-tizen-base-icon.png` — the unbadged green icon |
-| Pill | 79% × 12% of the icon, against 72% × 21% on the webOS icons |
-| Fill / outline | `#C41F64` / white, sampled from the webOS icons so the platforms match |
+| Layout | two pills set diagonally: environment upper-left, version lower-right |
+| Fill | environment `#C41F64` (sampled from the webOS icons); version a dark ground, so it reads as secondary |
 | Font | **Arial** first — `Arial Black` renders ~11% wider and overruns the pill |
 | Long labels | shrink the type; `fillText`'s `maxWidth` condenses glyphs and looks like another face |
 | Decoding | `fetch` → `createImageBitmap`, **never** `new Image().src` — see below |
+
+Two pills rather than one wide one along the bottom: a single pill holding environment *and*
+version had to run nearly the icon's full width to stay legible, which crowded the logo.
+
+**They are not in the corners.** A Samsung launcher crops the tile to a squircle, and a corner
+badge loses its ends to that — the first attempt shipped and rendered as `REPROD` / `1.26.(` on a
+real TV. Each pill is now placed against the *mask's* edge at its own vertical centre
+(`maskHalfWidth`, a superellipse with `MASK_EXPONENT = 4`), so the layout follows the crop rather
+than the square it is drawn in. Checked against rounder masks (n=3, n=2.4) and the longest labels
+we ship, `PREPROD TEST` / `22.4.706`, since a rounder mask is the one that bites.
 
 A release build serves the page from `tauri://localhost`, and WKWebView treats an image fetched
 through that custom scheme as cross-origin: drawing it taints the canvas and `toBlob()` then

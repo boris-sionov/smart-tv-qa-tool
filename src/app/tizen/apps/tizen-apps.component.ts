@@ -100,9 +100,9 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         for (const app of apps) {
             const fields = [app.id, app.name, app.tizenId] as const;
             const badge = tizenEnvironmentIcon(this.appVersions.get(app.id), ...fields);
-            if (badge?.label) {
+            if (badge?.environment) {
                 try {
-                    icons.set(app.id, await renderEnvironmentBadgeUrl(badge.base, badge.label));
+                    icons.set(app.id, await renderEnvironmentBadgeUrl(badge.base, badge.environment, badge.version));
                     continue;
                 } catch (e) {
                     // Fall through to the plain brand icon rather than losing the row's artwork.
@@ -201,8 +201,8 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
                 }
                 return null;
             }
-            const png = icon.label
-                ? await renderEnvironmentBadge(icon.base, icon.label)
+            const png = icon.environment
+                ? await renderEnvironmentBadge(icon.base, icon.environment, icon.version)
                 : await readIcon(icon.base);
             tizenLog(`drew ${icon.describe} from ${icon.base} — ${png.length} bytes, replacing ${info.icon}`);
             return {label: icon.describe, wgtIcon: {entry: info.icon, png}};

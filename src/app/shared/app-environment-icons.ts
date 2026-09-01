@@ -123,19 +123,21 @@ const TIZEN_V2 = 'assets/tizen-icons/freetv-tizen-2.0-icon.png';
 export interface TizenIcon {
     /** Artwork to put in the package. */
     base: string;
-    /** Pill to draw over it, or `null` to install the artwork unchanged. */
-    label: string | null;
-    /** What to call this in the progress dialog. */
+    /** Environment badge, top-left. Empty when the artwork is used unchanged. */
+    environment: string;
+    /** Version badge, bottom-right. Empty when the build does not declare one. */
+    version: string;
+    /** What to call this in the progress dialog and the log. */
     describe: string;
 }
 
 /**
  * The icon to install on a Tizen build, or `null` when it should keep its packaged one.
  *
- * Unlike `environmentIcon`, the label says which *build* it is, not just which environment — QA
+ * Unlike `environmentIcon`, this says which *build* it is, not just which environment — QA
  * installs several versions of the same environment in a day, and a tile reading `PREPROD` alone
  * cannot tell you which one is on the TV. That is why it is drawn at install time rather than
- * picked from a bundled file: there is no finite set of `<environment>-<version>` PNGs to ship.
+ * picked from a bundled file: there is no finite set of `<environment>`/`<version>` PNGs to ship.
  *
  * Only FreeTV builds match. An unmarked 1.x build keeps its own icon — this writes the app's real
  * icon, and labelling an unmarked build would be writing a guess.
@@ -146,12 +148,17 @@ export function tizenEnvironmentIcon(
 ): TizenIcon | null {
     if (!isPriorityApp(...fields)) return null;
     const environment = appEnvironment(...fields);
+    const trimmed = version?.trim() ?? '';
     if (fields.some(field => !!field && VERSION_2_APP.test(field))) {
-        // No version badge here until there is an unbadged 2.0 base to draw on.
-        return {base: TIZEN_V2, label: null, describe: environment ? `2.0 ${environment}` : '2.0'};
+        // No badges here until there is an unbadged 2.0 base to draw on: the shipped artwork
+        // already carries a 2.0 pill of its own.
+        return {base: TIZEN_V2, environment: '', version: '', describe: environment ? `2.0 ${environment}` : '2.0'};
     }
     if (!environment) return null;
-    const trimmed = version?.trim();
-    const label = trimmed ? `${environment.toUpperCase()}-${trimmed}` : environment.toUpperCase();
-    return {base: TIZEN_BASE, label, describe: label};
+    return {
+        base: TIZEN_BASE,
+        environment: environment.toUpperCase(),
+        version: trimmed,
+        describe: trimmed ? `${environment.toUpperCase()} ${trimmed}` : environment.toUpperCase(),
+    };
 }

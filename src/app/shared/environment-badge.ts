@@ -1,32 +1,57 @@
 /**
- * Draws the environment badge onto a FreeTV icon.
+ * Draws the environment badges onto a FreeTV icon.
  *
  * webOS and Android TV pick a bundled PNG per environment, because the badge only ever says
- * PREPROD or UAT. Tizen's says `PREPROD-1.26.0` — the build version is in it — so there is no
- * finite set of files to ship and the icon is composed at install time instead.
+ * PREPROD or UAT. Tizen's also carries the build version, so there is no finite set of files to
+ * ship and the icon is composed at install time instead.
+ *
+ * Two badges set diagonally rather than one wide pill along the bottom: the environment is what
+ * you look for first and the version is what you check second, and a single pill holding both had
+ * to run nearly the icon's full width to stay legible, crowding the logo above it.
+ *
+ * They are *not* in the corners. A Samsung launcher crops the tile to a squircle, and a badge in
+ * the corner loses its ends to that — `PREPROD` rendered as `REPROD` on a real TV. Each pill is
+ * placed against the squircle's own edge at the pill's vertical centre, so the layout follows the
+ * mask instead of the square it is drawn in.
  *
  * Geometry is in the 512×512 space the artwork is drawn at, and scales with whatever base it is
- * given. The pill is deliberately shorter than the one baked into the webOS icons: it has to hold
- * three times the text without swallowing the logo above it.
+ * given.
  */
 
-/** Badge fill, sampled from the bundled webOS icons so the two platforms match. */
-const PILL = '#C41F64';
+/** Badge fill, sampled from the bundled webOS icons so the platforms match. */
+const ENVIRONMENT_FILL = '#C41F64';
+/** The version reads as secondary, so it takes a darker ground rather than a second magenta. */
+const VERSION_FILL = 'rgba(18, 24, 42, 0.92)';
 const OUTLINE = '#FFFFFF';
 const TEXT = '#FFFFFF';
 
-/** Every length is a fraction of the icon's width, so the badge follows the artwork's size. */
-const FONT = 44 / 512;
-const PAD_X = 24 / 512;
-const PAD_Y = 14 / 512;
+/** Every length is a fraction of the icon's width, so the badges follow the artwork's size. */
+const FONT = 46 / 512;
+const PAD_X = 18 / 512;
+const PAD_Y = 12 / 512;
 const STROKE = 6 / 512;
-/** Where the pill's bottom edge sits, as a fraction of the icon's height. */
-const BASELINE = 0.93;
-/** Widest the pill may get. A long environment and a four-part version shrink the type instead. */
-const MAX_WIDTH = 0.88;
+/** Gap between a pill's end and the squircle's edge at that height. */
+const EDGE_INSET = 20 / 512;
+/** Where each pill's centre sits vertically — the top one here, the bottom one mirrored. */
+const ROW = 0.205;
+/**
+ * Superellipse exponent for the tile mask, `|x/a|^n + |y/a|^n = 1`. Samsung's is around 4; the
+ * layout is checked against 3 and 2.4 as well, since a rounder mask is the one that bites.
+ */
+const MASK_EXPONENT = 4;
+/** Widest a single pill may get; a long environment shrinks its own type rather than overrun. */
+const MAX_WIDTH = 0.8;
 
 /** Arial first, deliberately: 'Arial Black' renders ~11% wider and overruns the pill's budget. */
 const FONT_STACK = `Arial, 'Helvetica Neue', Helvetica, sans-serif`;
+
+type Row = 'top' | 'bottom';
+
+/** Half-width of the tile mask at a vertical offset from its centre. */
+function maskHalfWidth(offsetFromCentre: number, radius: number): number {
+    const t = Math.min(Math.abs(offsetFromCentre) / radius, 1);
+    return radius * Math.pow(1 - Math.pow(t, MASK_EXPONENT), 1 / MASK_EXPONENT);
+}
 
 /**
  * Decodes bundled artwork into something safe to draw and then read back.
@@ -77,13 +102,62 @@ function roundedRect(
     ctx.closePath();
 }
 
+/** Draws one pill against the mask's edge on `row`, shrinking its type until it fits. */
+function drawPill(
+    ctx: CanvasRenderingContext2D, label: string, row: Row, fill: string, w: number, h: number,
+): void {
+    const padX = PAD_X * w;
+    const padY = PAD_Y * w;
+
+    // Shrink rather than passing a maxWidth to fillText, which condenses the glyphs into what
+    // looks like a different typeface.
+    let fontPx = Math.round(FONT * w);
+    let metrics: TextMetrics;
+    for (;;) {
+        ctx.font = `bold ${fontPx}px ${FONT_STACK}`;
+        metrics = ctx.measureText(label);
+        if (metrics.width + 2 * padX <= MAX_WIDTH * w || fontPx <= 0.6 * FONT * w) break;
+        fontPx -= 1;
+    }
+
+    // Cap height, not the font's full line box: the labels are caps and digits, so the box would
+    // reserve descender room nothing uses and leave the pill looking bottom-heavy.
+    const capHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent || fontPx;
+    const pillW = metrics.width + 2 * padX;
+    const pillH = capHeight + 2 * padY;
+
+    // Against the mask at this pill's own height: the top one starts at the left edge of the
+    // squircle there, the bottom one ends at its right edge.
+    const centreY = row === 'top' ? ROW * h : (1 - ROW) * h;
+    const halfWidth = maskHalfWidth(centreY - h / 2, w / 2);
+    const inset = EDGE_INSET * w;
+    const x = row === 'top'
+        ? w / 2 - halfWidth + inset
+        : w / 2 + halfWidth - inset - pillW;
+    const y = centreY - pillH / 2;
+
+    roundedRect(ctx, x, y, pillW, pillH);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = STROKE * w;
+    ctx.strokeStyle = OUTLINE;
+    ctx.stroke();
+
+    ctx.fillStyle = TEXT;
+    ctx.fillText(label, x + pillW / 2, y + pillH / 2);
+}
+
 /**
- * Renders `label` as a pill over `baseAsset` and returns the PNG bytes.
+ * Renders the environment and version badges over `baseAsset` and returns the PNG bytes.
  *
- * Throws rather than returning a half-drawn icon — the caller installs the packaged artwork
+ * Either label may be absent — a build with no version still gets its environment badge.
+ *
+ * Throws rather than returning a half-drawn icon: the caller installs the packaged artwork
  * instead, which is a worse icon but never a broken one.
  */
-export async function renderEnvironmentBadge(baseAsset: string, label: string): Promise<Uint8Array> {
+export async function renderEnvironmentBadge(
+    baseAsset: string, environment: string, version?: string | null,
+): Promise<Uint8Array> {
     const base = await decodeAsset(baseAsset);
     const w = base.width || 512;
     const h = base.height || 512;
@@ -95,53 +169,22 @@ export async function renderEnvironmentBadge(baseAsset: string, label: string): 
     if (!ctx) throw new Error('Cannot get a 2D canvas context');
 
     ctx.drawImage(base, 0, 0, w, h);
-
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const padX = PAD_X * w;
-    const padY = PAD_Y * w;
-    // Shrink the type until the pill fits rather than passing a maxWidth to fillText, which
-    // condenses the glyphs and makes a long label look like a different typeface.
-    let fontPx = Math.round(FONT * w);
-    let metrics: TextMetrics;
-    for (;;) {
-        ctx.font = `bold ${fontPx}px ${FONT_STACK}`;
-        metrics = ctx.measureText(label);
-        if (metrics.width + 2 * padX <= MAX_WIDTH * w || fontPx <= 0.6 * FONT * w) break;
-        fontPx -= 1;
-    }
-    // Cap height, not the font's full line box: the label is all caps and digits, so the box would
-    // reserve descender room nothing uses and leave the pill looking bottom-heavy.
-    const capHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent || fontPx;
-    const pillH = capHeight + 2 * padY;
-    const pillW = Math.min(metrics.width + 2 * padX, MAX_WIDTH * w);
-    const x = (w - pillW) / 2;
-    const y = h * BASELINE - pillH;
-
-    roundedRect(ctx, x, y, pillW, pillH);
-    ctx.fillStyle = PILL;
-    ctx.fill();
-    ctx.lineWidth = STROKE * w;
-    ctx.strokeStyle = OUTLINE;
-    ctx.stroke();
-
-    ctx.fillStyle = TEXT;
-    ctx.fillText(label, w / 2, y + pillH / 2);
+    if (environment) drawPill(ctx, environment, 'top', ENVIRONMENT_FILL, w, h);
+    if (version) drawPill(ctx, version, 'bottom', VERSION_FILL, w, h);
 
     const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error('Canvas produced no PNG — it may have been tainted by the base image');
     return new Uint8Array(await blob.arrayBuffer());
 }
 
-/** Reads bundled artwork straight through, for a base that needs no badge drawn on it. */
-export async function readIcon(asset: string): Promise<Uint8Array> {
-    return new Uint8Array(await (await fetchAsset(asset)).arrayBuffer());
-}
-
-/** The same badge as a data URL, for showing in our own list rather than writing to a package. */
-export async function renderEnvironmentBadgeUrl(baseAsset: string, label: string): Promise<string> {
-    const png = await renderEnvironmentBadge(baseAsset, label);
+/** The same badges as a data URL, for our own list rather than for writing into a package. */
+export async function renderEnvironmentBadgeUrl(
+    baseAsset: string, environment: string, version?: string | null,
+): Promise<string> {
+    const png = await renderEnvironmentBadge(baseAsset, environment, version);
     // A data URL rather than a blob: URL — it survives being cached and re-rendered by Angular
     // without anyone having to remember to revoke it.
     let binary = '';
@@ -149,4 +192,9 @@ export async function renderEnvironmentBadgeUrl(baseAsset: string, label: string
         binary += String.fromCharCode(...png.subarray(i, i + 0x8000));
     }
     return `data:image/png;base64,${btoa(binary)}`;
+}
+
+/** Reads bundled artwork straight through, for a base that needs no badge drawn on it. */
+export async function readIcon(asset: string): Promise<Uint8Array> {
+    return new Uint8Array(await (await fetchAsset(asset)).arrayBuffer());
 }
