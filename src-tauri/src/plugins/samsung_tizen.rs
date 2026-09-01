@@ -1819,3 +1819,101 @@ mod wgt_tests {
     }
 }
 
+
+/// Adding a Tauri command means editing three places, and missing one fails only at runtime.
+///
+/// `tizen_read_wgt_info` shipped registered in `generate_handler!` but absent from both the
+/// build-script command list and the plugin's default permission set, so every call came back
+/// `not allowed by ACL` — swallowed by a best-effort `catch`, which made a working feature look
+/// like a broken one for two releases. These tests compare the three lists so the next omission
+/// fails the build instead.
+#[cfg(test)]
+mod acl_tests {
+    /// Command names inside this plugin's `generate_handler![...]`.
+    fn registered() -> Vec<String> {
+        let source = include_str!("samsung_tizen.rs");
+        let start = source
+            .find("tauri::generate_handler![")
+            .expect("generate_handler! not found");
+        let body = &source[start..];
+        let end = body.find("])").expect("unterminated generate_handler!");
+        body[..end]
+            .lines()
+            .skip(1)
+            .filter_map(|line| {
+                let name = line.trim().trim_end_matches(',').trim();
+                // Handlers can be path-qualified (`super::adb::adb_connect`); the command is the
+                // last segment, which is what build.rs and the permission set name.
+                let name = name.rsplit("::").next().unwrap_or(name);
+                (!name.is_empty() && !name.starts_with("//")).then(|| name.to_owned())
+            })
+            .collect()
+    }
+
+    /// The `adb-manager` command list the build script generates permissions from.
+    fn declared_in_build_rs() -> Vec<String> {
+        let source = include_str!("../../build.rs");
+        let start = source.find(r#""adb-manager""#).expect("adb-manager plugin not found");
+        let body = &source[start..];
+        let end = body.find("]),").expect("unterminated commands list");
+        body[..end]
+            .split('"')
+            .filter(|piece| {
+                piece
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+                    && piece.contains('_')
+            })
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// `allow-*` entries in the plugin's default permission set, as command names.
+    fn allowed_by_default() -> Vec<String> {
+        include_str!("../../permissions/adb-manager/default.toml")
+            .lines()
+            .filter_map(|line| {
+                let entry = line.trim().trim_end_matches(',').trim_matches('"');
+                entry.strip_prefix("allow-").map(|name| name.replace('-', "_"))
+            })
+            .collect()
+    }
+
+    fn missing(from: &[String], in_: &[String]) -> Vec<String> {
+        from.iter().filter(|c| !in_.contains(c)).cloned().collect()
+    }
+
+    #[test]
+    fn every_registered_command_is_declared_and_permitted() {
+        let registered = registered();
+        assert!(registered.len() > 20, "parsed too few commands: {registered:?}");
+        assert!(
+            registered.contains(&"tizen_read_wgt_info".to_owned()),
+            "parser missed a known command: {registered:?}"
+        );
+
+        let build = declared_in_build_rs();
+        let allowed = allowed_by_default();
+        assert_eq!(
+            missing(&registered, &build),
+            Vec::<String>::new(),
+            "registered but missing from build.rs — no permission is generated for them"
+        );
+        assert_eq!(
+            missing(&registered, &allowed),
+            Vec::<String>::new(),
+            "registered but missing from permissions/adb-manager/default.toml — \
+             calls fail at runtime with `not allowed by ACL`"
+        );
+    }
+
+    #[test]
+    fn nothing_is_permitted_that_no_longer_exists() {
+        let registered = registered();
+        assert_eq!(
+            missing(&allowed_by_default(), &registered),
+            Vec::<String>::new(),
+            "permitted but no longer registered — stale entries in default.toml"
+        );
+    }
+}
