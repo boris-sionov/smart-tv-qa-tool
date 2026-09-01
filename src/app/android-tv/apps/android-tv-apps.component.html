@@ -32,7 +32,7 @@
 
   <div class="p-3 flex-fill overflow-auto">
     @if (packagesError) {
-      <app-error-card title="Unable to get installed apps" [error]="packagesError" (retry)="loadPackages()">
+      <app-error-card title="Unable to get installed apps" [error]="packagesError" (retry)="loadPackages(true)">
       </app-error-card>
     } @else if (!serial) {
       <div class="android-empty-state">
