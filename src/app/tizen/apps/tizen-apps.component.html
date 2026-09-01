@@ -87,7 +87,13 @@
           @for (app of filteredApps!; track app.id) {
             <article class="tizen-app-row">
               <div class="app-identity">
-                <div class="app-icon-placeholder">TZ</div>
+                <div class="app-icon-frame">
+                  @if (iconFor(app); as icon) {
+                    <img [src]="icon" [alt]="app.name" class="app-icon-img">
+                  } @else {
+                    <div class="app-icon-placeholder">TZ</div>
+                  }
+                </div>
                 <div class="app-copy">
                   <div class="app-title">{{ app.name }}</div>
                   <div class="app-meta">

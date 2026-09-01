@@ -10,7 +10,8 @@ import {TizenWizardComponent} from '../wizard/tizen-wizard.component';
 import {TizenRemoteDialogComponent} from '../remote-dialog/tizen-remote-dialog.component';
 import {isKnownApp, isPriorityApp} from '../../shared/known-apps';
 import {tizenEnvironmentIcon} from '../../shared/app-environment-icons';
-import {renderEnvironmentBadge, readIcon} from '../../shared/environment-badge';
+import {brandIcon} from '../../shared/app-brand-icons';
+import {renderEnvironmentBadge, renderEnvironmentBadgeUrl, readIcon} from '../../shared/environment-badge';
 
 @Component({
     selector: 'app-tizen-apps',
@@ -30,6 +31,8 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
     certBannerDismissed = false;
     /** Why the environment badge was skipped, for the install result. */
     private iconProblem: string | null = null;
+    /** Row artwork by app id — a bundled brand icon, or a badge drawn for a FreeTV build. */
+    private listIcons = new Map<string, string>();
     private sub?: Subscription;
 
     get certProfile(): string | null { return this.state.getCertProfile(); }
@@ -78,6 +81,39 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             });
     }
 
+    /** The artwork for a row, or `null` while the placeholder stands. */
+    iconFor(app: SdbAppInfo): string | null {
+        return this.listIcons.get(app.id) ?? null;
+    }
+
+    /**
+     * Works out each row's artwork once per list load.
+     *
+     * A FreeTV build gets the badge its environment and version earn — the same picture the TV
+     * shows after an install — so the list distinguishes two PreProd builds the way the home
+     * screen does. Everything else takes its bundled brand icon, and an app we ship none for
+     * keeps the placeholder.
+     */
+    private async resolveListIcons(apps: SdbAppInfo[]): Promise<void> {
+        const icons = new Map<string, string>();
+        for (const app of apps) {
+            const fields = [app.id, app.name, app.tizenId] as const;
+            const badge = tizenEnvironmentIcon(this.appVersions.get(app.id), ...fields);
+            if (badge?.label) {
+                try {
+                    icons.set(app.id, await renderEnvironmentBadgeUrl(badge.base, badge.label));
+                    continue;
+                } catch (e) {
+                    // Fall through to the plain brand icon rather than losing the row's artwork.
+                    console.warn(`[apps] could not draw the badge for ${app.id}`, e);
+                }
+            }
+            const asset = badge?.base ?? brandIcon(...fields);
+            if (asset) icons.set(app.id, asset);
+        }
+        this.listIcons = icons;
+    }
+
     selectDevice(serial: string): void {
         const device = this.devices.find(d => tizenSerial(d) === serial) ?? null;
         this.state.select(device);
@@ -90,12 +126,14 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             if (cached) {
                 this.apps = cached.apps;
                 this.appVersions = cached.versions;
+                await this.resolveListIcons(this.filteredApps ?? []);
                 return;
             }
         }
         this.loadingApps = true;
         this.apps = null;
         this.appVersions = new Map();
+        this.listIcons = new Map();
         this.appsError = undefined;
         try {
             this.apps = await this.sdb.listApps(this.serial);
@@ -108,6 +146,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
                 }));
             }
             this.state.setCachedApps(this.serial, {apps: this.apps ?? [], versions: this.appVersions});
+            await this.resolveListIcons(this.filteredApps ?? []);
         } catch (e) {
             this.appsError = e as Error;
         } finally {

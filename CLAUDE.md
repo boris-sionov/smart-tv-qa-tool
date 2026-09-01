@@ -397,6 +397,19 @@ artwork it shipped rather than being labelled on a guess.
 
 Where the icon is applied differs per platform, because what each one lets us write differs:
 
+#### App List Icons (our list, not the TV)
+
+The Tizen list draws bundled artwork per app — Disney, Netflix, yes+, HOT and the rest — because
+webOS's approach does not port: a retail Samsung TV refuses `sdb pull` from
+`/opt/share/webappservice/apps_icon/`, and its `sdb shell` is the restricted `vd_*` one with no
+`cat`, so the app's real icon is unreachable. `src/app/shared/app-brand-icons.ts` matches on a
+brand pattern rather than an id table, because the ids differ per platform and per store listing
+(`Di0N6xZMEA.disneyplus` on Samsung, `com.disneyplus` on Android TV) while the brand in the id or
+title does not. Artwork lives in `assets/brand-icons/`.
+
+A FreeTV row is the exception: it renders the same badge the install writes, from the version the
+list already fetched, so two PreProd builds are as distinguishable in our list as on the TV.
+
 | Platform | Where | What | When |
 |---|---|---|---|
 | webOS | the app's `icon` / `largeIcon` files on the TV, over SFTP | bundled PNG per environment | after every install |
