@@ -1,0 +1,57 @@
+name: Build Number
+
+# Bumps src/build-info.json once per merge to main, so the counter tracks landed PRs.
+#
+# The bump lives here rather than in each PR branch: two PRs open at once both touch the same
+# line of build-info.json and conflict on the second merge, and a bump at PR time counts PRs
+# opened rather than PRs shipped.
+#
+# No loop: a push made with GITHUB_TOKEN does not trigger workflows. `[skip ci]` and the guard
+# below are belt to that braces, in case this ever runs with a PAT.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    name: Bump build number
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Bump
+        run: node scripts/build-info.js --bump --force
+
+      - name: Commit
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/build-info.json; then
+            echo "build-info.json unchanged — nothing to commit"
+            exit 0
+          fi
+          build=$(node -p "require('./src/build-info.json').build")
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/build-info.json
+          git commit -m "chore: build ${build} [skip ci]"
+          # Another merge can land while this runs; rebase onto it rather than failing the push.
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejected, rebasing (attempt ${attempt})"
+            git pull --rebase origin main
+          done
+          echo "could not push the build number after 3 attempts" >&2
+          exit 1

@@ -18,7 +18,7 @@
     "tauri": "node scripts/tauri-wrapper.js",
     "prestart": "node scripts/build-info.js",
     "start": "tauri dev",
-    "prebuild": "node scripts/build-info.js --bump",
+    "prebuild": "node scripts/build-info.js",
     "build": "tauri build",
     "ng": "node scripts/ng-wrapper.js",
     "icon": "node scripts/icon-generator.js",
