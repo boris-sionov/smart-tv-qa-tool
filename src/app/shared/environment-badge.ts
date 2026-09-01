@@ -138,3 +138,15 @@ export async function renderEnvironmentBadge(baseAsset: string, label: string): 
 export async function readIcon(asset: string): Promise<Uint8Array> {
     return new Uint8Array(await (await fetchAsset(asset)).arrayBuffer());
 }
+
+/** The same badge as a data URL, for showing in our own list rather than writing to a package. */
+export async function renderEnvironmentBadgeUrl(baseAsset: string, label: string): Promise<string> {
+    const png = await renderEnvironmentBadge(baseAsset, label);
+    // A data URL rather than a blob: URL — it survives being cached and re-rendered by Angular
+    // without anyone having to remember to revoke it.
+    let binary = '';
+    for (let i = 0; i < png.length; i += 0x8000) {
+        binary += String.fromCharCode(...png.subarray(i, i + 0x8000));
+    }
+    return `data:image/png;base64,${btoa(binary)}`;
+}

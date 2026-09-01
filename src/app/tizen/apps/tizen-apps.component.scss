@@ -488,11 +488,26 @@ $panel-strong: rgba(18, 30, 55, 0.88);
   gap: 12px;
 }
 
+.app-icon-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+}
+
+.app-icon-img {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
 .app-icon-placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 44px;
   width: 44px;
   height: 44px;
   border: 1px solid rgba(91, 159, 245, 0.26);
