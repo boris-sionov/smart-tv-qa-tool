@@ -1,7 +1,7 @@
 import {appEnvironment, isPriorityApp} from './known-apps';
 
 /** The platforms we ship a badged FreeTV icon family for. */
-export type IconPlatform = 'webos' | 'android-tv' | 'tizen';
+export type IconPlatform = 'webos' | 'android-tv';
 
 interface IconFamily {
     /** Bundled icon per environment label, as `appEnvironment` reports it. */
@@ -36,9 +36,9 @@ const VERSION_2_APP = /^com\.freetv\.smarttv|^Plusdrie00\.FreeTV/i;
  * `lg-icons/previews/` are the older style, with a small badge tucked into a corner, and are
  * deliberately unused.
  *
- * The three families are byte-identical artwork today, kept in a folder per platform so QA can
- * redraw one platform's badges — Samsung crops its tile differently from LG — without disturbing
- * the others.
+ * The two families are byte-identical artwork today, kept in a folder per platform so QA can
+ * redraw one platform's badges without disturbing the other. Tizen is not in here: its badge
+ * carries the build version, so there is no finite set of files to ship — see `tizenEnvironmentBadge`.
  */
 const FREETV_ICONS: Readonly<Record<IconPlatform, IconFamily>> = {
     'webos': {
@@ -71,20 +71,6 @@ const FREETV_ICONS: Readonly<Record<IconPlatform, IconFamily>> = {
         // What QA installs on an Android TV is prod or uat, and only uat carries a marker — so a
         // FreeTV APK with no marker is the prod build, `tv.freetv.androidtv` included.
         unmarked: 'assets/android-tv-icons/freetv-atv-store-icon.png',
-    },
-    'tizen': {
-        environments: new Map([
-            ['PreProd', 'assets/tizen-icons/freetv-tizen-preprod-icon.png'],
-            ['PreProd Test', 'assets/tizen-icons/freetv-tizen-prod-test-icon.png'],
-            ['Test', 'assets/tizen-icons/freetv-tizen-prod-test-icon.png'],
-            ['UAT', 'assets/tizen-icons/freetv-tizen-uat-icon.png'],
-            ['Prod on UAT', 'assets/tizen-icons/freetv-tizen-uat-icon.png'],
-            ['Prod', 'assets/tizen-icons/freetv-tizen-store-icon.png'],
-        ]),
-        version2: 'assets/tizen-icons/freetv-tizen-2.0-icon.png',
-        // Like webOS: this icon becomes the app's real icon on the TV, so an unmarked build keeps
-        // whatever artwork it shipped rather than being labelled on a guess.
-        unmarked: null,
     },
 };
 
@@ -124,4 +110,48 @@ export async function readBundledIcon(asset: string): Promise<Uint8Array> {
         throw new Error(`Cannot read bundled icon ${asset}: HTTP ${response.status}`);
     }
     return new Uint8Array(await response.arrayBuffer());
+}
+
+/** Unbadged Tizen artwork, drawn onto rather than shipped per environment. */
+const TIZEN_BASE = 'assets/tizen-icons/freetv-tizen-base-icon.png';
+/**
+ * The 2.0 rewrite's artwork — dark ground, gradient logo, and a 2.0 pill of its own in the same
+ * place ours would go. It is used as-is; drawing over it would stack one badge on another.
+ */
+const TIZEN_V2 = 'assets/tizen-icons/freetv-tizen-2.0-icon.png';
+
+export interface TizenIcon {
+    /** Artwork to put in the package. */
+    base: string;
+    /** Pill to draw over it, or `null` to install the artwork unchanged. */
+    label: string | null;
+    /** What to call this in the progress dialog. */
+    describe: string;
+}
+
+/**
+ * The icon to install on a Tizen build, or `null` when it should keep its packaged one.
+ *
+ * Unlike `environmentIcon`, the label says which *build* it is, not just which environment — QA
+ * installs several versions of the same environment in a day, and a tile reading `PREPROD` alone
+ * cannot tell you which one is on the TV. That is why it is drawn at install time rather than
+ * picked from a bundled file: there is no finite set of `<environment>-<version>` PNGs to ship.
+ *
+ * Only FreeTV builds match. An unmarked 1.x build keeps its own icon — this writes the app's real
+ * icon, and labelling an unmarked build would be writing a guess.
+ */
+export function tizenEnvironmentIcon(
+    version: string | null | undefined,
+    ...fields: (string | null | undefined)[]
+): TizenIcon | null {
+    if (!isPriorityApp(...fields)) return null;
+    const environment = appEnvironment(...fields);
+    if (fields.some(field => !!field && VERSION_2_APP.test(field))) {
+        // No version badge here until there is an unbadged 2.0 base to draw on.
+        return {base: TIZEN_V2, label: null, describe: environment ? `2.0 ${environment}` : '2.0'};
+    }
+    if (!environment) return null;
+    const trimmed = version?.trim();
+    const label = trimmed ? `${environment.toUpperCase()}-${trimmed}` : environment.toUpperCase();
+    return {base: TIZEN_BASE, label, describe: label};
 }

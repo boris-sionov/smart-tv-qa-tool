@@ -8,8 +8,9 @@ import {ProgressDialogComponent, ProgressStep} from '../../shared/components/pro
 import {tizenSerial, TizenDevice, TizenStateService} from '../tizen-state.service';
 import {TizenWizardComponent} from '../wizard/tizen-wizard.component';
 import {TizenRemoteDialogComponent} from '../remote-dialog/tizen-remote-dialog.component';
-import {appEnvironment, isKnownApp, isPriorityApp} from '../../shared/known-apps';
-import {environmentIcon, readBundledIcon} from '../../shared/app-environment-icons';
+import {isKnownApp, isPriorityApp} from '../../shared/known-apps';
+import {tizenEnvironmentIcon} from '../../shared/app-environment-icons';
+import {renderEnvironmentBadge, readIcon} from '../../shared/environment-badge';
 
 @Component({
     selector: 'app-tizen-apps',
@@ -131,32 +132,38 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
     }
 
     /**
-     * The badged environment icon for a WGT about to be installed, or `null` when we ship none.
+     * The environment badge for a WGT about to be installed, or `null` when it should keep its
+     * packaged icon.
      *
      * Every FreeTV build ships the same green icon, so a TV holding PreProd and UAT side by side
-     * shows two identical tiles. webOS fixes that after the install, by writing the icon file over
-     * SFTP; a retail Samsung TV refuses sdb writes to `/opt/share/webappservice/apps_icon/`, so
-     * here the badge goes into the package instead — which the install flow is already rebuilding
-     * and re-signing anyway.
+     * shows two identical tiles — and two PreProd builds a week apart are worse still, since
+     * nothing on the tile says which one is on the TV. The badge carries the build version for
+     * exactly that, which is why it is drawn here rather than picked from a bundled file.
      *
-     * Best-effort: a WGT we cannot read, or an icon we cannot load, installs with the artwork it
+     * webOS fixes the same problem after the install, writing the icon over SFTP. A retail Samsung
+     * TV refuses sdb writes to `/opt/share/webappservice/apps_icon/`, so here the icon goes into
+     * the package instead — which the install flow is already rebuilding and re-signing anyway.
+     *
+     * Best-effort: a WGT we cannot read, or artwork we cannot draw, installs with the icon it
      * shipped rather than failing an install over a picture.
      */
-    private async environmentIconFor(path: string): Promise<{environment: string; wgtIcon: WgtIcon} | null> {
+    private async environmentIconFor(path: string): Promise<{label: string; wgtIcon: WgtIcon} | null> {
         try {
             const info = await this.sdb.readWgtInfo(path);
-            const icon = environmentIcon('tizen', info.id, info.name);
+            const icon = tizenEnvironmentIcon(info.version, info.id, info.name);
             if (!icon) {
                 if (isPriorityApp(info.id, info.name)) {
-                    console.log(`[install] no bundled icon for environment "${appEnvironment(info.id, info.name) ?? 'unknown'}" (${info.id})`);
+                    console.log(`[install] no environment marker on ${info.id} — keeping its packaged icon`);
                 }
                 return null;
             }
-            const png = await readBundledIcon(icon.asset);
-            console.log(`[install] ${info.id}: baking in the ${icon.environment} icon as ${info.icon}`);
-            return {environment: icon.environment, wgtIcon: {entry: info.icon, png}};
+            const png = icon.label
+                ? await renderEnvironmentBadge(icon.base, icon.label)
+                : await readIcon(icon.base);
+            console.log(`[install] ${info.id}: baking in the ${icon.describe} icon as ${info.icon}`);
+            return {label: icon.describe, wgtIcon: {entry: info.icon, png}};
         } catch (e) {
-            console.warn('[install] could not pick an environment icon', e);
+            console.warn('[install] could not draw an environment icon', e);
             return null;
         }
     }
@@ -198,7 +205,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             {key: 'certificate',   label: 'Matching certificate to TV'},
             {key: 'connecting',    label: 'Connecting with SDB'},
             {key: 'connected',     label: 'Connection established'},
-            {key: 'building',      label: icon ? `Building package with the ${icon.environment} icon` : 'Building package'},
+            {key: 'building',      label: icon ? `Building package with the ${icon.label} icon` : 'Building package'},
             {key: 'installing',    label: 'Installing on TV'},
         ];
 

@@ -227,9 +227,27 @@ just before signing. Unlike webOS there is no post-install option: a retail Sams
 there too, so the packaged icon is the only one we can set. The install flow is already rebuilding
 and re-signing the WGT, so the swap costs nothing extra.
 
-`tizen_read_wgt_info` reads the id and name out of `config.xml` before the install starts, so
-`environmentIcon('tizen', …)` can pick the badge; the bytes travel to Rust as base64. Best-effort —
-a WGT we cannot read, or an icon we cannot load, installs with the artwork it shipped.
+`tizen_read_wgt_info` reads the id, name and `<widget version>` out of `config.xml` before the
+install starts; the icon bytes travel to Rust as base64. Best-effort — a WGT we cannot read, or
+artwork we cannot draw, installs with the icon it shipped.
+
+**Tizen draws its badge rather than shipping one per environment.** The label carries the build
+version (`PREPROD-1.26.0`), because QA installs several versions of the same environment in a day
+and a tile reading `PREPROD` alone does not say which one is on the TV — so there is no finite set
+of PNGs to bundle. `tizenEnvironmentIcon()` picks the artwork and the label;
+`renderEnvironmentBadge()` (`src/app/shared/environment-badge.ts`) draws the pill on a canvas.
+
+| | |
+|---|---|
+| Base artwork | `assets/tizen-icons/freetv-tizen-base-icon.png` — the unbadged green icon |
+| Pill | 79% × 12% of the icon, against 72% × 21% on the webOS icons |
+| Fill / outline | `#C41F64` / white, sampled from the webOS icons so the platforms match |
+| Font | **Arial** first — `Arial Black` renders ~11% wider and overruns the pill |
+| Long labels | shrink the type; `fillText`'s `maxWidth` condenses glyphs and looks like another face |
+
+The 2.0 rewrite is the exception: `freetv-tizen-2.0-icon.png` already carries a purple `2.0` pill in
+the same place ours would go, so a 2.0 build installs that artwork unchanged and gets no version
+badge. Giving it one needs an unbadged 2.0 base.
 
 #### Certificate ↔ TV Matching (the other cause of `[118, -12]`)
 
@@ -318,17 +336,19 @@ Every FreeTV build ships the same green icon, so two of them side by side — on
 or in our own app list — are indistinguishable. `src/app/shared/app-environment-icons.ts` maps the
 environment `appEnvironment()` reports onto the badged icon for that platform:
 
-| Environment | webOS (`assets/lg-icons/`) | Android TV (`assets/android-tv-icons/`) | Tizen (`assets/tizen-icons/`) |
-|---|---|---|---|
-| PreProd | `freetv-lg-preprod-icon.png` | `freetv-atv-preprod-icon.png` | `freetv-tizen-preprod-icon.png` |
-| PreProd Test, Test | `freetv-lg-prod-test-icon.png` | `freetv-atv-prod-test-icon.png` | `freetv-tizen-prod-test-icon.png` |
-| UAT, Prod on UAT | `freetv-lg-uat-icon.png` | `freetv-atv-uat-icon.png` | `freetv-tizen-uat-icon.png` |
-| Prod | `freetv-lg-store-icon.png` | `freetv-atv-store-icon.png` | `freetv-tizen-store-icon.png` |
-| *(no marker)* | — | `freetv-atv-store-icon.png` | — |
-| **2.0 rewrite** | `freetv-lg-2.0-icon.png` | `freetv-atv-2.0-icon.png` | `freetv-tizen-2.0-icon.png` |
+| Environment | webOS (`assets/lg-icons/`) | Android TV (`assets/android-tv-icons/`) |
+|---|---|---|
+| PreProd | `freetv-lg-preprod-icon.png` | `freetv-atv-preprod-icon.png` |
+| PreProd Test, Test | `freetv-lg-prod-test-icon.png` | `freetv-atv-prod-test-icon.png` |
+| UAT, Prod on UAT | `freetv-lg-uat-icon.png` | `freetv-atv-uat-icon.png` |
+| Prod | `freetv-lg-store-icon.png` | `freetv-atv-store-icon.png` |
+| *(no marker)* | — | `freetv-atv-store-icon.png` |
+| **2.0 rewrite** | `freetv-lg-2.0-icon.png` | `freetv-atv-2.0-icon.png` |
 
-The three families are byte-identical artwork today, kept one folder per platform so QA can redraw
-one platform's badges without disturbing the others.
+The two families are byte-identical artwork, kept one folder per platform so QA can redraw one
+without disturbing the other. **Tizen is not in this table** — its badge carries the build version,
+so it is drawn at install time from `assets/tizen-icons/freetv-tizen-base-icon.png` rather than
+picked from a bundled file. See [Environment Icon At Install](#environment-icon-at-install).
 
 FreeTV builds only — every bundled icon is a FreeTV one. An environment with no icon of its own
 (Staging, QA, Debug) is left alone.
@@ -354,11 +374,11 @@ artwork it shipped rather than being labelled on a guess.
 
 Where the icon is applied differs per platform, because what each one lets us write differs:
 
-| Platform | Where | When |
-|---|---|---|
-| webOS | the app's `icon` / `largeIcon` files on the TV, over SFTP | after every install |
-| Tizen | `icon.png` inside the WGT, before signing | during install |
-| Android TV | nowhere on the device — our app list only | n/a (the APK's banner is baked in) |
+| Platform | Where | What | When |
+|---|---|---|---|
+| webOS | the app's `icon` / `largeIcon` files on the TV, over SFTP | bundled PNG per environment | after every install |
+| Tizen | `icon.png` inside the WGT, before signing | drawn, `PREPROD-1.26.0` | during install |
+| Android TV | nowhere on the device — our app list only | bundled PNG per environment | n/a (the APK's banner is baked in) |
 
 ### VIDAA TV (Hisense) — Planned
 - **Connection:** MQTT-over-TLS port 36669, credentials `hisenseservice` / `multimqttservice`
