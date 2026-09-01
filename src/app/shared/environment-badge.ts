@@ -28,13 +28,40 @@ const MAX_WIDTH = 0.88;
 /** Arial first, deliberately: 'Arial Black' renders ~11% wider and overruns the pill's budget. */
 const FONT_STACK = `Arial, 'Helvetica Neue', Helvetica, sans-serif`;
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error(`Cannot load ${src}`));
-        img.src = src;
-    });
+/**
+ * Decodes bundled artwork into something safe to draw and then read back.
+ *
+ * Not `new Image()` with a `src`: a release build serves the page from `tauri://localhost`, and
+ * WKWebView treats an image fetched through that custom scheme as cross-origin, so drawing it
+ * taints the canvas and `toBlob()` then fails — the badge silently never appears while everything
+ * works in `tauri dev`, which serves over plain http. Bytes fetched here and handed to
+ * `createImageBitmap` are origin-clean whatever the scheme.
+ */
+async function decodeAsset(asset: string): Promise<ImageBitmap | HTMLImageElement> {
+    const blob = await fetchAsset(asset);
+    if (typeof createImageBitmap === 'function') {
+        return createImageBitmap(blob);
+    }
+    // No createImageBitmap: a blob: URL is same-origin, so this stays untainted too.
+    const url = URL.createObjectURL(blob);
+    try {
+        return await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error(`Cannot decode ${asset}`));
+            img.src = url;
+        });
+    } finally {
+        URL.revokeObjectURL(url);
+    }
+}
+
+async function fetchAsset(asset: string): Promise<Blob> {
+    const response = await fetch(new URL(asset, document.baseURI));
+    if (!response.ok) {
+        throw new Error(`Cannot read ${asset}: HTTP ${response.status}`);
+    }
+    return response.blob();
 }
 
 function roundedRect(
@@ -57,9 +84,9 @@ function roundedRect(
  * instead, which is a worse icon but never a broken one.
  */
 export async function renderEnvironmentBadge(baseAsset: string, label: string): Promise<Uint8Array> {
-    const base = await loadImage(new URL(baseAsset, document.baseURI).toString());
-    const w = base.naturalWidth || 512;
-    const h = base.naturalHeight || 512;
+    const base = await decodeAsset(baseAsset);
+    const w = base.width || 512;
+    const h = base.height || 512;
 
     const canvas = document.createElement('canvas');
     canvas.width = w;
@@ -103,15 +130,11 @@ export async function renderEnvironmentBadge(baseAsset: string, label: string): 
     ctx.fillText(label, w / 2, y + pillH / 2);
 
     const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-    if (!blob) throw new Error('Canvas produced no PNG');
+    if (!blob) throw new Error('Canvas produced no PNG — it may have been tainted by the base image');
     return new Uint8Array(await blob.arrayBuffer());
 }
 
 /** Reads bundled artwork straight through, for a base that needs no badge drawn on it. */
 export async function readIcon(asset: string): Promise<Uint8Array> {
-    const response = await fetch(new URL(asset, document.baseURI));
-    if (!response.ok) {
-        throw new Error(`Cannot read ${asset}: HTTP ${response.status}`);
-    }
-    return new Uint8Array(await response.arrayBuffer());
+    return new Uint8Array(await (await fetchAsset(asset)).arrayBuffer());
 }

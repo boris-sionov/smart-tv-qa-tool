@@ -28,6 +28,8 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
     inspecting: string | null = null;
     killing: string | null = null;
     certBannerDismissed = false;
+    /** Why the environment badge was skipped, for the install result. */
+    private iconProblem: string | null = null;
     private sub?: Subscription;
 
     get certProfile(): string | null { return this.state.getCertProfile(); }
@@ -148,12 +150,14 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
      * shipped rather than failing an install over a picture.
      */
     private async environmentIconFor(path: string): Promise<{label: string; wgtIcon: WgtIcon} | null> {
+        this.iconProblem = null;
         try {
             const info = await this.sdb.readWgtInfo(path);
             const icon = tizenEnvironmentIcon(info.version, info.id, info.name);
+            console.log(`[install] ${info.id} v${info.version} → ${icon ? icon.describe : 'no badge'}`);
             if (!icon) {
                 if (isPriorityApp(info.id, info.name)) {
-                    console.log(`[install] no environment marker on ${info.id} — keeping its packaged icon`);
+                    this.iconProblem = `no environment marker on ${info.id}`;
                 }
                 return null;
             }
@@ -163,7 +167,11 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             console.log(`[install] ${info.id}: baking in the ${icon.describe} icon as ${info.icon}`);
             return {label: icon.describe, wgtIcon: {entry: info.icon, png}};
         } catch (e) {
-            console.warn('[install] could not draw an environment icon', e);
+            // Best-effort, but not silent: the install carries on with the packaged icon, and the
+            // reason lands in the log and on the progress dialog rather than looking like the
+            // badge simply does not work.
+            this.iconProblem = e instanceof Error ? e.message : String(e);
+            console.error('[install] could not draw the environment icon', e);
             return null;
         }
     }
@@ -220,6 +228,9 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
                 p => dialog.update(p.message, p.percent, p.step),
                 icon?.wgtIcon,
             );
+            if (this.iconProblem) {
+                dialog.update(`Installed, but the environment icon was skipped: ${this.iconProblem}`, 95, 'done');
+            }
             dialog.update('Refreshing app list…', 95, 'done');
             if (this.serial) this.state.invalidateApps(this.serial);
             await this.loadApps();
