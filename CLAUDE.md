@@ -275,11 +275,15 @@ of PNGs to bundle. `tizenEnvironmentIcon()` picks the artwork and the label;
 | | |
 |---|---|
 | Base artwork | `assets/tizen-icons/freetv-tizen-base-icon.png` — the unbadged green icon |
-| Pill | 79% × 12% of the icon, against 72% × 21% on the webOS icons |
-| Fill / outline | `#C41F64` / white, sampled from the webOS icons so the platforms match |
+| Layout | two pills on opposite corners: environment top-left, version bottom-right |
+| Fill | environment `#C41F64` (sampled from the webOS icons); version a dark ground, so it reads as secondary |
 | Font | **Arial** first — `Arial Black` renders ~11% wider and overruns the pill |
 | Long labels | shrink the type; `fillText`'s `maxWidth` condenses glyphs and looks like another face |
 | Decoding | `fetch` → `createImageBitmap`, **never** `new Image().src` — see below |
+
+Two corners rather than one wide pill along the bottom: a single pill holding environment *and*
+version had to run nearly the icon's full width to stay legible, which crowded the logo. Anchored
+to opposite corners, each pill grows only as far as its own text needs.
 
 A release build serves the page from `tauri://localhost`, and WKWebView treats an image fetched
 through that custom scheme as cross-origin: drawing it taints the canvas and `toBlob()` then
