@@ -882,6 +882,7 @@ name = "devman"
 version = "0.2.0"
 dependencies = [
  "abs-file-macro",
+ "base64 0.22.1",
  "flate2",
  "futures",
  "futures-util",

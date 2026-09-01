@@ -207,7 +207,7 @@ Pipeline:
 3. Wait 1000ms
 4. `sdb connect <ip>:26101` — retry up to 4×, 1.5s apart
 5. Match the certificate profile to the TV (see below)
-6. Repack — strip root entries, keep only `.buildResult/` content
+6. Stage — strip root entries, keep only `.buildResult/` content, swap in the environment icon
 7. Sign — `tizen package -t wgt -s <profile>`
 8. `tizen install -n file.wgt -s <ip>:26101`
 9. `sdb disconnect` — cleanup
@@ -215,8 +215,21 @@ Pipeline:
 `sdb disconnect` must come before `kill-server`: `kill-server` only kills the Mac-side daemon; the TV
 still holds its session. `sdb disconnect` sends a proper teardown so the TV releases the port.
 
-Repack always writes to a temp file, even when the WGT needs no restructuring — signing rewrites
-the file in place and the source is the user's download. The temp file is deleted on every exit path.
+`stage_wgt` always writes to a temp file, even when the WGT needs no restructuring — signing
+rewrites the file in place and the source is the user's download. The temp file is deleted on every
+exit path.
+
+#### Environment Icon At Install
+
+The badged icon goes *into the package*, replacing the entry `config.xml` names in `<icon src>`,
+just before signing. Unlike webOS there is no post-install option: a retail Samsung TV answers
+`You cannot push files to this path` for `/opt/share/webappservice/apps_icon/…`, and refuses `pull`
+there too, so the packaged icon is the only one we can set. The install flow is already rebuilding
+and re-signing the WGT, so the swap costs nothing extra.
+
+`tizen_read_wgt_info` reads the id and name out of `config.xml` before the install starts, so
+`environmentIcon('tizen', …)` can pick the badge; the bytes travel to Rust as base64. Best-effort —
+a WGT we cannot read, or an icon we cannot load, installs with the artwork it shipped.
 
 #### Certificate ↔ TV Matching (the other cause of `[118, -12]`)
 
@@ -300,14 +313,17 @@ Every FreeTV build ships the same green icon, so two of them side by side — on
 or in our own app list — are indistinguishable. `src/app/shared/app-environment-icons.ts` maps the
 environment `appEnvironment()` reports onto the badged icon for that platform:
 
-| Environment | webOS (`assets/lg-icons/`) | Android TV (`assets/android-tv-icons/`) |
-|---|---|---|
-| PreProd | `freetv-lg-preprod-icon.png` | `freetv-atv-preprod-icon.png` |
-| PreProd Test, Test | `freetv-lg-prod-test-icon.png` | `freetv-atv-prod-test-icon.png` |
-| UAT, Prod on UAT | `freetv-lg-uat-icon.png` | `freetv-atv-uat-icon.png` |
-| Prod | `freetv-lg-store-icon.png` | `freetv-atv-store-icon.png` |
-| *(no marker)* | — | `freetv-atv-store-icon.png` |
-| **2.0 rewrite** | `freetv-lg-2.0-icon.png` | `freetv-atv-2.0-icon.png` |
+| Environment | webOS (`assets/lg-icons/`) | Android TV (`assets/android-tv-icons/`) | Tizen (`assets/tizen-icons/`) |
+|---|---|---|---|
+| PreProd | `freetv-lg-preprod-icon.png` | `freetv-atv-preprod-icon.png` | `freetv-tizen-preprod-icon.png` |
+| PreProd Test, Test | `freetv-lg-prod-test-icon.png` | `freetv-atv-prod-test-icon.png` | `freetv-tizen-prod-test-icon.png` |
+| UAT, Prod on UAT | `freetv-lg-uat-icon.png` | `freetv-atv-uat-icon.png` | `freetv-tizen-uat-icon.png` |
+| Prod | `freetv-lg-store-icon.png` | `freetv-atv-store-icon.png` | `freetv-tizen-store-icon.png` |
+| *(no marker)* | — | `freetv-atv-store-icon.png` | — |
+| **2.0 rewrite** | `freetv-lg-2.0-icon.png` | `freetv-atv-2.0-icon.png` | `freetv-tizen-2.0-icon.png` |
+
+The three families are byte-identical artwork today, kept one folder per platform so QA can redraw
+one platform's badges without disturbing the others.
 
 FreeTV builds only — every bundled icon is a FreeTV one. An environment with no icon of its own
 (Staging, QA, Debug) is left alone.
@@ -327,7 +343,17 @@ environment marker keeps that environment instead.
 The unmarked row is the `unmarked` field of each platform's `IconFamily`. What QA installs on an
 Android TV is prod or uat and only uat carries a marker, so an unmarked FreeTV APK —
 `tv.freetv.androidtv` — is the prod build and gets the PROD badge. webOS has no such default: there
-the icon is written to the TV, and an unmarked build there is the Content Store one.
+the icon is written to the TV, and an unmarked build there is the Content Store one. Tizen follows
+webOS for the same reason — the icon becomes the app's real icon, so an unmarked build keeps the
+artwork it shipped rather than being labelled on a guess.
+
+Where the icon is applied differs per platform, because what each one lets us write differs:
+
+| Platform | Where | When |
+|---|---|---|
+| webOS | the app's `icon` / `largeIcon` files on the TV, over SFTP | after every install |
+| Tizen | `icon.png` inside the WGT, before signing | during install |
+| Android TV | nowhere on the device — our app list only | n/a (the APK's banner is baked in) |
 
 ### VIDAA TV (Hisense) — Planned
 - **Connection:** MQTT-over-TLS port 36669, credentials `hisenseservice` / `multimqttservice`

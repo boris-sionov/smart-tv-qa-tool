@@ -2,13 +2,14 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {Subscription} from 'rxjs';
 import {open as openUrl} from '@tauri-apps/plugin-shell';
-import {SdbAppInfo, SdbService} from '../../core/services/sdb.service';
+import {SdbAppInfo, SdbService, WgtIcon} from '../../core/services/sdb.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {ProgressDialogComponent, ProgressStep} from '../../shared/components/progress-dialog/progress-dialog.component';
 import {tizenSerial, TizenDevice, TizenStateService} from '../tizen-state.service';
 import {TizenWizardComponent} from '../wizard/tizen-wizard.component';
 import {TizenRemoteDialogComponent} from '../remote-dialog/tizen-remote-dialog.component';
-import {isKnownApp, isPriorityApp} from '../../shared/known-apps';
+import {appEnvironment, isKnownApp, isPriorityApp} from '../../shared/known-apps';
+import {environmentIcon, readBundledIcon} from '../../shared/app-environment-icons';
 
 @Component({
     selector: 'app-tizen-apps',
@@ -129,6 +130,37 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         inst.wgtApps = (this.filteredApps ?? []).filter(a => !!a.tizenId);
     }
 
+    /**
+     * The badged environment icon for a WGT about to be installed, or `null` when we ship none.
+     *
+     * Every FreeTV build ships the same green icon, so a TV holding PreProd and UAT side by side
+     * shows two identical tiles. webOS fixes that after the install, by writing the icon file over
+     * SFTP; a retail Samsung TV refuses sdb writes to `/opt/share/webappservice/apps_icon/`, so
+     * here the badge goes into the package instead — which the install flow is already rebuilding
+     * and re-signing anyway.
+     *
+     * Best-effort: a WGT we cannot read, or an icon we cannot load, installs with the artwork it
+     * shipped rather than failing an install over a picture.
+     */
+    private async environmentIconFor(path: string): Promise<{environment: string; wgtIcon: WgtIcon} | null> {
+        try {
+            const info = await this.sdb.readWgtInfo(path);
+            const icon = environmentIcon('tizen', info.id, info.name);
+            if (!icon) {
+                if (isPriorityApp(info.id, info.name)) {
+                    console.log(`[install] no bundled icon for environment "${appEnvironment(info.id, info.name) ?? 'unknown'}" (${info.id})`);
+                }
+                return null;
+            }
+            const png = await readBundledIcon(icon.asset);
+            console.log(`[install] ${info.id}: baking in the ${icon.environment} icon as ${info.icon}`);
+            return {environment: icon.environment, wgtIcon: {entry: info.icon, png}};
+        } catch (e) {
+            console.warn('[install] could not pick an environment icon', e);
+            return null;
+        }
+    }
+
     async installWgt(): Promise<void> {
         if (!this.serial || this.installing) return;
 
@@ -158,13 +190,15 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             return;
         }
 
+        const icon = await this.environmentIconFor(path);
+
         const INSTALL_STEPS: ProgressStep[] = [
             {key: 'disconnecting', label: 'Disconnecting from TizenBrew'},
             {key: 'waiting',       label: 'Waiting for port to release'},
             {key: 'connecting',    label: 'Connecting with SDB'},
             {key: 'connected',     label: 'Connection established'},
             {key: 'certificate',   label: 'Matching certificate to TV'},
-            {key: 'building',      label: 'Building package'},
+            {key: 'building',      label: icon ? `Building package with the ${icon.environment} icon` : 'Building package'},
             {key: 'installing',    label: 'Installing on TV'},
         ];
 
@@ -177,6 +211,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             await this.sdb.installSigned(
                 this.serial, path, certProfile, studioPath,
                 p => dialog.update(p.message, p.percent, p.step),
+                icon?.wgtIcon,
             );
             dialog.update('Refreshing app list…', 95, 'done');
             if (this.serial) this.state.invalidateApps(this.serial);
