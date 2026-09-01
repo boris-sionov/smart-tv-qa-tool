@@ -11,6 +11,7 @@ import {TizenRemoteDialogComponent} from '../remote-dialog/tizen-remote-dialog.c
 import {isKnownApp, isPriorityApp} from '../../shared/known-apps';
 import {tizenEnvironmentIcon} from '../../shared/app-environment-icons';
 import {brandIcon} from '../../shared/app-brand-icons';
+import {info as logInfo, warn as logWarn} from '@tauri-apps/plugin-log';
 import {renderEnvironmentBadge, renderEnvironmentBadgeUrl, readIcon} from '../../shared/environment-badge';
 
 @Component({
@@ -193,7 +194,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         try {
             const info = await this.sdb.readWgtInfo(path);
             const icon = tizenEnvironmentIcon(info.version, info.id, info.name);
-            console.log(`[install] ${info.id} v${info.version} → ${icon ? icon.describe : 'no badge'}`);
+            tizenLog(`${info.id} v${info.version || '?'}, icon entry "${info.icon}" → ${icon ? icon.describe : 'no badge'}`);
             if (!icon) {
                 if (isPriorityApp(info.id, info.name)) {
                     this.iconProblem = `no environment marker on ${info.id}`;
@@ -203,14 +204,14 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             const png = icon.label
                 ? await renderEnvironmentBadge(icon.base, icon.label)
                 : await readIcon(icon.base);
-            console.log(`[install] ${info.id}: baking in the ${icon.describe} icon as ${info.icon}`);
+            tizenLog(`drew ${icon.describe} from ${icon.base} — ${png.length} bytes, replacing ${info.icon}`);
             return {label: icon.describe, wgtIcon: {entry: info.icon, png}};
         } catch (e) {
             // Best-effort, but not silent: the install carries on with the packaged icon, and the
             // reason lands in the log and on the progress dialog rather than looking like the
             // badge simply does not work.
             this.iconProblem = e instanceof Error ? e.message : String(e);
-            console.error('[install] could not draw the environment icon', e);
+            tizenLog('could not draw the environment icon', e);
             return null;
         }
     }
@@ -391,4 +392,23 @@ async inspectApp(app: SdbAppInfo): Promise<void> {
             this.inspecting = null;
         }
     }
+}
+
+/**
+ * Writes to the app's log file as well as the console.
+ *
+ * `console.log` alone reaches neither: a release build opens no devtools, and the log plugin's
+ * `attachConsole()` pipes the Rust log *into* the webview console rather than the reverse. Calling
+ * the plugin's `info`/`warn` is what actually lands a line in ~/Library/Logs/<bundle id>/ —
+ * the same thing `installLog` does on the webOS side.
+ */
+function tizenLog(message: string, error?: unknown): void {
+    if (error === undefined) {
+        console.log(`[Tizen] ${message}`);
+        logInfo(`[Tizen] ${message}`).catch(() => undefined);
+        return;
+    }
+    console.warn(`[Tizen] ${message}`, error);
+    logWarn(`[Tizen] ${message}: ${error instanceof Error ? error.message : String(error)}`)
+        .catch(() => undefined);
 }

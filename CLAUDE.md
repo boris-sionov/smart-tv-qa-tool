@@ -73,11 +73,15 @@ additionally tagged `[skip ci]`.
 
 ## Logs
 
-`~/Library/Logs/com.smarttv.qa-tool/Smart TV QA Tool.log` (macOS) — `tauri_plugin_log`, and
-`src/main.ts` calls `attachConsole()` so the **webview's** console goes there too. Without that
-call the frontend's diagnostics live only in devtools, which a release build does not open, and a
-failure in there is invisible after the fact. Start here when the UI reports something the backend
-log does not explain.
+`~/Library/Logs/com.smarttv.qa-tool/Smart TV QA Tool.log` (macOS), via `tauri_plugin_log`.
+
+**`console.log` does not reach it.** A release build opens no devtools, so a frontend line logged
+that way is gone. To put one in the file, call the plugin's `info`/`warn` directly — `installLog`
+(webOS, `app-manager.service.ts`) and `tizenLog` (`tizen-apps.component.ts`) both do, alongside the
+console call. The plugin's `attachConsole()` is not the way: it pipes the Rust log *into* the
+webview console, the opposite direction.
+
+Start here when the UI reports something the backend log does not explain.
 
 Do **not** confuse this with `src/release.json` (`{version: ""}`), a fork leftover consumed only by
 `src/main.ts` to gate Sentry: empty version ⇒ Sentry disabled and release reported as `local`. Leave
