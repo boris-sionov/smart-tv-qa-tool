@@ -1203,9 +1203,15 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
         None => None,
     };
     emit!("building", "Checking package structure…", 42);
+    let entry = icon_entry.unwrap_or_else(|| "icon.png".to_owned());
+    // The one line that says whether the UI actually handed over an environment icon. Without it
+    // a badge that never got drawn and a badge that got drawn but not applied look identical.
+    match icon_png.as_deref() {
+        Some(bytes) => log::info!("tizen install: badging {entry} with {} bytes", bytes.len()),
+        None => log::info!("tizen install: no environment icon supplied, keeping the packaged one"),
+    }
     let work_path = tokio::task::spawn_blocking({
         let fp = file_path.clone();
-        let entry = icon_entry.unwrap_or_else(|| "icon.png".to_owned());
         move || stage_wgt(&fp, icon_png.as_deref().map(|bytes| (entry.as_str(), bytes)))
     }).await.map_err(|e| Error::new(format!("stage task: {e}")))??;
 
