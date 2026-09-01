@@ -31,6 +31,8 @@ export interface InstallProgress {
 export interface TizenCertProfile {
     name: string;
     active: boolean;
+    /** DUIDs of the TVs this profile's distributor certificate was issued for. */
+    duids: string[];
 }
 
 export interface TizenStudioInfo {

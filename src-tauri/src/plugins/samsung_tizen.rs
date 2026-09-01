@@ -42,8 +42,9 @@ pub struct InstallProgress {
 }
 
 /// Re-packs a double-packaged WGT by extracting only `.buildResult/` content to root.
-/// Returns (path_to_use, was_repacked). Caller must delete the temp file when done.
-fn repack_wgt(file_path: &str) -> Result<(std::path::PathBuf, bool), Error> {
+/// Always returns a path under the temp dir — signing rewrites the file in place, and
+/// the source is the user's download. The caller deletes the temp file when done.
+fn repack_wgt(file_path: &str) -> Result<std::path::PathBuf, Error> {
     use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions, CompressionMethod};
 
     let file = std::fs::File::open(file_path)
@@ -58,15 +59,17 @@ fn repack_wgt(file_path: &str) -> Result<(std::path::PathBuf, bool), Error> {
     let has_buildresult = names.iter().any(|n| n == ".buildResult/config.xml");
     let has_root_dupe   = names.iter().any(|n| n == "config.xml");
 
-    if !has_buildresult || !has_root_dupe {
-        return Ok((std::path::PathBuf::from(file_path), false));
-    }
-
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
-        .subsec_nanos();
+        .as_nanos();
     let temp_path = std::env::temp_dir().join(format!("wgt-repack-{ts}.wgt"));
+
+    if !has_buildresult || !has_root_dupe {
+        std::fs::copy(file_path, &temp_path)
+            .map_err(|e| Error::new(format!("Cannot stage {file_path}: {e}")))?;
+        return Ok(temp_path);
+    }
 
     let out_file = std::fs::File::create(&temp_path)
         .map_err(|e| Error::new(format!("Cannot create temp file: {e}")))?;
@@ -100,7 +103,7 @@ fn repack_wgt(file_path: &str) -> Result<(std::path::PathBuf, bool), Error> {
     writer.finish()
         .map_err(|e| Error::new(format!("Cannot finish ZIP: {e}")))?;
 
-    Ok((temp_path, true))
+    Ok(temp_path)
 }
 
 /// Signs a WGT in-place using the Tizen CLI `package` command.
@@ -196,6 +199,9 @@ fn cli_install(serial: &str, file_path: &str, tizen_studio_path: &str) -> Result
 pub struct TizenCertProfile {
     pub name: String,
     pub active: bool,
+    /// DUIDs of the TVs this profile's distributor certificate was issued for.
+    /// Empty when `device-profile.xml` is missing next to the distributor key.
+    pub duids: Vec<String>,
 }
 
 #[derive(serde::Serialize)]
@@ -214,15 +220,101 @@ fn parse_cert_profiles(xml_path: &str) -> Vec<TizenCertProfile> {
         .and_then(|c| c.get(1))
         .map(|m| m.as_str().to_owned())
         .unwrap_or_default();
-    regex::Regex::new(r#"<profile\s+name="([^"]+)""#)
+    let distributor_key = regex::Regex::new(
+        r#"<profileitem[^>]*\bdistributor="1"[^>]*\bkey="([^"]*)""#,
+    )
+    .unwrap();
+    regex::Regex::new(r#"(?s)<profile\s+name="([^"]+)"(.*?)</profile>"#)
         .unwrap()
         .captures_iter(&content)
         .map(|c| {
             let name = c[1].to_owned();
             let is_active = name == active;
-            TizenCertProfile { active: is_active, name }
+            let duids = distributor_key
+                .captures(&c[2])
+                .and_then(|k| k.get(1))
+                .map(|m| m.as_str())
+                .filter(|path| !path.is_empty())
+                .map(read_profile_duids)
+                .unwrap_or_default();
+            TizenCertProfile { active: is_active, name, duids }
         })
         .collect()
+}
+
+/// Reads the TV DUIDs a distributor certificate was issued for. Samsung writes them
+/// into `device-profile.xml`, which the Certificate Manager drops next to the key.
+fn read_profile_duids(distributor_key_path: &str) -> Vec<String> {
+    let Some(dir) = std::path::Path::new(distributor_key_path).parent() else { return vec![] };
+    let Ok(xml) = std::fs::read_to_string(dir.join("device-profile.xml")) else { return vec![] };
+    regex::Regex::new(r"<TestDevice>([^<]*)</TestDevice>")
+        .unwrap()
+        .captures_iter(&xml)
+        .map(|c| c[1].trim().to_owned())
+        .filter(|d| !d.is_empty())
+        .collect()
+}
+
+/// Picks the certificate profile to sign with, and the line to show while doing it.
+///
+/// A Samsung distributor certificate is issued for a fixed list of TV DUIDs. Signing with
+/// a profile that does not cover the target TV yields a correctly signed package that the
+/// TV still rejects with `install failed[118, -12] … Unsigned file error` — the same code
+/// an actually unsigned package gets, which is why it reads as a packaging problem.
+///
+/// The saved profile wins when it covers the TV; otherwise the first profile that does is
+/// used. Without a DUID — or without any profile declaring one — there is nothing to match
+/// on, so the saved profile stands.
+fn pick_cert_profile(
+    saved: String,
+    duid: Option<&str>,
+    profiles: &[TizenCertProfile],
+) -> Result<(String, String), Error> {
+    let Some(duid) = duid.filter(|_| profiles.iter().any(|p| !p.duids.is_empty())) else {
+        return Ok((saved, "Using selected certificate".to_owned()));
+    };
+    // `getduid` can echo more than the bare id, so test by containment.
+    let haystack = duid.to_ascii_uppercase();
+    let covers =
+        |p: &TizenCertProfile| p.duids.iter().any(|d| haystack.contains(&d.to_ascii_uppercase()));
+
+    if profiles.iter().any(|p| p.name == saved && covers(p)) {
+        return Ok((saved, "Certificate matches this TV".to_owned()));
+    }
+    if let Some(matched) = profiles.iter().find(|p| covers(p)) {
+        let note = format!("Using certificate '{}' — registered for this TV", matched.name);
+        return Ok((matched.name.clone(), note));
+    }
+
+    let known = profiles
+        .iter()
+        .filter(|p| !p.duids.is_empty())
+        .map(|p| format!("{} → {}", p.name, p.duids.join(", ")))
+        .collect::<Vec<_>>()
+        .join("\n");
+    Err(Error::new(format!(
+        "This TV is not covered by any Samsung certificate.\n\
+         TV DUID: {duid}\n\
+         Certificates on this machine:\n{known}\n\n\
+         Open Certificate Manager and add this TV's DUID to a distributor certificate, or \
+         create a profile for it. Installing with another TV's certificate fails with \
+         'Unsigned file error'."
+    )))
+}
+
+/// `profiles.xml` lives in `tizen-studio-data`, a sibling of the Tizen Studio
+/// install dir, falling back to the one under $HOME.
+fn cert_profiles_path(tizen_studio_path: &str) -> String {
+    if let Some(parent) = std::path::Path::new(tizen_studio_path).parent() {
+        let candidate = parent.join("tizen-studio-data/profile/profiles.xml");
+        if candidate.exists() {
+            return candidate.to_string_lossy().into_owned();
+        }
+    }
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    format!("{home}/tizen-studio-data/profile/profiles.xml")
 }
 
 fn sdb_serial(serial: &str) -> String {
@@ -893,10 +985,11 @@ pub(crate) async fn tizen_debug(
         })
 }
 
-#[tauri::command]
-pub(crate) async fn tizen_get_duid(serial: String) -> Result<String, Error> {
-    for cmd in &["0 duid", "0 /usr/bin/duid", "0 getprop _duid"] {
-        if let Ok(out) = tizen_run_shell(&serial, cmd) {
+/// `0 getduid` is the one that answers on current Tizen TVs — the others are
+/// kept for older firmware, where they return the id and `getduid` is absent.
+fn read_duid(serial: &str) -> Result<String, Error> {
+    for cmd in &["0 getduid", "0 duid", "0 /usr/bin/duid", "0 getprop _duid"] {
+        if let Ok(out) = tizen_run_shell(serial, cmd) {
             let t = out.trim().to_owned();
             if !t.is_empty() {
                 return Ok(t);
@@ -904,6 +997,11 @@ pub(crate) async fn tizen_get_duid(serial: String) -> Result<String, Error> {
         }
     }
     Err(Error::new("Could not retrieve Samsung TV DUID"))
+}
+
+#[tauri::command]
+pub(crate) async fn tizen_get_duid(serial: String) -> Result<String, Error> {
+    read_duid(&serial)
 }
 
 #[tauri::command]
@@ -965,7 +1063,26 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
     emit!("waiting", "Waiting for port to release…", 15);
     tokio::time::sleep(Duration::from_millis(1000)).await;
 
-    // Step 3 — Connect fresh via SDB (retry up to 4 times, 1.5 s apart)
+    // Step 3 — Match the certificate profile to this TV (see `pick_cert_profile`).
+    //
+    // Before the connect, not after: the TV's SDB daemon serves one session at a time, and once
+    // the local sdb server holds it every other socket to port 26101 is reset by peer. Reading the
+    // DUID here — the tunnel dropped, the server not yet reconnected — is the one window where it
+    // answers. It also means a certificate that cannot work fails the install before it spends
+    // time connecting and signing.
+    emit!("certificate", "Matching certificate to TV…", 20);
+    let profiles = parse_cert_profiles(&cert_profiles_path(&tizen_studio_path));
+    let duid = {
+        let s = serial.clone();
+        tokio::task::spawn_blocking(move || read_duid(&s))
+            .await
+            .ok()
+            .and_then(Result::ok)
+    };
+    let (cert_profile, note) = pick_cert_profile(cert_profile, duid.as_deref(), &profiles)?;
+    emit!("certificate", &note, 22);
+
+    // Step 4 — Connect fresh via SDB (retry up to 4 times, 1.5 s apart)
     emit!("connecting", "Connecting with SDB…", 25);
     const MAX_ATTEMPTS: u8 = 4;
     let mut last_err = String::new();
@@ -997,9 +1114,9 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
     }
     emit!("connected", "Connection established", 35);
 
-    // Step 4 — Repack + Sign (building)
+    // Step 5 — Repack + Sign (building)
     emit!("building", "Checking package structure…", 42);
-    let (work_path, was_repacked) = tokio::task::spawn_blocking({
+    let work_path = tokio::task::spawn_blocking({
         let fp = file_path.clone();
         move || repack_wgt(&fp)
     }).await.map_err(|e| Error::new(format!("repack task: {e}")))??;
@@ -1016,18 +1133,18 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
 
     let sign_ok = match sign_result {
         Err(ref e) => {
-            if was_repacked { let _ = std::fs::remove_file(&work_path); }
+            let _ = std::fs::remove_file(&work_path);
             return Err(Error::new(e.to_string()));
         }
         Ok(Err(ref e)) => {
-            if was_repacked { let _ = std::fs::remove_file(&work_path); }
+            let _ = std::fs::remove_file(&work_path);
             return Err(Error::new(e.to_string()));
         }
         Ok(Ok(v)) => v,
     };
     drop(sign_ok);
 
-    // Step 5 — Install via tizen CLI
+    // Step 6 — Install via tizen CLI
     emit!("installing", "Installing on device…", 68);
     let serial_d = serial.clone();
     let install_result = tokio::task::spawn_blocking({
@@ -1047,9 +1164,7 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
         let _ = cmd.args(["disconnect", &serial_d]).output().await;
     }
 
-    if was_repacked {
-        let _ = std::fs::remove_file(&work_path);
-    }
+    let _ = std::fs::remove_file(&work_path);
 
     let raw = install_result?
         .map_err(|e| Error::new(format!("tizen install failed: {e}")))?;
@@ -1306,3 +1421,129 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
         ])
         .build()
 }
+
+#[cfg(test)]
+mod cert_profile_tests {
+    use super::*;
+
+    fn write(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf {
+        let path = dir.join(name);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, body).unwrap();
+        path
+    }
+
+    /// A distributor certificate is issued for a fixed set of TV DUIDs; the install
+    /// flow needs those to pick the profile that actually covers the target TV.
+    #[test]
+    fn parses_duids_per_profile() {
+        let dir = std::env::temp_dir().join(format!("tz-certs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        write(&dir, "office/device-profile.xml",
+            "<Profile><TestDeviceInfo><TestDevice>H3CDAJCBERASC</TestDevice>\
+             <TestDevice>XTCAX3YHRKE2K</TestDevice></TestDeviceInfo></Profile>");
+        write(&dir, "home/device-profile.xml",
+            "<Profile><TestDeviceInfo><TestDevice>MTCEZJ2H55GWC</TestDevice></TestDeviceInfo></Profile>");
+        // No device-profile.xml next to this one.
+        std::fs::create_dir_all(dir.join("bare")).unwrap();
+
+        let xml = format!(
+            r#"<?xml version="1.0"?>
+<profiles active="home" version="3.1">
+<profile name="office">
+<profileitem ca="" distributor="0" key="{d}/author.p12" password="" rootca=""/>
+<profileitem ca="" distributor="1" key="{d}/office/distributor.p12" password="" rootca=""/>
+</profile>
+<profile name="home">
+<profileitem ca="" distributor="1" key="{d}/home/distributor.p12" password="" rootca=""/>
+</profile>
+<profile name="bare">
+<profileitem ca="" distributor="1" key="{d}/bare/distributor.p12" password="" rootca=""/>
+</profile>
+</profiles>"#,
+            d = dir.display()
+        );
+        let profiles_path = write(&dir, "profiles.xml", &xml);
+
+        let profiles = parse_cert_profiles(&profiles_path.to_string_lossy());
+        let by_name = |n: &str| profiles.iter().find(|p| p.name == n).unwrap();
+
+        assert_eq!(profiles.len(), 3);
+        assert_eq!(by_name("office").duids, ["H3CDAJCBERASC", "XTCAX3YHRKE2K"]);
+        assert_eq!(by_name("home").duids, ["MTCEZJ2H55GWC"]);
+        assert!(by_name("bare").duids.is_empty());
+        assert!(by_name("home").active);
+        assert!(!by_name("office").active);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_profiles_file_yields_no_profiles() {
+        assert!(parse_cert_profiles("/nonexistent/profiles.xml").is_empty());
+    }
+
+    fn profile(name: &str, duids: &[&str]) -> TizenCertProfile {
+        TizenCertProfile {
+            name: name.to_owned(),
+            active: false,
+            duids: duids.iter().map(|d| (*d).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn keeps_saved_profile_when_it_covers_the_tv() {
+        let profiles = [profile("office-2024", &["H3CDAJCBERASC"]), profile("home", &["MTCEZJ2H55GWC"])];
+        let (name, _) =
+            pick_cert_profile("office-2024".into(), Some("H3CDAJCBERASC"), &profiles).unwrap();
+        assert_eq!(name, "office-2024");
+    }
+
+    /// The regression: one saved profile is shared by every device, so switching TVs in the
+    /// picker used to sign with the previous TV's certificate and fail with `[118, -12]`.
+    #[test]
+    fn switches_to_the_profile_registered_for_the_tv() {
+        let profiles = [profile("office-2024", &["H3CDAJCBERASC"]), profile("Yaakov-2022", &["MTCEZJ2H55GWC"])];
+        let (name, note) =
+            pick_cert_profile("Yaakov-2022".into(), Some("H3CDAJCBERASC"), &profiles).unwrap();
+        assert_eq!(name, "office-2024");
+        assert!(note.contains("office-2024"), "{note}");
+    }
+
+    /// `getduid` can echo more than the bare id.
+    #[test]
+    fn matches_duid_within_noisier_output() {
+        let profiles = [profile("office-2024", &["h3cdajcberasc"])];
+        let (name, _) =
+            pick_cert_profile("office-2024".into(), Some("duid: H3CDAJCBERASC\n"), &profiles).unwrap();
+        assert_eq!(name, "office-2024");
+    }
+
+    #[test]
+    fn errors_with_the_duid_when_no_profile_covers_the_tv() {
+        let profiles = [profile("office-2024", &["H3CDAJCBERASC"])];
+        let err = pick_cert_profile("office-2024".into(), Some("UNKNOWNDUID42"), &profiles)
+            .expect_err("should refuse to sign with a certificate that cannot work");
+        let msg = err.to_string();
+        assert!(msg.contains("UNKNOWNDUID42"), "{msg}");
+        assert!(msg.contains("H3CDAJCBERASC"), "{msg}");
+    }
+
+    #[test]
+    fn falls_back_to_the_saved_profile_without_matchable_data() {
+        let with_duids = [profile("office-2024", &["H3CDAJCBERASC"])];
+        // DUID read failed.
+        assert_eq!(
+            pick_cert_profile("Yaakov-2022".into(), None, &with_duids).unwrap().0,
+            "Yaakov-2022"
+        );
+        // No profile declares a DUID (device-profile.xml missing).
+        let bare = [profile("Yaakov-2022", &[]), profile("office-2024", &[])];
+        assert_eq!(
+            pick_cert_profile("Yaakov-2022".into(), Some("H3CDAJCBERASC"), &bare).unwrap().0,
+            "Yaakov-2022"
+        );
+    }
+}
+
