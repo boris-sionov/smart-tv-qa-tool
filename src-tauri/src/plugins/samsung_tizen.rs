@@ -41,6 +41,8 @@ pub struct TizenAppInfo {
 pub struct TizenWgtInfo {
     pub id: String,
     pub name: String,
+    /// `<widget version="…">` — the build version, which the environment badge prints.
+    pub version: String,
     /// Entry the package calls its icon, `icon.png` when `config.xml` does not say.
     pub icon: String,
 }
@@ -1280,6 +1282,7 @@ pub(crate) async fn tizen_read_wgt_info(file_path: String) -> Result<TizenWgtInf
     Ok(TizenWgtInfo {
         id: first(r#"<tizen:application[^>]*\bid="([^"]+)""#).unwrap_or_default(),
         name: first(r"(?s)<name[^>]*>(.*?)</name>").unwrap_or_default(),
+        version: first(r#"<widget[^>]*\bversion="([^"]+)""#).unwrap_or_default(),
         icon: first(r#"<icon[^>]*\bsrc="([^"]+)""#).unwrap_or_else(|| "icon.png".to_owned()),
     })
 }
@@ -1789,7 +1792,7 @@ mod wgt_tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// The id and name feed the environment lookup that picks the badge.
+    /// The id, name and version feed the badge: `PREPROD-1.26.0` is built from all three.
     #[test]
     fn reads_the_buildresult_config_not_the_stale_root_one() {
         let dir = scratch("info");
@@ -1798,7 +1801,15 @@ mod wgt_tests {
 
         assert!(xml.contains("kY6012WvBv.FreeTVpreprod"), "{xml}");
         assert!(!xml.contains("stale root copy"), "{xml}");
+        assert!(xml.contains(r#"version="1.26.0""#), "{xml}");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `<widget version>`, not the `required_version` on `<tizen:application>`.
+    #[test]
+    fn version_comes_from_the_widget_element() {
+        let re = regex::Regex::new(r#"<widget[^>]*\bversion="([^"]+)""#).unwrap();
+        assert_eq!(&re.captures(CONFIG).unwrap()[1], "1.26.0");
     }
 }
 

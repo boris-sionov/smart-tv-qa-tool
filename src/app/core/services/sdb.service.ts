@@ -32,6 +32,8 @@ export interface InstallProgress {
 export interface TizenWgtInfo {
     id: string;
     name: string;
+    /** `<widget version="…">` — the build version the environment badge prints. */
+    version: string;
     /** Entry the package calls its icon — `icon.png` unless `config.xml` says otherwise. */
     icon: string;
 }
