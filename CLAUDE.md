@@ -56,10 +56,18 @@ The build number is separate and generated:
 | `src/build-info.json` | Generated **and committed** — holds the counter, commit, branch, timestamp |
 | `src/app/core/build-info.ts` | Typed accessor: `BUILD_INFO`, `APP_VERSION` (`"1.0.0 (build 12)"`) |
 
-Wiring: `prebuild` runs `build-info.js --bump` before every `npm run build`; `prestart` refreshes
-(without bumping) before `npm run start`. The bump is conditional — it only fires when HEAD moved
-or the tree is dirty (ignoring `src/build-info.json` itself), so building the same clean commit
-twice keeps the same number. That's why CI's double `npm run build` on Windows x64 doesn't inflate it.
+Wiring: **`.github/workflows/build-number.yml` owns the counter.** It runs `build-info.js --bump
+--force` on every push to `main` and commits the result, so the number counts merged PRs. The bump
+lives there rather than in each PR branch because two open PRs both touch the same line and
+conflict on the second merge, and bumping at PR time would count PRs opened rather than shipped.
+
+`prebuild` and `prestart` both run `build-info.js` without `--bump`: they refresh the commit,
+branch and timestamp for the build at hand but leave the counter to CI, so a local `npm run build`
+reports the same number as the artifact CI would produce from that commit. The script still
+supports `--bump` (conditional on HEAD moving or a dirty tree) and `--bump --force`.
+
+No push loop: a push made with `GITHUB_TOKEN` does not trigger workflows, and the commit is
+additionally tagged `[skip ci]`.
 
 `APP_VERSION` is displayed in the platform-selector footer, the LG sidebar, and LG → More → Version.
 
