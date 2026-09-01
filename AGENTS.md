@@ -60,14 +60,23 @@ Tauri Rust Backend
 The build system produces double-packaged WGTs with files at both root (unsigned) and `.buildResult/` (signed). TV rejects the unsigned root with `[118, -12]`.
 
 **Pipeline in `samsung_tizen.rs → tizen_install_signed`:**
-1. **Repack** — strip root duplicates, keep only `.buildResult/` content, remove old signatures
-2. **Sign** — `tizen package -t wgt -s <profile>` (no device needed)
-3. **Graceful disconnect** — `sdb disconnect <ip>:26101` tells TV daemon to release session
-4. **Kill server** — `sdb kill-server` drops TizenBrew reverse tunnel
-5. **Wait 1.2s** — TV port needs time to free
-6. **Connect with retry** — `sdb connect` up to 4 attempts, 1.5s apart
-7. **Install** — `tizen install -n file.wgt -s <ip>:26101`
-8. **Disconnect** — cleanup
+1. **Graceful disconnect** — `sdb disconnect <ip>:26101` tells TV daemon to release session
+2. **Kill server** — `sdb kill-server` drops TizenBrew reverse tunnel
+3. **Wait 1s** — TV port needs time to free
+4. **Connect with retry** — `sdb connect` up to 4 attempts, 1.5s apart
+5. **Match certificate** — read the TV's DUID, pick the profile issued for it
+6. **Repack** — strip root duplicates, keep only `.buildResult/` content, remove old signatures
+7. **Sign** — `tizen package -t wgt -s <profile>`
+8. **Install** — `tizen install -n file.wgt -s <ip>:26101`
+9. **Disconnect** — cleanup
+
+**`[118, -12]` has two causes, not one.** Besides the unsigned root above, a distributor certificate
+is issued for a fixed list of TV DUIDs — signing with a profile that does not cover the target TV
+yields the *same* "Unsigned file error" on a package that is signed correctly. The app keeps one
+global cert profile for all devices, so picking a different TV in the dropdown used to silently sign
+with the previous TV's certificate. Step 5 now reads the DUID (`read_duid`) and cross-references the
+`<TestDevice>` entries in each profile's `device-profile.xml` (`parse_cert_profiles`), overriding the
+saved profile when it does not cover the TV and failing with the DUID when nothing does.
 
 **Key insight:** TizenBrew creates a reverse tunnel (TV→Mac). `kill-server` alone only kills the Mac side — the TV still holds the session. Must `sdb disconnect` first for the TV to release the port immediately.
 

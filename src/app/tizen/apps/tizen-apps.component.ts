@@ -163,6 +163,7 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             {key: 'waiting',       label: 'Waiting for port to release'},
             {key: 'connecting',    label: 'Connecting with SDB'},
             {key: 'connected',     label: 'Connection established'},
+            {key: 'certificate',   label: 'Matching certificate to TV'},
             {key: 'building',      label: 'Building package'},
             {key: 'installing',    label: 'Installing on TV'},
         ];
@@ -185,13 +186,21 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
             progressClosed = true;
             progress.close(true);
             const msg = typeof e === 'string' ? e : ((e as Error)?.message ?? String(e));
+            // Match the bracketed pkgmgr codes (`install failed[118, -12]`) rather than a
+            // bare '-11' / '-12', which also turn up in paths and version strings.
             const friendly =
-                msg.includes('-11') ? 'Author certificate mismatch — uninstall the app from the TV first, then try again.' :
-                msg.includes('-12') ? 'Unsigned file error — package structure could not be fixed.' :
-                msg;
+                /\[\s*\d+\s*,\s*-11\s*]/.test(msg)
+                    ? 'Author certificate mismatch — uninstall the app from the TV first, then try again.'
+                    : /\[\s*\d+\s*,\s*-12\s*]/.test(msg)
+                        ? 'The TV rejected the package signature. Its DUID is most likely missing from '
+                          + 'the Samsung distributor certificate that signed the build — add this TV in '
+                          + 'Certificate Manager, then try again.'
+                        : msg;
             MessageDialogComponent.open(this.modalService, {
                 title: 'Install failed',
                 message: friendly || 'Unknown error — check that the TV is connected and the certificate is valid.',
+                // Keep the raw CLI output reachable — the friendly text is a guess at the cause.
+                error: friendly === msg ? undefined : Object.assign(new Error(friendly), {details: msg}),
                 positive: 'Close',
             });
             return;

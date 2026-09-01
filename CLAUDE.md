@@ -202,17 +202,44 @@ The CI build double-packages WGTs: files appear at root (unsigned) AND inside `.
 The TV rejects unsigned WGTs with error `[118, -12]`.
 
 Pipeline:
-1. Repack — strip root entries, keep only `.buildResult/` content
-2. Sign — `tizen package -t wgt -s <profile>`
-3. `sdb disconnect <ip>:26101` — TV daemon releases session
-4. `sdb kill-server` — drops local daemon + any TizenBrew reverse tunnel
-5. Wait 1200ms
-6. `sdb connect <ip>:26101` — retry up to 4×, 1.5s apart
-7. `tizen install -n file.wgt -s <ip>:26101`
-8. `sdb disconnect` — cleanup
+1. `sdb disconnect <ip>:26101` — TV daemon releases session
+2. `sdb kill-server` — drops local daemon + any TizenBrew reverse tunnel
+3. Wait 1000ms
+4. `sdb connect <ip>:26101` — retry up to 4×, 1.5s apart
+5. Match the certificate profile to the TV (see below)
+6. Repack — strip root entries, keep only `.buildResult/` content
+7. Sign — `tizen package -t wgt -s <profile>`
+8. `tizen install -n file.wgt -s <ip>:26101`
+9. `sdb disconnect` — cleanup
 
 `sdb disconnect` must come before `kill-server`: `kill-server` only kills the Mac-side daemon; the TV
 still holds its session. `sdb disconnect` sends a proper teardown so the TV releases the port.
+
+Repack always writes to a temp file, even when the WGT needs no restructuring — signing rewrites
+the file in place and the source is the user's download. The temp file is deleted on every exit path.
+
+#### Certificate ↔ TV Matching (the other cause of `[118, -12]`)
+
+A Samsung *distributor* certificate is issued for a fixed list of TV DUIDs. Signing with a profile
+that does not list the target TV produces a perfectly well-formed, properly signed package that the
+TV still rejects with `install failed[118, -12] … Unsigned file error` — the same code an actually
+unsigned package gets. The message points at the package; the cause is the certificate.
+
+The app stores one cert profile (`smart-tv-qa-tizen-cert-profile`) for all devices, so switching TVs
+in the picker used to keep signing with the previous TV's certificate. `tizen_install_signed` now
+resolves the profile per install instead:
+
+- `read_duid(serial)` reads the TV's DUID over the raw SDB protocol (after the connect step).
+  `0 getduid` is the command that answers on current firmware; `0 duid`, `0 /usr/bin/duid` and
+  `0 getprop _duid` all return empty there and are kept only as fallbacks.
+- `parse_cert_profiles()` reads `tizen-studio-data/profile/profiles.xml`, and for each profile's
+  `distributor="1"` key follows the sibling `device-profile.xml` for its `<TestDevice>` DUIDs.
+- The saved profile wins if it covers the DUID; otherwise the first profile that does is used and
+  the progress dialog names it. If a DUID is known and no profile covers it, the install stops with
+  the DUID and the profile → DUID table rather than letting the TV return `-12`.
+- If the DUID read fails, or no profile declares any DUID, the saved profile is used unchanged.
+
+DUID comparison is containment-based (`0 duid` can echo more than the bare id) and case-insensitive.
 
 #### Stress Test / CDP
 - Launch via `sdb.debug(serial, tizenId)` — launches the app AND returns the CDP port. Never call
