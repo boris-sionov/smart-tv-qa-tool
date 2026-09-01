@@ -28,6 +28,33 @@ export interface InstallProgress {
     percent: number;
 }
 
+/** What a WGT's `config.xml` declares, as `tizen_read_wgt_info` reports it. */
+export interface TizenWgtInfo {
+    id: string;
+    name: string;
+    /** Entry the package calls its icon — `icon.png` unless `config.xml` says otherwise. */
+    icon: string;
+}
+
+/** An icon to bake into a package before it is signed. */
+export interface WgtIcon {
+    /** Entry to replace, from `TizenWgtInfo.icon`. */
+    entry: string;
+    png: Uint8Array;
+}
+
+/**
+ * Bytes for the IPC hop. Chunked because spreading ~150 KB into `String.fromCharCode`
+ * in one call overflows the argument stack.
+ */
+function toBase64(bytes: Uint8Array): string {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(binary);
+}
+
 export interface TizenCertProfile {
     name: string;
     active: boolean;
@@ -195,18 +222,26 @@ export class SdbService implements DeviceProvider {
         return [];
     }
 
+    /** What the WGT's `config.xml` says about itself, without installing anything. */
+    async readWgtInfo(filePath: string): Promise<TizenWgtInfo> {
+        return invoke<TizenWgtInfo>('plugin:adb-manager|tizen_read_wgt_info', {filePath});
+    }
+
     async installSigned(
         serial: string,
         filePath: string,
         certProfile: string,
         studioPath: string,
         onProgress?: (p: InstallProgress) => void,
+        icon?: WgtIcon,
     ): Promise<string> {
         const s = this.normalizeSerial(serial);
         const ch = new Channel<InstallProgress>();
         if (onProgress) ch.onmessage = onProgress;
         return invoke<string>('plugin:adb-manager|tizen_install_signed', {
             serial: s, filePath, certProfile, tizenStudioPath: studioPath, onProgress: ch,
+            iconPngBase64: icon ? toBase64(icon.png) : null,
+            iconEntry: icon?.entry ?? null,
         });
     }
 

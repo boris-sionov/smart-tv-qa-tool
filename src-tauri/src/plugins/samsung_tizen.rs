@@ -12,6 +12,9 @@ use tauri::{AppHandle, plugin::{Builder, TauriPlugin}, Runtime};
 use tauri_plugin_shell::ShellExt;
 extern crate native_tls;
 
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
+
 use crate::error::Error;
 
 // ── Data types ───────────────────────────────────────────────────────────────
@@ -31,6 +34,17 @@ pub struct TizenAppInfo {
 }
 
 
+/// What `config.xml` says about a WGT, so the UI can pick the environment icon for it
+/// before the install starts.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TizenWgtInfo {
+    pub id: String,
+    pub name: String,
+    /// Entry the package calls its icon, `icon.png` when `config.xml` does not say.
+    pub icon: String,
+}
+
 // ── Signed install helpers ───────────────────────────────────────────────────
 
 #[derive(Clone, serde::Serialize)]
@@ -41,10 +55,42 @@ pub struct InstallProgress {
     pub percent: u8,
 }
 
-/// Re-packs a double-packaged WGT by extracting only `.buildResult/` content to root.
-/// Always returns a path under the temp dir — signing rewrites the file in place, and
-/// the source is the user's download. The caller deletes the temp file when done.
-fn repack_wgt(file_path: &str) -> Result<std::path::PathBuf, Error> {
+/// The `config.xml` that describes a WGT — the `.buildResult/` one when the package is
+/// double-packaged, since that is the copy the install flow keeps.
+fn wgt_config_xml(file_path: &str) -> Result<String, Error> {
+    use zip::ZipArchive;
+
+    let file = std::fs::File::open(file_path)
+        .map_err(|e| Error::new(format!("Cannot open {file_path}: {e}")))?;
+    let mut zip = ZipArchive::new(file)
+        .map_err(|e| Error::new(format!("Not a valid ZIP/WGT: {e}")))?;
+
+    for name in [".buildResult/config.xml", "config.xml"] {
+        if let Ok(mut entry) = zip.by_name(name) {
+            let mut xml = String::new();
+            entry
+                .read_to_string(&mut xml)
+                .map_err(|e| Error::new(format!("Cannot read {name}: {e}")))?;
+            return Ok(xml);
+        }
+    }
+    Err(Error::new(format!("{file_path} has no config.xml")))
+}
+
+/// Stages a WGT for signing under the temp dir, never touching the source — signing rewrites
+/// the file in place and the source is the user's download. The caller deletes the temp file.
+///
+/// Two things happen on the way through:
+///
+/// - A double-packaged WGT (the CI build ships the app at the root *and* inside `.buildResult/`)
+///   is rebuilt from `.buildResult/` alone. Old signatures are dropped; `tizen package` writes
+///   fresh ones.
+/// - `icon`, when given, replaces the named entry's bytes. It is how a sideloaded FreeTV build
+///   gets its environment badge: the icon has to be inside the package, because a retail Samsung
+///   TV will not let sdb write to the icon directory after the install.
+///
+/// A package that needs neither is copied rather than rebuilt.
+fn stage_wgt(file_path: &str, icon: Option<(&str, &[u8])>) -> Result<std::path::PathBuf, Error> {
     use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions, CompressionMethod};
 
     let file = std::fs::File::open(file_path)
@@ -56,8 +102,8 @@ fn repack_wgt(file_path: &str) -> Result<std::path::PathBuf, Error> {
         .filter_map(|i| probe.by_index(i).ok().map(|e| e.name().to_owned()))
         .collect();
 
-    let has_buildresult = names.iter().any(|n| n == ".buildResult/config.xml");
-    let has_root_dupe   = names.iter().any(|n| n == "config.xml");
+    let double_packed = names.iter().any(|n| n == ".buildResult/config.xml")
+        && names.iter().any(|n| n == "config.xml");
 
     let ts = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -65,7 +111,7 @@ fn repack_wgt(file_path: &str) -> Result<std::path::PathBuf, Error> {
         .as_nanos();
     let temp_path = std::env::temp_dir().join(format!("wgt-repack-{ts}.wgt"));
 
-    if !has_buildresult || !has_root_dupe {
+    if !double_packed && icon.is_none() {
         std::fs::copy(file_path, &temp_path)
             .map_err(|e| Error::new(format!("Cannot stage {file_path}: {e}")))?;
         return Ok(temp_path);
@@ -82,21 +128,46 @@ fn repack_wgt(file_path: &str) -> Result<std::path::PathBuf, Error> {
     let mut src = ZipArchive::new(src_file)
         .map_err(|e| Error::new(format!("Cannot re-read ZIP: {e}")))?;
 
+    let mut icon_written = false;
     for i in 0..src.len() {
         let mut entry = src.by_index(i)
             .map_err(|e| Error::new(format!("ZIP entry {i}: {e}")))?;
         let raw = entry.name().replace('\\', "/");
-        let Some(stripped) = raw.strip_prefix(".buildResult/") else { continue };
-        if stripped.is_empty() { continue }
-        if stripped == "author-signature.xml" || stripped == "signature1.xml" { continue }
-        if raw.ends_with('/') {
-            writer.add_directory(stripped, opts)
-                .map_err(|e| Error::new(format!("Cannot add dir {stripped}: {e}")))?;
+        let name = if double_packed {
+            let Some(stripped) = raw.strip_prefix(".buildResult/") else { continue };
+            stripped.to_owned()
         } else {
-            writer.start_file(stripped, opts)
-                .map_err(|e| Error::new(format!("Cannot start file {stripped}: {e}")))?;
-            std::io::copy(&mut entry, &mut writer)
-                .map_err(|e| Error::new(format!("Cannot copy {stripped}: {e}")))?;
+            raw.clone()
+        };
+        if name.is_empty() { continue }
+        if name == "author-signature.xml" || name == "signature1.xml" { continue }
+        if raw.ends_with('/') {
+            writer.add_directory(&name, opts)
+                .map_err(|e| Error::new(format!("Cannot add dir {name}: {e}")))?;
+            continue;
+        }
+        writer.start_file(&name, opts)
+            .map_err(|e| Error::new(format!("Cannot start file {name}: {e}")))?;
+        match icon {
+            Some((icon_name, bytes)) if name == icon_name => {
+                writer.write_all(bytes)
+                    .map_err(|e| Error::new(format!("Cannot write {name}: {e}")))?;
+                icon_written = true;
+            }
+            _ => {
+                std::io::copy(&mut entry, &mut writer)
+                    .map_err(|e| Error::new(format!("Cannot copy {name}: {e}")))?;
+            }
+        }
+    }
+
+    // `config.xml` can name an icon the package does not actually carry.
+    if let Some((icon_name, bytes)) = icon {
+        if !icon_written {
+            writer.start_file(icon_name, opts)
+                .map_err(|e| Error::new(format!("Cannot start file {icon_name}: {e}")))?;
+            writer.write_all(bytes)
+                .map_err(|e| Error::new(format!("Cannot write {icon_name}: {e}")))?;
         }
     }
 
@@ -1021,6 +1092,10 @@ pub(crate) async fn tizen_daemon_command(serial: String, command: String) -> Res
 }
 
 
+/// Repacks, signs and installs a WGT.
+///
+/// `icon_png_base64` and `icon_entry` are the environment badge to bake into the package before
+/// signing, and the entry it replaces. Both absent for a build we ship no badge for.
 #[tauri::command]
 pub(crate) async fn tizen_install_signed<R: Runtime>(
     app: AppHandle<R>,
@@ -1028,6 +1103,8 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
     file_path: String,
     cert_profile: String,
     tizen_studio_path: String,
+    icon_png_base64: Option<String>,
+    icon_entry: Option<String>,
     on_progress: tauri::ipc::Channel<InstallProgress>,
 ) -> Result<String, Error> {
     macro_rules! emit {
@@ -1114,12 +1191,21 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
     }
     emit!("connected", "Connection established", 35);
 
-    // Step 5 — Repack + Sign (building)
+    // Step 5 — Stage (repack, badge the icon) + Sign (building)
+    let icon_png = match icon_png_base64.as_deref() {
+        Some(encoded) => Some(
+            BASE64
+                .decode(encoded)
+                .map_err(|e| Error::new(format!("Environment icon is not valid base64: {e}")))?,
+        ),
+        None => None,
+    };
     emit!("building", "Checking package structure…", 42);
     let work_path = tokio::task::spawn_blocking({
         let fp = file_path.clone();
-        move || repack_wgt(&fp)
-    }).await.map_err(|e| Error::new(format!("repack task: {e}")))??;
+        let entry = icon_entry.unwrap_or_else(|| "icon.png".to_owned());
+        move || stage_wgt(&fp, icon_png.as_deref().map(|bytes| (entry.as_str(), bytes)))
+    }).await.map_err(|e| Error::new(format!("stage task: {e}")))??;
 
     let work_str = work_path.to_string_lossy().into_owned();
     emit!("building", "Signing package…", 55);
@@ -1178,6 +1264,24 @@ pub(crate) async fn tizen_install_signed<R: Runtime>(
     } else {
         Err(Error::new(combined))
     }
+}
+
+#[tauri::command]
+pub(crate) async fn tizen_read_wgt_info(file_path: String) -> Result<TizenWgtInfo, Error> {
+    let xml = wgt_config_xml(&file_path)?;
+    let first = |pattern: &str| {
+        regex::Regex::new(pattern)
+            .unwrap()
+            .captures(&xml)
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str().trim().to_owned())
+            .filter(|v| !v.is_empty())
+    };
+    Ok(TizenWgtInfo {
+        id: first(r#"<tizen:application[^>]*\bid="([^"]+)""#).unwrap_or_default(),
+        name: first(r"(?s)<name[^>]*>(.*?)</name>").unwrap_or_default(),
+        icon: first(r#"<icon[^>]*\bsrc="([^"]+)""#).unwrap_or_else(|| "icon.png".to_owned()),
+    })
 }
 
 #[tauri::command]
@@ -1402,6 +1506,7 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             tizen_kill,
             tizen_debug,
             tizen_get_duid,
+            tizen_read_wgt_info,
             tizen_get_app_version,
             tizen_daemon_command,
             tizen_detect_studio,
@@ -1544,6 +1649,156 @@ mod cert_profile_tests {
             pick_cert_profile("Yaakov-2022".into(), Some("H3CDAJCBERASC"), &bare).unwrap().0,
             "Yaakov-2022"
         );
+    }
+}
+
+#[cfg(test)]
+mod wgt_tests {
+    use super::*;
+    use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions, CompressionMethod};
+
+    const CONFIG: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns:tizen="http://tizen.org/ns/widgets" version="1.26.0">
+    <tizen:application id="kY6012WvBv.FreeTVpreprod" package="kY6012WvBv" required_version="2.3"/>
+    <icon src="icon.png"/>
+    <name>Free TV preprod</name>
+</widget>"#;
+
+    /// Writes a WGT holding `entries`, plus the signatures every CI build carries.
+    fn wgt(dir: &std::path::Path, file: &str, entries: &[(&str, &[u8])]) -> String {
+        let path = dir.join(file);
+        std::fs::create_dir_all(dir).unwrap();
+        let mut writer = ZipWriter::new(std::fs::File::create(&path).unwrap());
+        let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        for (name, body) in entries {
+            writer.start_file(*name, opts).unwrap();
+            writer.write_all(body).unwrap();
+        }
+        writer.finish().unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    fn read(path: &str, name: &str) -> Option<Vec<u8>> {
+        let mut zip = ZipArchive::new(std::fs::File::open(path).unwrap()).ok()?;
+        let mut entry = zip.by_name(name).ok()?;
+        let mut buf = Vec::new();
+        entry.read_to_end(&mut buf).ok()?;
+        Some(buf)
+    }
+
+    fn names(path: &str) -> Vec<String> {
+        let file = std::fs::File::open(path).unwrap();
+        let mut zip = ZipArchive::new(file).unwrap();
+        (0..zip.len()).map(|i| zip.by_index(i).unwrap().name().to_owned()).collect()
+    }
+
+    fn scratch(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("tz-wgt-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// The CI build ships the app twice: unsigned at the root, signed under `.buildResult/`.
+    fn double_packed(dir: &std::path::Path, icon: &[u8]) -> String {
+        wgt(dir, "ci.wgt", &[
+            ("config.xml", b"<widget>stale root copy</widget>"),
+            ("icon.png", b"root icon"),
+            ("index.html", b"root html"),
+            ("signature1.xml", b"<sig/>"),
+            (".buildResult/config.xml", CONFIG.as_bytes()),
+            (".buildResult/icon.png", icon),
+            (".buildResult/index.html", b"<html>real</html>"),
+            (".buildResult/js/app.js", b"code"),
+            (".buildResult/author-signature.xml", b"<sig/>"),
+            (".buildResult/signature1.xml", b"<sig/>"),
+        ])
+    }
+
+    #[test]
+    fn strips_the_root_copy_and_old_signatures() {
+        let dir = scratch("strip");
+        let src = double_packed(&dir, b"packaged icon");
+        let staged = stage_wgt(&src, None).unwrap();
+        let staged = staged.to_string_lossy().into_owned();
+
+        assert_eq!(
+            names(&staged),
+            ["config.xml", "icon.png", "index.html", "js/app.js"],
+            "keeps .buildResult/ content at the root, drops the signatures"
+        );
+        assert_eq!(read(&staged, "config.xml").unwrap(), CONFIG.as_bytes());
+        assert_eq!(read(&staged, "index.html").unwrap(), b"<html>real</html>");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn bakes_the_environment_icon_into_a_double_packaged_wgt() {
+        let dir = scratch("badge");
+        let src = double_packed(&dir, b"packaged icon");
+        let staged = stage_wgt(&src, Some(("icon.png", b"badged icon"))).unwrap();
+        let staged = staged.to_string_lossy().into_owned();
+
+        assert_eq!(read(&staged, "icon.png").unwrap(), b"badged icon");
+        // Substituting the icon must not disturb anything else.
+        assert_eq!(read(&staged, "index.html").unwrap(), b"<html>real</html>");
+        assert_eq!(names(&staged).iter().filter(|n| *n == "icon.png").count(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn bakes_the_icon_into_a_plain_wgt_too() {
+        let dir = scratch("plain");
+        let src = wgt(&dir, "plain.wgt", &[
+            ("config.xml", CONFIG.as_bytes()),
+            ("icon.png", b"packaged icon"),
+            ("index.html", b"<html/>"),
+        ]);
+        let staged = stage_wgt(&src, Some(("icon.png", b"badged icon"))).unwrap();
+        let staged = staged.to_string_lossy().into_owned();
+
+        assert_eq!(read(&staged, "icon.png").unwrap(), b"badged icon");
+        assert_eq!(read(&staged, "config.xml").unwrap(), CONFIG.as_bytes());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `config.xml` can name an icon the package does not carry.
+    #[test]
+    fn adds_the_icon_when_the_package_has_none() {
+        let dir = scratch("missing");
+        let src = wgt(&dir, "noicon.wgt", &[("config.xml", CONFIG.as_bytes())]);
+        let staged = stage_wgt(&src, Some(("icon.png", b"badged icon"))).unwrap();
+        let staged = staged.to_string_lossy().into_owned();
+
+        assert_eq!(read(&staged, "icon.png").unwrap(), b"badged icon");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_plain_wgt_with_no_icon_to_apply_is_left_alone() {
+        let dir = scratch("copy");
+        let src = wgt(&dir, "plain.wgt", &[
+            ("config.xml", CONFIG.as_bytes()),
+            ("signature1.xml", b"<sig/>"),
+        ]);
+        let staged = stage_wgt(&src, None).unwrap();
+        let staged = staged.to_string_lossy().into_owned();
+
+        assert_ne!(staged, src, "staged under the temp dir, never the source");
+        assert_eq!(std::fs::read(&staged).unwrap(), std::fs::read(&src).unwrap());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The id and name feed the environment lookup that picks the badge.
+    #[test]
+    fn reads_the_buildresult_config_not_the_stale_root_one() {
+        let dir = scratch("info");
+        let src = double_packed(&dir, b"packaged icon");
+        let xml = wgt_config_xml(&src).unwrap();
+
+        assert!(xml.contains("kY6012WvBv.FreeTVpreprod"), "{xml}");
+        assert!(!xml.contains("stale root copy"), "{xml}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 

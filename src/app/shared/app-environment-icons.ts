@@ -1,7 +1,7 @@
 import {appEnvironment, isPriorityApp} from './known-apps';
 
 /** The platforms we ship a badged FreeTV icon family for. */
-export type IconPlatform = 'webos' | 'android-tv';
+export type IconPlatform = 'webos' | 'android-tv' | 'tizen';
 
 interface IconFamily {
     /** Bundled icon per environment label, as `appEnvironment` reports it. */
@@ -35,6 +35,10 @@ const VERSION_2_APP = /^com\.freetv\.smarttv|^Plusdrie00\.FreeTV/i;
  * badge with a white outline below it. `freetv-atv-prod-icon.png` and the two files under
  * `lg-icons/previews/` are the older style, with a small badge tucked into a corner, and are
  * deliberately unused.
+ *
+ * The three families are byte-identical artwork today, kept in a folder per platform so QA can
+ * redraw one platform's badges — Samsung crops its tile differently from LG — without disturbing
+ * the others.
  */
 const FREETV_ICONS: Readonly<Record<IconPlatform, IconFamily>> = {
     'webos': {
@@ -67,6 +71,20 @@ const FREETV_ICONS: Readonly<Record<IconPlatform, IconFamily>> = {
         // What QA installs on an Android TV is prod or uat, and only uat carries a marker — so a
         // FreeTV APK with no marker is the prod build, `tv.freetv.androidtv` included.
         unmarked: 'assets/android-tv-icons/freetv-atv-store-icon.png',
+    },
+    'tizen': {
+        environments: new Map([
+            ['PreProd', 'assets/tizen-icons/freetv-tizen-preprod-icon.png'],
+            ['PreProd Test', 'assets/tizen-icons/freetv-tizen-prod-test-icon.png'],
+            ['Test', 'assets/tizen-icons/freetv-tizen-prod-test-icon.png'],
+            ['UAT', 'assets/tizen-icons/freetv-tizen-uat-icon.png'],
+            ['Prod on UAT', 'assets/tizen-icons/freetv-tizen-uat-icon.png'],
+            ['Prod', 'assets/tizen-icons/freetv-tizen-store-icon.png'],
+        ]),
+        version2: 'assets/tizen-icons/freetv-tizen-2.0-icon.png',
+        // Like webOS: this icon becomes the app's real icon on the TV, so an unmarked build keeps
+        // whatever artwork it shipped rather than being labelled on a guess.
+        unmarked: null,
     },
 };
 
