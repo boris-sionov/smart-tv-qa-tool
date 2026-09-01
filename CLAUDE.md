@@ -71,6 +71,14 @@ additionally tagged `[skip ci]`.
 
 `APP_VERSION` is displayed in the platform-selector footer, the LG sidebar, and LG → More → Version.
 
+## Logs
+
+`~/Library/Logs/com.smarttv.qa-tool/Smart TV QA Tool.log` (macOS) — `tauri_plugin_log`, and
+`src/main.ts` calls `attachConsole()` so the **webview's** console goes there too. Without that
+call the frontend's diagnostics live only in devtools, which a release build does not open, and a
+failure in there is invisible after the fact. Start here when the UI reports something the backend
+log does not explain.
+
 Do **not** confuse this with `src/release.json` (`{version: ""}`), a fork leftover consumed only by
 `src/main.ts` to gate Sentry: empty version ⇒ Sentry disabled and release reported as `local`. Leave
 it empty for local builds.
@@ -252,6 +260,13 @@ of PNGs to bundle. `tizenEnvironmentIcon()` picks the artwork and the label;
 | Fill / outline | `#C41F64` / white, sampled from the webOS icons so the platforms match |
 | Font | **Arial** first — `Arial Black` renders ~11% wider and overruns the pill |
 | Long labels | shrink the type; `fillText`'s `maxWidth` condenses glyphs and looks like another face |
+| Decoding | `fetch` → `createImageBitmap`, **never** `new Image().src` — see below |
+
+A release build serves the page from `tauri://localhost`, and WKWebView treats an image fetched
+through that custom scheme as cross-origin: drawing it taints the canvas and `toBlob()` then
+returns nothing, so the badge silently never appears. Everything works under `tauri dev`, which
+serves over plain http — so this does not reproduce in development. Bytes fetched and handed to
+`createImageBitmap` are origin-clean whatever the scheme.
 
 The 2.0 rewrite is the exception: `freetv-tizen-2.0-icon.png` already carries a purple `2.0` pill in
 the same place ours would go, so a 2.0 build installs that artwork unchanged and gets no version
