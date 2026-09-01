@@ -5,10 +5,14 @@
  * PREPROD or UAT. Tizen's also carries the build version, so there is no finite set of files to
  * ship and the icon is composed at install time instead.
  *
- * Two badges on opposite corners rather than one wide pill along the bottom: the environment is
- * what you look for first and the version is what you check second, and a single pill holding
- * both had to run nearly the icon's full width to stay legible, crowding the logo above it.
- * Corner-anchored, each pill grows only as far as its own text needs.
+ * Two badges set diagonally rather than one wide pill along the bottom: the environment is what
+ * you look for first and the version is what you check second, and a single pill holding both had
+ * to run nearly the icon's full width to stay legible, crowding the logo above it.
+ *
+ * They are *not* in the corners. A Samsung launcher crops the tile to a squircle, and a badge in
+ * the corner loses its ends to that — `PREPROD` rendered as `REPROD` on a real TV. Each pill is
+ * placed against the squircle's own edge at the pill's vertical centre, so the layout follows the
+ * mask instead of the square it is drawn in.
  *
  * Geometry is in the 512×512 space the artwork is drawn at, and scales with whatever base it is
  * given.
@@ -22,19 +26,32 @@ const OUTLINE = '#FFFFFF';
 const TEXT = '#FFFFFF';
 
 /** Every length is a fraction of the icon's width, so the badges follow the artwork's size. */
-const FONT = 52 / 512;
-const PAD_X = 22 / 512;
-const PAD_Y = 14 / 512;
-const STROKE = 7 / 512;
-/** Gap from the icon's edge, enough that a launcher rounding the corners does not bite in. */
-const MARGIN = 22 / 512;
+const FONT = 46 / 512;
+const PAD_X = 18 / 512;
+const PAD_Y = 12 / 512;
+const STROKE = 6 / 512;
+/** Gap between a pill's end and the squircle's edge at that height. */
+const EDGE_INSET = 20 / 512;
+/** Where each pill's centre sits vertically — the top one here, the bottom one mirrored. */
+const ROW = 0.205;
+/**
+ * Superellipse exponent for the tile mask, `|x/a|^n + |y/a|^n = 1`. Samsung's is around 4; the
+ * layout is checked against 3 and 2.4 as well, since a rounder mask is the one that bites.
+ */
+const MASK_EXPONENT = 4;
 /** Widest a single pill may get; a long environment shrinks its own type rather than overrun. */
 const MAX_WIDTH = 0.8;
 
 /** Arial first, deliberately: 'Arial Black' renders ~11% wider and overruns the pill's budget. */
 const FONT_STACK = `Arial, 'Helvetica Neue', Helvetica, sans-serif`;
 
-type Corner = 'top-left' | 'bottom-right';
+type Row = 'top' | 'bottom';
+
+/** Half-width of the tile mask at a vertical offset from its centre. */
+function maskHalfWidth(offsetFromCentre: number, radius: number): number {
+    const t = Math.min(Math.abs(offsetFromCentre) / radius, 1);
+    return radius * Math.pow(1 - Math.pow(t, MASK_EXPONENT), 1 / MASK_EXPONENT);
+}
 
 /**
  * Decodes bundled artwork into something safe to draw and then read back.
@@ -85,13 +102,12 @@ function roundedRect(
     ctx.closePath();
 }
 
-/** Draws one pill tucked into `corner`, shrinking its type until it fits. */
+/** Draws one pill against the mask's edge on `row`, shrinking its type until it fits. */
 function drawPill(
-    ctx: CanvasRenderingContext2D, label: string, corner: Corner, fill: string, w: number, h: number,
+    ctx: CanvasRenderingContext2D, label: string, row: Row, fill: string, w: number, h: number,
 ): void {
     const padX = PAD_X * w;
     const padY = PAD_Y * w;
-    const margin = MARGIN * w;
 
     // Shrink rather than passing a maxWidth to fillText, which condenses the glyphs into what
     // looks like a different typeface.
@@ -109,8 +125,16 @@ function drawPill(
     const capHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent || fontPx;
     const pillW = metrics.width + 2 * padX;
     const pillH = capHeight + 2 * padY;
-    const x = corner === 'top-left' ? margin : w - margin - pillW;
-    const y = corner === 'top-left' ? margin : h - margin - pillH;
+
+    // Against the mask at this pill's own height: the top one starts at the left edge of the
+    // squircle there, the bottom one ends at its right edge.
+    const centreY = row === 'top' ? ROW * h : (1 - ROW) * h;
+    const halfWidth = maskHalfWidth(centreY - h / 2, w / 2);
+    const inset = EDGE_INSET * w;
+    const x = row === 'top'
+        ? w / 2 - halfWidth + inset
+        : w / 2 + halfWidth - inset - pillW;
+    const y = centreY - pillH / 2;
 
     roundedRect(ctx, x, y, pillW, pillH);
     ctx.fillStyle = fill;
@@ -148,8 +172,8 @@ export async function renderEnvironmentBadge(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    if (environment) drawPill(ctx, environment, 'top-left', ENVIRONMENT_FILL, w, h);
-    if (version) drawPill(ctx, version, 'bottom-right', VERSION_FILL, w, h);
+    if (environment) drawPill(ctx, environment, 'top', ENVIRONMENT_FILL, w, h);
+    if (version) drawPill(ctx, version, 'bottom', VERSION_FILL, w, h);
 
     const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error('Canvas produced no PNG — it may have been tainted by the base image');
