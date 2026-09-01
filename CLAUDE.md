@@ -130,6 +130,21 @@ code path that may see all three platforms.
 **Key insight:** `plugins/adb.rs` is a helper module imported by `samsung_tizen.rs`, not a separately
 registered plugin. Every ADB *and* Tizen call from Angular goes through `invoke('plugin:adb-manager|...')`.
 
+### Adding a Tauri Command — Three Places, Not One
+
+A new command has to be listed in **all three** of:
+
+1. `tauri::generate_handler![…]` in the plugin's `build()` — otherwise it does not exist.
+2. `InlinedPlugin::new().commands([…])` in `src-tauri/build.rs` — this is what generates the
+   `allow-<kebab-name>` permission.
+3. `src-tauri/permissions/<plugin>/default.toml` — otherwise every call fails at runtime with
+   `Command plugin:<name>|<command> not allowed by ACL`.
+
+Miss 2 or 3 and it compiles, ships, and fails only when called — invisible behind any `catch`.
+`tizen_read_wgt_info` shipped that way and made the Tizen environment badge look broken for two
+releases. `acl_tests` in `samsung_tizen.rs` now parses the three lists and fails the build when
+they disagree.
+
 Cargo package name is still `devman` and the binary `webos-dev-manager` (fork leftovers) — the
 product name `Smart TV QA Tool` comes from `tauri.conf.json`.
 
