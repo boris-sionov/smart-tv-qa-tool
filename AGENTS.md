@@ -546,7 +546,7 @@ smooth transitions.
 
 ## VIDAA (Hisense) — Implementation Plan
 
-Status: **researched, not started** (October 2026). Goal: the same per-app **Launch / Close** buttons,
+Status: **researched, not started** (October 2026; two research rounds). Goal: the same per-app **Launch / Close** buttons,
 install and logs that Tizen, LG and Android TV have, for FreeTV on a Hisense VIDAA TV.
 
 ### How QA does it by hand today
@@ -592,7 +592,7 @@ DevTools on this set.**
 - Consequence: a human has to sign in in a real browser. Automation can only take over that browser
   afterwards.
 
-**The TV exposes Chrome DevTools, which is the route for logs, Inspect and Close.**
+**The TV can expose Chrome DevTools, the route for logs and Inspect, but on our U9 set it is closed.**
 - Current official page: <https://partner-doc.vidaa.com/vdocs/development/devtools.html> (behind the
   partner login). Its port table:
   - **U4 and above: 9226**
@@ -623,21 +623,66 @@ DevTools on this set.**
 - DevKit Web shows none. The documented `Hisense_*` JS APIs are info/settings only.
 - The guide (§5.1 / §5.4) says an app exits via `window.close()`, and Exit/Menu are system keys that
   close the foreground app.
-- So Close = `Runtime.evaluate("window.close()")` on the app's CDP target (needs 9226). The fallback is
-  the `KEY_EXIT` key over MQTT (below).
+- So Close is either `KEY_EXIT` over MQTT (below; works without DevTools) or
+  `Runtime.evaluate("window.close()")` on the app's CDP target (needs 9226).
 
-**MQTT (port 36669, "RemoteNOW") is a fallback, not the main route.**
-- Topics (<https://github.com/Anzic23/ha_hisense_tv-1/blob/main/docs/PROTOCOL.md>), client id `<MAC>$normal`:
-  - `/remoteapp/tv/ui_service/<id>/actions/applist`, answered on `/remoteapp/mobile/<id>/ui_service/data/applist`
-  - `.../actions/launchapp` with `{"name","urlType","storeType","url"}`
-  - `/remoteapp/tv/remote_service/<id>/actions/sendkey` with `KEY_EXIT` / `KEY_HOME` / `KEY_BACK`
-  - `.../actions/gettvstate`
-- There is no `closeapp` topic and no log topic.
-- Older sets accept the static `hisenseservice` / `multimqttservice` login. VIDAA 2022+ needs TLS
-  client certs, derived credentials and a 4-digit PIN pairing (see brad5505/hisense_vidaa). That is
-  heavy, so we only build it if 9226 turns out to be closed.
-- Unverified: whether `launchapp` starts a DevKit-sideloaded app (Suitest says those get the id
-  `debug-<AppId>`).
+**MQTT (port 36669, "RemoteNOW") is the automation channel on U9**, and it is open on our TV.
+Our TV's UPnP descriptor (`http://<tv-ip>:18400/MediaServer/rendererdevicedesc.xml`, `modelDescription`)
+reports **`transport_protocol=3290`**, which is the "modern" (VIDAA 2.0, 2024+) profile. Working
+2024–2026 implementations: stevene1919/hisense_vidaa (most active), warrenrees/pyvidaa (best write-up,
+`VIDAA_PROTOCOL_ANALYSIS.md`), and Empi9245/Sidee (tested on U09.60 `V0000.09.60A.Q0707`).
+
+- **Transport:** TLS 1.3 to 36669. The server cert is `CN=127.0.0.1` signed by a self-signed
+  `CN=RemoteCA, O=hh` (seen on our TV). Skip the name check; optionally pin RemoteCA. MQTT 3.1.1,
+  clean session, QoS 0. **One connection per client id:** a second one kicks the first.
+- **Client certificate is mandatory.** Without it, TLS succeeds but CONNECT returns rc=5, and the TV
+  says the app is "no longer compatible".
+  - The cert that works is `CN=VidaaAppAndroidV01` (valid 2024–2034). It comes from the official
+    *VIDAA Smart TV* Android APK (`com.universal.remote.multi`). Inside the APK it is a `.p12` under
+    `res/` (the name is obfuscated per build, e.g. `El.p12`), with password
+    `186e990688070325a1c4b0ce275d2388`. It uses legacy PBE, so it needs `openssl pkcs12 -legacy`.
+  - Some repos publish the key. **We do not commit it:** it is Hisense's private key. Either ask VIDAA
+    for a client cert through the PEM, or have QA supply the `.p12` locally.
+- **Credentials (modern profile),** from pyvidaa's live captures:
+  ```
+  PATTERN = "38D65DC30F45109A369A86FCE866A85B"   # MD5("&vidaa#^app").upper()
+  SALT    = "h!i@s#$v%i^d&a*a"
+  XOR     = 6239759785777146216
+  uuid    = random MAC-shaped string, generated once and persisted (tokens are bound to it)
+  ts      = TV clock: the HTTP Date header of the UPnP descriptor above
+  client_id = f"{uuid}$his${MD5(PATTERN+'$'+uuid)[:6]}_vidaacommon_001"
+  username  = f"his${ts ^ XOR}"
+  password  = MD5(f"{ts}${MD5(f'his{sum(digits(ts)) % 10}{SALT}')[:6]}")   # MD5 hex uppercase
+  ```
+  Test vector: `56:b8:88:4e:f7:19`, ts `1766974704` gives `…$his$256DBF_vidaacommon_001`,
+  `his$6239759786168176024` and `C3BA44782E18ABF4892AC44D79A622D2`.
+- **Pairing (once per uuid):**
+  1. Subscribe to `/remoteapp/mobile/CID/ui_service/data/{authentication,authenticationcode,…}` and
+     `…/platform_service/data/tokenissuance`.
+  2. Publish `/remoteapp/tv/ui_service/CID/actions/vidaa_app_connect`.
+  3. The TV shows a 4-digit PIN. Send it with `actions/authenticationcode` as `{"authNum":1234}`.
+  4. Publish `platform_service/CID/data/gettoken`. The reply carries the access and refresh tokens and
+     their lifetimes (read them from the payload).
+
+  Later sessions connect with `password = accesstoken`. A deep power-off wipes the tokens, so the
+  client then has to re-pair.
+- **Commands** (`/remoteapp/tv/<service>/CID/actions/<x>`):
+  - `ui_service/applist`: the reply is JSON entries `{appId,name,url,urlType,storeType,isunInstalled,…}`.
+    It can exceed rumqttc's 10 KB default, so raise the packet limit.
+  - `ui_service/launchapp`: echo the applist entry plus `"urlType":37,"appName","appUrl"`.
+  - `remote_service/sendkey`: `KEY_EXIT` / `KEY_HOME` / `KEY_RETURNS` / arrows / `KEY_OK` / `KEY_POWER`.
+    **Sources disagree on the payload:** plain text, or `{"KeyName":…}`. Try both on our TV.
+  - App state is pushed on the retained `/remoteapp/mobile/broadcast/ui_service/state` (`statetype`
+    `app` + `name`, `remote_launcher` = home screen, `fake_sleep_0` = standby).
+  - Sidee installs hosted web-app tiles with `ui_service/uievent`
+    `{"type":"app_install","app_info":{"Title","StoreType":99,"Id","Image","URL",…}}`.
+- **What MQTT does not do:**
+  - There is no close action. Close is `KEY_EXIT`.
+  - No working uninstall. `uninstallapp` exists in an old APK action table but gets no answer on VIDAA 9.
+    Uninstall is the launcher tile's Remove.
+  - No logs.
+- **Unverified on our TV:** whether `launchapp` starts a DevKit-sideloaded app. It should, if DevKit
+  registers a launcher tile; Suitest says those get the id `debug-<AppId>`.
 
 **Rejected or deferred:**
 - vidaa-edge / `Hisense_installApp`: needs DNS-spoofing `vidaahub.com`, and newer firmware removed it.
@@ -693,31 +738,57 @@ network. Playwright and Puppeteer are wrappers around it.
 
 **Where each operation comes from:**
 
-| Operation | Source | Depends on |
-|---|---|---|
-| List installed apps | DevKit Web, Installed Apps panel | — |
-| Install | DevKit Web form (presets from the URL table; Type `1080P`) | — |
-| Launch | DevKit Web, AppUrl + Launch | — |
-| Close | TV CDP `window.close()` on the app's target | 9226 open |
-| Inspect | open the target's DevTools frontend (`devtoolsFrontendUrl` from `/json/list`) in Chrome — what `chrome://inspect` does — falling back to `http://<tv-ip>:9226` | 9226 open |
-| Live logs | TV CDP: `Runtime.enable`, `Log.enable` → `DeviceLogService` | 9226 open |
-| Logs fallback | scrape the DevKit Web **Logger** tab | Phase 0 shows what it carries |
-| Environment / version | `appEnvironment()` on the app URL; the version from the hosted bundle's `APP_VERSION`, as `lg-hosted-app-version.service.ts` does | — |
+| Operation | Primary | Fallback | Depends on |
+|---|---|---|---|
+| List installed apps | MQTT `applist` | DevKit Web, Installed Apps panel | client cert + pairing |
+| Install | DevKit Web form (official; presets from the URL table; Type `1080P`) | MQTT `uievent` `app_install` (community, one implementation) | — |
+| Launch | MQTT `launchapp` with the applist entry | DevKit Web, AppUrl + Launch | the launchapp check on our TV |
+| Close | MQTT `sendkey KEY_EXIT`, confirmed by the state topic going to `remote_launcher` | TV CDP `window.close()` | client cert / 9226 |
+| Uninstall | none programmatic; the launcher tile's Remove | ask VIDAA (PEM) | — |
+| Running app / standby | MQTT retained `broadcast/ui_service/state` | — | client cert |
+| Inspect | open the target's DevTools frontend (`devtoolsFrontendUrl` from `/json/list`), as `chrome://inspect` does | `http://<tv-ip>:9226` | 9226 opened by VIDAA |
+| Live logs | TV CDP: `Runtime.enable`, `Log.enable` → `DeviceLogService` | DevKit Web **Logger** tab | 9226 / phase 0 |
+| Environment / version | `appEnvironment()` on the app URL; the version from the hosted bundle's `APP_VERSION`, as `lg-hosted-app-version.service.ts` does | — | — |
+
+**Debug mode on U9: what does not work, so nobody retries it.**
+- `hisense://debug` and its `debug_on` button were removed in 2023+ firmware. AVForums reports it on
+  U7; NoobyGains/stremio-vidaa-tv#36 reports it on a U9 `V0002.09.60C`.
+- The "1234 in About" developer unlock has no effect on U9.
+- There is no ADB: VIDAA is not Android. The Chinese "海信开发者模式 ADB" guides are for Hisense
+  Android TVs.
+- CDP on 9223 only worked on 2016-era firmware.
+- The DNS-spoofed `Hisense_installApp` "succeeds" on U9 but adds no tile.
+- A full TCP scan of our TV found DevTools on none of 9222–9230. Opening it is VIDAA's call (see
+  the PEM questions).
+
+**Questions for VIDAA through the PEM.** Send them with the TV's MAC, Device Code and Device ID from
+the DevKit home screen.
+1. The DevTools port is closed on 43E70QEVS (MTK9603_EU_A, U09.60, V0000.09.60W.Q0612): TCP 9222–9230
+   are refused even with a DevKit-sideloaded app in the foreground. Which port does MTK9603/9.60 use,
+   and what secure key, debug firmware or DevKit setting opens it?
+2. What is the remote-debug procedure on U9 now that `hisense://debug` / `debug_on` is gone? Can an
+   app enable it through `Hisense_setDebugPort()`?
+3. How do we uninstall a DevKit-sideloaded app? Is there an API (DevKit Web or otherwise) to install,
+   launch, close and uninstall from automated QA?
+4. What does the DevKit **Logger** tab capture (app `console.log`, errors, network)? Can it export?
+5. Can you issue a client certificate for local RemoteNOW MQTT (36669) control of our own test sets?
+6. Is there an emulator or local SDK, or is DevKit on a device the only path?
 
 ### Phases
 
-**Phase 0: checks on a real TV.** These need a person with the TV, and they gate phase 3.
-1. With FreeTV in the foreground, run `curl http://<tv-ip>:9226/json` and `curl http://<tv-ip>:9222/json`.
-   JSON back means Close, Inspect and logs are all covered.
-2. In DevKit Web with DevTools → Network ("Preserve log", WS filter):
-   - press Launch
-   - open the Logger tab
-   - hover an installed app (are there launch or delete actions?)
+**Phase 0: checks on a real TV.** These need a person with the TV.
+1. ~~DevTools port probe~~: done, closed. Send the PEM questions.
+2. MQTT spike, once QA has the client `.p12`. Run a throwaway script (pyvidaa or Sidee, not shipped):
+   pair with the PIN, then confirm on our TV that:
+   - `applist` lists the DevKit-installed FreeTV builds (record their `appId` / `url` / `storeType`)
+   - `launchapp` starts one
+   - `sendkey KEY_EXIT` closes it (and which payload form works)
+   - the state topic reports both transitions
 
-   Record what the Logger shows and the main JS bundle URL from Sources. The bundle is likely
-   downloadable without signing in, which may reveal a direct API.
-3. Does Launch work for a URL that is not installed?
-4. Record the TV model and VIDAA version from the DevKit home screen.
+   This decides whether Launch and Close go over MQTT or through DevKit Web.
+3. In DevKit Web with DevTools → Network: open the Logger tab while FreeTV runs and record what it
+   shows. Note the main JS bundle URL from Sources.
+4. ~~Record the TV model and VIDAA version~~: done (see "Our test TV").
 
 **Phase 1: platform skeleton.**
 - Add `'vidaa'` to `Platform` (`device-provider.interface.ts`) and `LogPlatform` (`device-log.model.ts`).
@@ -725,33 +796,45 @@ network. Playwright and Puppeteer are wrappers around it.
 - Enable the VIDAA card in `platform-selector.component.html`, and add a VIDAA chip in the
   platform switcher of the Tizen, Android TV and LG shells.
 - `VidaaStateService`: saved TVs `{name, ip}` in localStorage, keys `smart-tv-qa-vidaa-*`.
+- Info tab: model and firmware from the UPnP descriptor; `transport_protocol` decides the auth profile.
 
-**Phase 2: DevKit bridge.**
-- New Rust plugin `vidaa` (`plugins/vidaa.rs`):
-  - `vidaa_devkit_open`, `vidaa_devkit_status`, `vidaa_devkit_close`
-  - `vidaa_list_apps`, `vidaa_install`, `vidaa_launch`
-  - the driver JS kept beside it and pulled in with `include_str!`
-- Register it in `lib.rs` and `capabilities/app.json`, and list every command in all three places
-  (see [Adding a Tauri Command](#adding-a-tauri-command--three-places-not-one)). Extend `acl_tests`
-  to the new plugin.
+**Phase 2a: MQTT control (if the phase 0 spike passes).**
+- New Rust plugin `vidaa` (`plugins/vidaa.rs`) using `rumqttc` with `TlsConfiguration::Rustls`:
+  - a verifier that accepts RemoteCA without the name check
+  - client auth from PEM
+  - `set_max_packet_size(1<<20, 1<<20)`
+  - one long-lived connection per TV
+- Credential derivation with unit tests on the vectors above.
+- Commands: `vidaa_pair`, `vidaa_submit_pin`, `vidaa_list_apps`, `vidaa_launch`, `vidaa_send_key`, and
+  `vidaa_state` as an event channel.
+- Tokens and uuid stored per TV in the app data dir, not localStorage.
+- The cert is loaded from a `.p12` QA picks once. It is converted in-app with the known password and
+  never committed.
 - UI:
-  - a Connect DevKit button with its connection state
-  - the app list with environment badge and version, with Launch and Close per row
-  - Install with one-click PreProd / UAT / Prod presets, plus a custom URL
-  - progress through the existing progress dialog
+  - Pair (PIN dialog)
+  - the app list with environment badge and version
+  - **Launch / Close** per row, the same buttons as Tizen
+  - a small remote (arrows, OK, Back, Home, Exit)
 
-**Phase 3: TV DevTools (only if phase 0 found the port).**
-- Close via `window.close()`.
+**Phase 2b: DevKit Web bridge (install; and launch/list if MQTT is unavailable).**
+- `vidaa_devkit_open` / `_status` / `_close` / `_install`, plus `_list` / `_launch` as fallbacks. This is
+  the CDP-driven Chrome described above, with the driver JS beside it via `include_str!`.
+- Install with one-click PreProd / UAT / Prod presets, plus a custom URL, through the progress dialog.
+
+For either plugin, list every command in all three places (see
+[Adding a Tauri Command](#adding-a-tauri-command--three-places-not-one)), and extend `acl_tests` to it.
+
+**Phase 3: TV DevTools (once VIDAA opens the port).**
 - Inspect button.
 - A persistent CDP log stream into `DeviceLogService`, plus a log viewer component (filter, search,
   copy). Nothing consumes `DeviceLogService` today, so the same viewer can later serve Tizen
   (`sdb dlog`) and Android TV (`logcat`).
-- Optionally, the stress test, reusing the Tizen CDP check.
-- If 9226 is closed: logs from the DevKit Logger tab, Close via MQTT `KEY_EXIT`. Revisit Chii only if
-  QA needs more than that.
+- The stress test, reusing the Tizen CDP check. Until then, stress can run launch → wait → state
+  topic says `app` → `KEY_EXIT`, without the title check.
+- Until 9226 opens: the DevKit Logger tab, if phase 0 shows it carries the console.
 
 **Phase 4: docs and tests.**
-- Rust unit tests for browser discovery and CDP target selection.
+- Rust unit tests for credential derivation, browser discovery and CDP target selection.
 - Update this section with what phase 0 found.
 
 ### Risks
@@ -760,7 +843,10 @@ network. Playwright and Puppeteer are wrappers around it.
   selector failed.
 - **Sessions expire:** detect it and offer Reconnect. Never retry the connection code.
 - **No Chromium-family browser installed:** explicit message. Safari cannot be driven.
-- **9226 closed on our firmware** (the first probe says it is): ask VIDAA via the PEM to open it. Until then, full console logs need Chii or a debug flag from the FreeTV team.
+- **9226 closed on our firmware** (a full scan confirms it): ask VIDAA via the PEM to open it. Until then, full console logs need the DevKit Logger, Chii, or a debug flag from the FreeTV team.
+- **MQTT client certificate:** Hisense's own key, extracted from their app. Don't commit or redistribute
+  it; prefer a cert from VIDAA. Hisense can rotate it: the 2018 one is already rejected.
+- **MQTT tokens vanish on a deep power-off:** detect rc=4/5, try a refresh once, then ask to re-pair.
 - **DevTools frontend version mismatch:** VIDAA asks for a Chromium matching the TV's WEBRUNTIME. Our own log stream speaks raw CDP (`Runtime` / `Log` domains, stable across versions), so this only affects the Inspect window.
 - **A DevKit-sideloaded app may not get the URL as its CDP target title:** match targets by URL first,
   then by title.
