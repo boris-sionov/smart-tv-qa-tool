@@ -674,6 +674,22 @@ read from its JS and exercised on our TV on 2026-10-06.**
     (OK). It then received TV_INFO and the installed-apps list, including `debug-FreeTV PreProd`.
 
 **The TV can expose Chrome DevTools, the route for logs and Inspect, but on our U9 set it is closed.**
+- **The documented switch is in DevKit, and it is not enough on our set.** VIDAA's partner docs
+  ("Enable Chrome devtools") give these steps:
+  1. With DevKit authorized by the PEM's SecureCode, open DevKit → **Advanced Features** →
+     **Open DevTools**.
+  2. Do an AC reboot (unplug from the wall).
+  3. Open an app installed through DevKit.
+  4. Browse to `http://<tv-ip>:9226`.
+
+  On our 43E70QEVS (U09.60, DevKit 3.4.5), on 2026-10-06, all of this was done: Advanced Features
+  shows **Close DevTools**, meaning it is on; the TV was unplugged; FreeTV PreProd was opened from
+  My Apps; the Mac was on the same LAN, where 36669 and 18400 answer. 9222 / 9224 / 9226 / 9229
+  were still refused. That is the docs' "some models do not open the DevTools port by default —
+  contact VIDAA" case, and it is with the PEM.
+- Advanced Features also has **Environment Setting**, which switches the TV between Production / Test
+  / On-site Test / Partner environments. Leave it on **Production Env**. The docs warn that
+  switching can leave the TV's data inconsistent.
 - Current official page: <https://partner-doc.vidaa.com/vdocs/development/devtools.html> (behind the
   partner login). Its port table:
   - **U4 and above: 9226**
