@@ -644,9 +644,24 @@ read from its JS and exercised on our TV on 2026-10-06.**
   - The page refuses to install a URL that is already in the list. Use EDIT_APP for that.
   - Launch disconnects the PC session unless TV_INFO says `Support Background Running: Yes`. Ours
     does, so launching kept the session.
-- **Logs:** the Logger tab is passive. It only shows TV_Log (11) frames the TV pushes, and has no
-  "start" request. With FreeTV PreProd running, nothing arrived. App `console.log` is not forwarded
-  by default.
+- **Logs: DevKit carries no app logs.** The Logger tab is passive: it only shows TV_Log (11) frames
+  the TV pushes, and has no "start" request. Tested on 2026-10-06 with `data:` probe pages, listening
+  on the relay for 40 s each time:
+  - FreeTV PreProd running: nothing arrived.
+  - A page writing `console.log` / `info` / `warn` / `error` every 2 s and throwing one uncaught
+    error: 0 log frames.
+  - The same page calling **`Hisense.log(...)`**, a function on the `Hisense` global next to
+    `Hisense.VirtualKeyboard`, with one, two and object arguments: 0 log frames.
+  - What TV_Log is for stays unknown; one of the PEM questions asks.
+  - `omi_platform` exposes only `addPlatformEventListener` / `sendPlatformMessage`.
+- **FreeTV cannot be wrapped for logging.** Its bundle (v1.28.2) has no remote-log / vConsole /
+  Sentry / `?debug` hook, though it calls `console.*` about 125 times. Its hosts send no CORS headers,
+  so a wrapper page cannot fetch and re-host it with a console hook, and running it from another
+  origin would break its storage and API calls.
+- **So app logs need one of two things:**
+  - VIDAA opening DevTools (9226) on our sets
+  - the FreeTV team adding an opt-in console forwarder, e.g. an app-URL parameter pointing at a
+    receiver in the QA tool
 - **Verified end to end on our TV:**
   - QA deleted FreeTV PreProd on the TV.
   - Install over the socket: `debug-FreeTV PreProd` with the PreProd badged icon appeared, on the TV
