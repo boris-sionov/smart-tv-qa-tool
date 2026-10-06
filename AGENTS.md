@@ -458,7 +458,7 @@ open questions are in [VIDAA (Hisense) — Implementation Plan](#vidaa-hisense--
 - **App format:** none. A hosted app is an app URL plus an icon URL; the TV names it `debug-<AppName>`.
 - **UI:** `src/app/vidaa/`:
   - the code field and connection state
-  - one-click PreProd / UAT / Prod installs (`vidaa-presets.ts`)
+  - an **Install App** form for any URL, with a quick-fill for the FreeTV PreProd / UAT / Prod builds (`vidaa-presets.ts`)
   - Launch / Close / Remove per row
   - an Info tab with TV_INFO and the DevKit log
 

@@ -8,9 +8,19 @@
       }
     </div>
     @if (state.connected) {
-      <div class="toolbar-actions">
-        <button class="btn btn-secondary text-nowrap" style="height:42px;" (click)="disconnect()">
+      <div class="install-btn-container toolbar-actions">
+        <button class="btn btn-secondary text-nowrap me-2" style="height:42px;" (click)="disconnect()"
+                title="Disconnect from the TV's DevKit">
           <i class="bi bi-plug me-2"></i>Disconnect
+        </button>
+        <button class="btn btn-primary text-nowrap install-btn" (click)="showInstall = !showInstall" [disabled]="!!busy">
+          @if (busy === 'install') {
+            <span class="spinner-mini me-2"></span>
+            <span>Installing...</span>
+          } @else {
+            <i class="bi bi-link-45deg me-2"></i>
+            <span>Install App</span>
+          }
         </button>
       </div>
     }
@@ -51,42 +61,18 @@
       </section>
     } @else {
       <section class="tizen-shell">
-        <div class="installed-apps-panel">
-          <div class="installed-apps-header">
-            <div>
-              <div class="tizen-kicker">FreeTV</div>
-              <h3>Install a build</h3>
+        @if (showInstall) {
+          <div class="installed-apps-panel">
+            <div class="installed-apps-header">
+              <h3>Install from a URL</h3>
+              <select class="modern-input preset-select" name="preset" [ngModel]="''" (ngModelChange)="fillPreset($event)"
+                      title="Fill the fields with a FreeTV build">
+                <option value="" disabled>Fill with a FreeTV build…</option>
+                @for (preset of presets; track preset.url) {
+                  <option [value]="preset.url">{{ preset.environment }}</option>
+                }
+              </select>
             </div>
-            <button class="action-button small" type="button" (click)="showCustom = !showCustom">
-              <i class="bi" [class.bi-plus-lg]="!showCustom" [class.bi-x-lg]="showCustom"></i>
-              <span>Custom URL</span>
-            </button>
-          </div>
-
-          <div class="preset-row">
-            @for (preset of presets; track preset.url) {
-              @let installed = installedFrom(preset);
-              <button class="preset-card" type="button" (click)="installPreset(preset)"
-                      [disabled]="!!busy || !!installed"
-                      [title]="installed ? preset.name + ' is installed as ' + installed.AppName : 'Install ' + preset.url">
-                <img [src]="preset.iconUrl" alt="" class="preset-icon">
-                <span class="preset-copy">
-                  <span class="preset-name">{{ preset.environment }}</span>
-                  <span class="preset-state">
-                    @if (busy === preset.name) {
-                      <span class="spinner-mini"></span> Installing…
-                    } @else if (installed) {
-                      <i class="bi bi-check2"></i> Installed
-                    } @else {
-                      <i class="bi bi-download"></i> Install
-                    }
-                  </span>
-                </span>
-              </button>
-            }
-          </div>
-
-          @if (showCustom) {
             <form class="custom-form" (ngSubmit)="installCustom()">
               <input class="modern-input" name="name" placeholder="App name (letters, digits, spaces)" [(ngModel)]="custom.name" required>
               <input class="modern-input" name="url" placeholder="App URL — https://…/index.html" [(ngModel)]="custom.url" required>
@@ -96,25 +82,25 @@
                 <option value="store">720P</option>
               </select>
               <button class="action-button primary" type="submit" [disabled]="!!busy || !custom.name.trim() || !custom.url.trim()">
-                @if (busy === 'custom') {
-                  <span class="spinner-mini"></span><span>Installing…</span>
-                } @else {
-                  <i class="bi bi-download"></i><span>Install</span>
-                }
+                <i class="bi bi-download"></i><span>Install</span>
               </button>
             </form>
-          }
-        </div>
+          </div>
+        }
 
         <div class="tizen-header">
           <div>
-            <div class="tizen-kicker">VIDAA DevKit</div>
+            <div class="tizen-kicker">Hisense VIDAA</div>
             <h2>Installed Apps</h2>
           </div>
         </div>
 
         @if (apps.length === 0) {
-          <div class="mini-empty"><i class="bi bi-inbox"></i>No sideloaded apps on this TV yet.</div>
+          <div class="tizen-empty-state">
+            <i class="bi bi-inbox"></i>
+            <h3>No Apps Found</h3>
+            <p>No sideloaded apps on this TV yet. Use <strong>Install App</strong> to add one.</p>
+          </div>
         } @else {
           <div class="tizen-app-list">
             @for (app of apps; track app.Id) {

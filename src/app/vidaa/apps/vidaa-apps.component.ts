@@ -4,7 +4,7 @@ import {Subscription} from 'rxjs';
 import {errorMessage, VidaaApp, VidaaResolution, VidaaService, VidaaState} from '../../core/services/vidaa.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {appEnvironment, isPriorityApp} from '../../shared/known-apps';
-import {presetForUrl, VIDAA_PRESETS, VidaaPreset} from '../vidaa-presets';
+import {presetForUrl, VIDAA_PRESETS} from '../vidaa-presets';
 
 @Component({
     selector: 'app-vidaa-apps',
@@ -23,7 +23,7 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
     /** Id (or preset name) of the row whose action is running. */
     busy: string | null = null;
 
-    showCustom = false;
+    showInstall = false;
     custom = {name: '', url: '', iconUrl: '', resolution: 'hisense' as VidaaResolution};
 
     private sub?: Subscription;
@@ -80,23 +80,21 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
         return presetForUrl(app.URL)?.environment ?? appEnvironment(app.URL, app.AppName);
     }
 
-    installedFrom(preset: VidaaPreset): VidaaApp | undefined {
-        return this.state.apps.find(a => presetForUrl(a.URL) === preset);
-    }
-
-    async installPreset(preset: VidaaPreset): Promise<void> {
-        await this.runInstall(preset.name, preset.url, preset.iconUrl, 'hisense', preset.name);
+    /** Prefills the install form with a FreeTV build from the URL table. */
+    fillPreset(url: string): void {
+        const preset = VIDAA_PRESETS.find(p => p.url === url);
+        if (preset) this.custom = {name: preset.name, url: preset.url, iconUrl: preset.iconUrl, resolution: 'hisense'};
     }
 
     async installCustom(): Promise<void> {
         const {name, url, iconUrl, resolution} = this.custom;
-        if (await this.runInstall(name.trim(), url.trim(), iconUrl.trim(), resolution, 'custom')) {
+        if (await this.runInstall(name.trim(), url.trim(), iconUrl.trim(), resolution)) {
             this.custom = {name: '', url: '', iconUrl: '', resolution: 'hisense'};
-            this.showCustom = false;
+            this.showInstall = false;
         }
     }
 
-    private async runInstall(name: string, url: string, iconUrl: string, resolution: VidaaResolution, key: string): Promise<boolean> {
+    private async runInstall(name: string, url: string, iconUrl: string, resolution: VidaaResolution): Promise<boolean> {
         if (this.busy) return false;
         // DevKit refuses a URL that is already installed; say so before the TV does.
         const existing = this.state.apps.find(a => a.URL === url);
@@ -104,7 +102,7 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
             this.fail('Already installed', `"${existing.AppName}" already uses this URL. Remove it first to reinstall.`);
             return false;
         }
-        this.busy = key;
+        this.busy = 'install';
         try {
             await this.vidaa.install(name, url, iconUrl, resolution);
             return true;
