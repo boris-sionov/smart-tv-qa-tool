@@ -640,9 +640,10 @@ read from its JS and exercised on our TV on 2026-10-06.**
     and in the list.
   - Launch over the socket: the app opened on the TV.
 
-  Both were driven through the page's socket in a CDP-controlled Chrome. The same frames can be sent
-  from Rust without a browser. That still needs one check: the connection code from a non-browser
-  client.
+  Both were driven through the page's socket in a CDP-controlled Chrome.
+  - **No browser needed, verified the same day.** A plain Node script, with no cookies and no partner
+    login, took a fresh TV code through `verifyConnectionCode` (200, `authCode`) and `connectPC`
+    (OK). It then received TV_INFO and the installed-apps list, including `debug-FreeTV PreProd`.
 
 **The TV can expose Chrome DevTools, the route for logs and Inspect, but on our U9 set it is closed.**
 - Current official page: <https://partner-doc.vidaa.com/vdocs/development/devtools.html> (behind the
@@ -757,7 +758,7 @@ the DevKit protocol above is spoken directly.
 - One socket per TV, kept alive with `heartbeat`, and reconnected on close with the same `authCode`.
   TV_INFO and INSTALLED_APPS arrive as pushes and update the UI.
 - Requests are correlated by `messageId`. Install, edit and uninstall resolve on the type 8 feedback.
-- If the relay ever starts requiring the partner session, fall back to the CDP-driven Chrome:
+- Verified without a browser (see above). If the relay ever starts requiring the partner session, fall back to the CDP-driven Chrome:
   `--remote-debugging-port`, a persistent `--user-data-dir`, the user signs in once, and frames are
   sent through the page's own socket (`Home` component → `sendMessage`). That is how the first test ran.
 
@@ -804,8 +805,7 @@ the DevKit home screen.
 **Phase 0: checks on a real TV.**
 1. ~~DevTools port probe~~: closed. Send the PEM questions.
 2. ~~DevKit install + launch~~: verified on 2026-10-06 (see above).
-3. Check that the connection code works from a non-browser client: run the verify POST and socket
-   from Node or Rust with a fresh code. Expect it to work, since there are no cookies.
+3. ~~Connection code from a non-browser client~~: verified. No partner login is needed.
 4. Uninstall over the socket (type 10) on a throwaway entry.
 5. MQTT spike (Close via `KEY_EXIT` and the state topic), once QA has the client `.p12`. Close is
    the one operation DevKit lacks.
