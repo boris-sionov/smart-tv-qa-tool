@@ -177,7 +177,6 @@ smart-tv-qa-tool/
 │   ├── download-sdb.sh              # Downloads SDB binary (macOS/Linux)
 │   └── download-sdb.ps1             # Downloads SDB binary (Windows)
 │
-├── CLAUDE.md                        # Claude Code project instructions
 ├── AGENTS.md                        # Developer / agent reference
 └── Smart-TV-QA-Tool.code-workspace  # VS Code workspace
 ```
