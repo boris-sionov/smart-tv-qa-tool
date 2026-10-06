@@ -449,6 +449,25 @@ list already fetched, so two PreProd builds are as distinguishable in our list a
 - **Connection:** MQTT-over-TLS port 36669, credentials `hisenseservice` / `multimqttservice`
 - **Plan:** Rust MQTT client (`rumqttc` crate), `VidaaProvider` implementing `DeviceProvider`
 
+#### Devkit Install — App And Icon URLs
+
+FreeTV on VIDAA is a hosted web app: the devkit installs it from an app URL plus an icon URL, with
+nothing packaged. These are the pairs QA installs with:
+
+| Environment | App URL | Icon URL |
+|---|---|---|
+| PreProd | `https://uat-web.freetv.tv/apps/smarttv/preprod/hisense/index.html` | `https://raw.githubusercontent.com/boris-sionov/smart-tv-qa-tool/main/src/assets/lg-icons/freetv-lg-preprod-icon.png` |
+| UAT | `https://uat-web.freetv.tv/apps/smarttv/web/index.html` | `https://raw.githubusercontent.com/boris-sionov/smart-tv-qa-tool/main/src/assets/lg-icons/freetv-lg-uat-icon.png` |
+| Prod | `https://web.freetv.tv/apps/smarttv/web/index.html` | `https://raw.githubusercontent.com/boris-sionov/smart-tv-qa-tool/main/src/assets/lg-icons/freetv-lg-store-icon.png` |
+
+The icons are the webOS badged ones (see [Environment Icons](#environment-icons)), served from this
+repo's `main` — renaming or moving those files breaks every Hisense install that points at them.
+
+FreeTV hosts no icon of its own for these builds. `uat-web.freetv.tv` answers **every** unknown path
+with the app's index page and a 200, `icon.png` included, so a 200 there proves nothing — check the
+`Content-Type` is `image/png`. The only real images next to each build are the unbadged
+`1280x720-logo.png` / `1920x1080-logo.png`.
+
 ---
 
 ## Sidecar Binaries
