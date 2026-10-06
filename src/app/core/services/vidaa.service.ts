@@ -92,6 +92,12 @@ export class VidaaService {
         await invoke('plugin:vidaa|vidaa_launch', {url: app.URL, resolution: app.StoreType || 'hisense'});
     }
 
+    /** Closes the web app in the foreground, whichever it is — the TV runs one at a time. */
+    async close(): Promise<void> {
+        vidaaLog('close foreground app');
+        await invoke('plugin:vidaa|vidaa_close');
+    }
+
     async uninstall(app: VidaaApp): Promise<void> {
         vidaaLog(`uninstall ${app.Id}`);
         await invoke('plugin:vidaa|vidaa_uninstall', {id: app.Id});

@@ -46,6 +46,12 @@ const TYPE_INSTALL_FEEDBACK: u64 = 8;
 const TYPE_UNINSTALL_APP: u64 = 10;
 const TYPE_TV_LOG: u64 = 11;
 
+/// What Close launches. DevKit has no close command, but DEEPLINKING replaces whatever web app
+/// is in the foreground, and a page that calls `window.close()` then hands the screen back to the
+/// launcher — verified on our U9 set: FreeTV PreProd went away and the TV returned home. The
+/// second call is a fallback for firmware that ignores a plain `window.close()`.
+const CLOSE_PAGE: &str = "data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cbody%20style%3D%22background%3A%23000%22%3E%3Cscript%3Ewindow.close()%3BsetTimeout(function()%7Btry%7Bwindow.open(''%2C'_self').close()%7Dcatch(e)%7B%7D%7D%2C1500)%3C%2Fscript%3E";
+
 const RESPONSE_PC_CONNECTED: u64 = 1;
 const RESPONSE_SEND_SUCCESS: u64 = 2;
 
@@ -435,6 +441,15 @@ async fn vidaa_launch(state: State<'_, VidaaState>, url: String, resolution: Opt
     session.request(message(TYPE_DEEPLINKING, payload, session.next_id()), None).await
 }
 
+/// Closes the web app in the foreground — whichever it is; the TV runs one at a time.
+#[tauri::command]
+async fn vidaa_close(state: State<'_, VidaaState>) -> Result<(), Error> {
+    let session = state.current().await?;
+    log::info!("[vidaa] close the foreground app");
+    let payload = json!({"url": CLOSE_PAGE, "type": "hisense"});
+    session.request(message(TYPE_DEEPLINKING, payload, session.next_id()), None).await
+}
+
 #[tauri::command]
 async fn vidaa_uninstall(state: State<'_, VidaaState>, id: String) -> Result<(), Error> {
     let session = state.current().await?;
@@ -456,6 +471,7 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             vidaa_status,
             vidaa_install,
             vidaa_launch,
+            vidaa_close,
             vidaa_uninstall,
         ])
         .setup(|app, _api| {
@@ -502,6 +518,24 @@ mod tests {
     fn urlencode_matches_encode_uri_component() {
         assert_eq!(urlencode("a+b/c=="), "a%2Bb%2Fc%3D%3D");
         assert_eq!(urlencode("Az09-_.~"), "Az09-_.~");
+    }
+
+    #[test]
+    fn close_page_decodes_to_a_self_closing_page() {
+        let encoded = CLOSE_PAGE.strip_prefix("data:text/html;charset=utf-8,").unwrap();
+        let mut bytes = Vec::new();
+        let mut it = encoded.bytes();
+        while let Some(b) = it.next() {
+            if b == b'%' {
+                let hex = [it.next().unwrap(), it.next().unwrap()];
+                bytes.push(u8::from_str_radix(std::str::from_utf8(&hex).unwrap(), 16).unwrap());
+            } else {
+                bytes.push(b);
+            }
+        }
+        let html = String::from_utf8(bytes).unwrap();
+        assert!(html.contains("<script>window.close();"), "{html}");
+        assert!(html.ends_with("</script>"), "{html}");
     }
 
     #[test]

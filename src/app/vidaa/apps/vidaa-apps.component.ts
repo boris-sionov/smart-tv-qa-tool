@@ -128,6 +128,18 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
         }
     }
 
+    async close(app: VidaaApp): Promise<void> {
+        if (this.busy) return;
+        this.busy = 'close:' + app.Id;
+        try {
+            await this.vidaa.close();
+        } catch (e) {
+            this.fail('Failed to close app', errorMessage(e), e);
+        } finally {
+            this.busy = null;
+        }
+    }
+
     async remove(app: VidaaApp): Promise<void> {
         if (this.busy) return;
         const confirm = MessageDialogComponent.open(this.modalService, {

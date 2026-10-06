@@ -6,5 +6,6 @@ permissions = [
   "allow-vidaa-status",
   "allow-vidaa-install",
   "allow-vidaa-launch",
+  "allow-vidaa-close",
   "allow-vidaa-uninstall",
 ]

@@ -146,9 +146,13 @@
                     }
                     <span>Launch</span>
                   </button>
-                  <button class="app-action warning" type="button" aria-label="Close" disabled
-                          title="DevKit has no close command. Use Exit on the remote for now — closing from here needs the TV's MQTT remote or DevTools (see AGENTS.md).">
-                    <i class="bi bi-stop-fill"></i>
+                  <button class="app-action warning" type="button" aria-label="Close" (click)="close(app)" [disabled]="!!busy"
+                          title="Closes the app on screen and returns the TV to its home screen">
+                    @if (busy === 'close:' + app.Id) {
+                      <span class="spinner-mini"></span>
+                    } @else {
+                      <i class="bi bi-stop-fill"></i>
+                    }
                     <span>Close</span>
                   </button>
                   <button class="app-action danger" type="button" aria-label="Remove" (click)="remove(app)" [disabled]="!!busy">

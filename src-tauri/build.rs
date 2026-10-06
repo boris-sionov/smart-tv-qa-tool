@@ -55,6 +55,7 @@ fn main() {
                     "vidaa_status",
                     "vidaa_install",
                     "vidaa_launch",
+                    "vidaa_close",
                     "vidaa_uninstall",
                 ]),
             )
