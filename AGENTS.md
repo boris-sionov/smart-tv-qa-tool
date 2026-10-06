@@ -758,7 +758,7 @@ network. Playwright and Puppeteer are wrappers around it.
   Android TVs.
 - CDP on 9223 only worked on 2016-era firmware.
 - The DNS-spoofed `Hisense_installApp` "succeeds" on U9 but adds no tile.
-- A full TCP scan of our TV found DevTools on none of 9222–9230. Opening it is VIDAA's call (see
+- Repeated probes of our TV, with FreeTV in the foreground, found none of 9222–9230 open. Opening it is VIDAA's call (see
   the PEM questions).
 
 **Questions for VIDAA through the PEM.** Send them with the TV's MAC, Device Code and Device ID from
@@ -843,7 +843,7 @@ For either plugin, list every command in all three places (see
   selector failed.
 - **Sessions expire:** detect it and offer Reconnect. Never retry the connection code.
 - **No Chromium-family browser installed:** explicit message. Safari cannot be driven.
-- **9226 closed on our firmware** (a full scan confirms it): ask VIDAA via the PEM to open it. Until then, full console logs need the DevKit Logger, Chii, or a debug flag from the FreeTV team.
+- **9226 closed on our firmware** (repeated probes confirm it): ask VIDAA via the PEM to open it. Until then, full console logs need the DevKit Logger, Chii, or a debug flag from the FreeTV team.
 - **MQTT client certificate:** Hisense's own key, extracted from their app. Don't commit or redistribute
   it; prefer a cert from VIDAA. Hisense can rotate it: the 2018 one is already rejected.
 - **MQTT tokens vanish on a deep power-off:** detect rc=4/5, try a refresh once, then ask to re-pair.
