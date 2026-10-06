@@ -574,8 +574,11 @@ First port probe from the QA Mac (October 2026, DevKit connected, FreeTV **not**
 - **36669 (MQTT) is open**
 - 9222 / 9223 / 9224 / 9226 / 9229 all refuse
 
-So either DevTools opens only while a sideloaded app runs, or this U9 firmware keeps it closed. That
-is the U9 risk below, and the first thing phase 0 settles.
+A second probe returned the same result. A *refused* TCP connection means nothing is listening on the
+port, so this is not the "direct HTTP access is deprecated" caveat in the official docs. The VIDAA
+docs say some models ship with the port closed and that VIDAA opens it on request. Unless phase 0
+shows it opening while a sideloaded app runs, **ask VIDAA through our PEM (partner manager) to enable
+DevTools on this set.**
 
 ### Research findings
 
@@ -590,6 +593,15 @@ is the U9 risk below, and the first thing phase 0 settles.
   afterwards.
 
 **The TV exposes Chrome DevTools, which is the route for logs, Inspect and Close.**
+- Current official page: <https://partner-doc.vidaa.com/vdocs/development/devtools.html> (behind the
+  partner login). Its port table:
+  - **U4 and above: 9226**
+  - U2.5: 9222
+
+  It recommends Chrome's `chrome://inspect` → *Configure* → `<tv-ip>:9226` over opening the port by
+  HTTP, and says the DevTools frontend should be a Chromium matching the WEBRUNTIME version. It also
+  says some models do not open the port by default ("contact VIDAA"), and that TV system logs (as
+  opposed to the app console) are exported only with VIDAA, through the PEM.
 - Official *WebApp Development Guide for VIDAA* §9 ("Enable remote devtools"): open
   `http://<tv-ip>:9226` from a Chromium browser on the LAN (9222, sometimes 9224, on MT5658/5659 and
   MSD6586). It provides the console, DOM, network, timeline and heap tools. U4-era production sets need
@@ -687,7 +699,7 @@ network. Playwright and Puppeteer are wrappers around it.
 | Install | DevKit Web form (presets from the URL table; Type `1080P`) | — |
 | Launch | DevKit Web, AppUrl + Launch | — |
 | Close | TV CDP `window.close()` on the app's target | 9226 open |
-| Inspect | open `http://<tv-ip>:9226` in the system browser, as Tizen does | 9226 open |
+| Inspect | open the target's DevTools frontend (`devtoolsFrontendUrl` from `/json/list`) in Chrome — what `chrome://inspect` does — falling back to `http://<tv-ip>:9226` | 9226 open |
 | Live logs | TV CDP: `Runtime.enable`, `Log.enable` → `DeviceLogService` | 9226 open |
 | Logs fallback | scrape the DevKit Web **Logger** tab | Phase 0 shows what it carries |
 | Environment / version | `appEnvironment()` on the app URL; the version from the hosted bundle's `APP_VERSION`, as `lg-hosted-app-version.service.ts` does | — |
@@ -748,7 +760,8 @@ network. Playwright and Puppeteer are wrappers around it.
   selector failed.
 - **Sessions expire:** detect it and offer Reconnect. Never retry the connection code.
 - **No Chromium-family browser installed:** explicit message. Safari cannot be driven.
-- **9226 closed on our firmware:** full console logs then need Chii or a debug flag from the FreeTV team.
+- **9226 closed on our firmware** (the first probe says it is): ask VIDAA via the PEM to open it. Until then, full console logs need Chii or a debug flag from the FreeTV team.
+- **DevTools frontend version mismatch:** VIDAA asks for a Chromium matching the TV's WEBRUNTIME. Our own log stream speaks raw CDP (`Runtime` / `Log` domains, stable across versions), so this only affects the Inspect window.
 - **A DevKit-sideloaded app may not get the URL as its CDP target title:** match targets by URL first,
   then by title.
 
