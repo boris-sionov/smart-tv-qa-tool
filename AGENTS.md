@@ -446,16 +446,29 @@ list already fetched, so two PreProd builds are as distinguishable in our list a
 | Tizen | `icon.png` inside the WGT, before signing | drawn, `PREPROD-1.26.0` | during install |
 | Android TV | nowhere on the device — our app list only | bundled PNG per environment | n/a (the APK's banner is baked in) |
 
-### VIDAA TV (Hisense) — In Design
+### VIDAA TV (Hisense)
 
-Not implemented yet. The approach is no longer the MQTT-first one this file used to describe: app
-control goes through the VIDAA **DevKit Web** page driven over CDP, and logs come from the TV's own
-DevTools port. Full design and its open questions:
-[VIDAA (Hisense) — Implementation Plan](#vidaa-hisense--implementation-plan).
+Install, list, Launch, Close and Remove work, and were verified on our U9 test set on 2026-10-06.
+Logs and Inspect do not, because the TV's DevTools port is closed. Design, protocol, research and
+open questions are in [VIDAA (Hisense) — Implementation Plan](#vidaa-hisense--implementation-plan).
 
-- **Sideload:** VIDAA DevKit (TV app) + DevKit Web on a PC — hosted app, installed by URL
-- **App format:** none — an app URL plus an icon URL
-- **Debug / logs:** Chrome DevTools at `http://<tv-ip>:9226` (9222 on older chipsets) — *unverified on our TVs*
+- **Connection:** the TV's DevKit app → *Connect to PC* shows a 6-character code. The `vidaa`
+  plugin (`plugins/vidaa.rs`) trades it for a session on VIDAA's DevKit relay. There is no browser,
+  no partner login, and no LAN connection to the TV: both sides reach the relay over the internet.
+- **App format:** none. A hosted app is an app URL plus an icon URL; the TV names it `debug-<AppName>`.
+- **UI:** `src/app/vidaa/`:
+  - the code field and connection state
+  - an **Install App** form for any URL, with a quick-fill for the FreeTV PreProd / UAT / Prod builds (`vidaa-presets.ts`)
+  - Launch / Close / Remove per row
+  - an Info tab with TV_INFO and the DevKit log
+
+  The session lives in Rust and survives page navigation. It does not reconnect by itself:
+  after a drop the page asks for a new code.
+- **Close** launches a `data:` page that calls `window.close()`. DevKit has no close command, but
+  launching any URL replaces the app on screen, and a page that closes itself hands the screen back
+  to the launcher. It closes whatever is on screen, because the TV runs one web app at a time.
+- **Debug / logs:** Chrome DevTools at `http://<tv-ip>:9226` per VIDAA's docs. **Closed on our set**;
+  VIDAA has to open it.
 
 #### Devkit Install — App And Icon URLs
 
@@ -527,7 +540,7 @@ smooth transitions.
 | Samsung Tizen | ✅ Full — install, launch, kill, inspect, stress test | SDB + tz CLI |
 | Android TV | ✅ Full — install, launch, kill, device info | ADB (Rust sidecar) |
 | LG WebOS | ✅ Working — install, launch, kill, inspect, stress test | SSH + Luna API |
-| VIDAA (Hisense) | ⏳ In design — see [the plan](#vidaa-hisense--implementation-plan) | DevKit Web over CDP + TV DevTools |
+| VIDAA (Hisense) | ✅ Working — install, launch, close, remove (no logs / inspect yet) | VIDAA DevKit relay (WebSocket) |
 
 ---
 
@@ -536,7 +549,7 @@ smooth transitions.
 | Priority | Item | Notes |
 |----------|------|-------|
 | Now | Fix Samsung Tizen Info tab | Branch: `fix-samsung-info`; reads `/etc/info.ini` via `tizen_get_device_info` — check the fields returned vs displayed, the `TizenInfoEntry` parsing, and the UI mapping |
-| Now | VIDAA TV support | [Implementation plan](#vidaa-hisense--implementation-plan) — phase 0 checks on the TV first |
+| Now | VIDAA logs / Inspect | Ask VIDAA via the PEM to open DevTools (9226) — [questions](#vidaa-hisense--implementation-plan) |
 | Soon | LG WebOS into `DeviceProviderFactory` | Wrap `RemoteLunaService` / `RemoteCommandService` in `WebOSProvider` |
 | Soon | Screenshot from Samsung TV | `sdb shell 0 screencapture` + `sdb pull` (not on all firmware), or CDP `Page.captureScreenshot` on a debug build |
 | Later | Persistent device state | Stop wiping on startup |
@@ -546,7 +559,7 @@ smooth transitions.
 
 ## VIDAA (Hisense) — Implementation Plan
 
-Status: **researched; DevKit install + launch verified on our TV, no product code yet** (October 2026). Goal: the same per-app **Launch / Close** buttons,
+Status: **phases 1 and 2b shipped. Install, launch, close and remove work on our TV. Logs and Inspect wait on VIDAA** (October 2026). Goal: the same per-app **Launch / Close** buttons,
 install and logs that Tizen, LG and Android TV have, for FreeTV on a Hisense VIDAA TV.
 
 ### How QA does it by hand today
@@ -631,9 +644,24 @@ read from its JS and exercised on our TV on 2026-10-06.**
   - The page refuses to install a URL that is already in the list. Use EDIT_APP for that.
   - Launch disconnects the PC session unless TV_INFO says `Support Background Running: Yes`. Ours
     does, so launching kept the session.
-- **Logs:** the Logger tab is passive. It only shows TV_Log (11) frames the TV pushes, and has no
-  "start" request. With FreeTV PreProd running, nothing arrived. App `console.log` is not forwarded
-  by default.
+- **Logs: DevKit carries no app logs.** The Logger tab is passive: it only shows TV_Log (11) frames
+  the TV pushes, and has no "start" request. Tested on 2026-10-06 with `data:` probe pages, listening
+  on the relay for 40 s each time:
+  - FreeTV PreProd running: nothing arrived.
+  - A page writing `console.log` / `info` / `warn` / `error` every 2 s and throwing one uncaught
+    error: 0 log frames.
+  - The same page calling **`Hisense.log(...)`**, a function on the `Hisense` global next to
+    `Hisense.VirtualKeyboard`, with one, two and object arguments: 0 log frames.
+  - What TV_Log is for stays unknown; one of the PEM questions asks.
+  - `omi_platform` exposes only `addPlatformEventListener` / `sendPlatformMessage`.
+- **FreeTV cannot be wrapped for logging.** Its bundle (v1.28.2) has no remote-log / vConsole /
+  Sentry / `?debug` hook, though it calls `console.*` about 125 times. Its hosts send no CORS headers,
+  so a wrapper page cannot fetch and re-host it with a console hook, and running it from another
+  origin would break its storage and API calls.
+- **So app logs need one of two things:**
+  - VIDAA opening DevTools (9226) on our sets
+  - the FreeTV team adding an opt-in console forwarder, e.g. an app-URL parameter pointing at a
+    receiver in the QA tool
 - **Verified end to end on our TV:**
   - QA deleted FreeTV PreProd on the TV.
   - Install over the socket: `debug-FreeTV PreProd` with the PreProd badged icon appeared, on the TV
@@ -672,12 +700,25 @@ read from its JS and exercised on our TV on 2026-10-06.**
   our sets is **not verified**.
 - Engine: Chromium-based throughout (Chrome 77 on U4, 88 on VIDAA 6, 100–120 on VIDAA 7, 111 on VIDAA 9).
 
-**There is no close button and no close API.**
-- DevKit Web shows none. The documented `Hisense_*` JS APIs are info/settings only.
-- The guide (§5.1 / §5.4) says an app exits via `window.close()`, and Exit/Menu are system keys that
-  close the foreground app.
-- So Close is either `KEY_EXIT` over MQTT (below; works without DevTools) or
-  `Runtime.evaluate("window.close()")` on the app's CDP target (needs 9226).
+**There is no close command, but launching a self-closing page closes the app.** Verified on 2026-10-06.
+- DevKit Web shows no close command. The guide (§5.1 / §5.4) says an app exits via `window.close()`,
+  and that Exit / Menu are system keys.
+- The TV accepts a `data:text/html,…` URL on DEEPLINKING (3). The DevKit docs say the URL "should
+  start with http", but this works.
+- The launched page replaces the app on screen: FreeTV PreProd went away, and a probe page ran in
+  its place. Its `window.close()` returned the TV to the launcher.
+- That is the **Close** button (`CLOSE_PAGE` in `vidaa.rs`). A probe page that lists the globals
+  made the same trip.
+- **The probe's view of the JS environment on our set:**
+  - UA `Chrome/111.0.0.0 Odin/111.5563.5.1 … VIDAA/9.0(Hisense;SmartTV;43E70QEVS;MTK9603;V0000.09.60W.Q0612;UHD;43E7QE;)`
+  - Globals: `HiUtils_createRequest`, `Hisense`, `omi_platform`, and about 100 `Hisense_Get*` info
+    getters, `Hisense_SetVolume`, `Hisense_SetRemoteKeyboard`, `Hisense_RegisterObserver`, and
+    `Hisense_enableVKB` / `disableVKB`.
+  - **Absent:** `Hisense_Exit`, `Hisense_CloseApp`, `Hisense_setDebugPort`, `Hisense_installApp`,
+    `Hisense_uninstallApp`. Nothing an app can call opens DevTools.
+- Other close routes, should this one stop working:
+  - `KEY_EXIT` over MQTT (below)
+  - `Runtime.evaluate("window.close()")` on the app's CDP target (needs 9226)
 
 **MQTT (port 36669, "RemoteNOW") is the automation channel on U9**, and it is open on our TV.
 Our TV's UPnP descriptor (`http://<tv-ip>:18400/MediaServer/rendererdevicedesc.xml`, `modelDescription`)
@@ -769,8 +810,8 @@ the DevKit protocol above is spoken directly.
 | List installed apps | DevKit INSTALLED_APPS (4), pushed | MQTT `applist` | connection code |
 | Install | DevKit INSTALL_APP (2), with presets from the URL table and `resolution:"hisense"`. **Verified.** | MQTT `uievent` `app_install` | connection code |
 | Launch | DevKit DEEPLINKING (3) `{url,type}`. **Verified.** | MQTT `launchapp` | connection code |
-| Close | MQTT `sendkey KEY_EXIT`, confirmed by the state topic going to `remote_launcher` | TV CDP `window.close()` | client cert / 9226 |
-| Uninstall | DevKit UNINSTALL_APP (10) `{Id}` | the launcher tile's Remove | connection code |
+| Close | DevKit DEEPLINKING (3) of a `data:` page that calls `window.close()`. **Verified.** | MQTT `sendkey KEY_EXIT`; TV CDP `window.close()` | connection code |
+| Uninstall | DevKit UNINSTALL_APP (10) `{Id}`. **Verified** (Remove button). | the launcher tile's Remove | connection code |
 | Running app / standby | MQTT retained `broadcast/ui_service/state` | — | client cert |
 | Inspect | open the target's DevTools frontend (`devtoolsFrontendUrl` from `/json/list`), as `chrome://inspect` does | `http://<tv-ip>:9226` | 9226 opened by VIDAA |
 | Live logs | TV CDP: `Runtime.enable`, `Log.enable` → `DeviceLogService` | DevKit TV_Log (11), if the TV ever pushes it (it did not for FreeTV) | 9226 opened by VIDAA |
@@ -806,13 +847,14 @@ the DevKit home screen.
 1. ~~DevTools port probe~~: closed. Send the PEM questions.
 2. ~~DevKit install + launch~~: verified on 2026-10-06 (see above).
 3. ~~Connection code from a non-browser client~~: verified. No partner login is needed.
-4. Uninstall over the socket (type 10) on a throwaway entry.
-5. MQTT spike (Close via `KEY_EXIT` and the state topic), once QA has the client `.p12`. Close is
-   the one operation DevKit lacks.
+4. ~~Uninstall over the socket (type 10)~~: verified from the app's Remove button.
+5. ~~Close~~: solved without MQTT (the self-closing `data:` page). An MQTT spike is now only worth it
+   for the running-app state topic and remote keys.
 6. ~~Record the TV model and VIDAA version~~: done.
 
 **Phase 1: platform skeleton.**
-- Add `'vidaa'` to `Platform` (`device-provider.interface.ts`) and `LogPlatform` (`device-log.model.ts`).
+- **Done**, apart from the Platform / LogPlatform types and a saved-TV list. The code is per session,
+  so a device list adds little.
 - Lazy `/vidaa` module with `apps` / `info` / `devices`, mirroring `tizen.module.ts`.
 - Enable the VIDAA card in `platform-selector.component.html`, and add a VIDAA chip in the
   platform switcher of the Tizen, Android TV and LG shells.
@@ -837,16 +879,17 @@ the DevKit home screen.
   - **Launch / Close** per row, the same buttons as Tizen
   - a small remote (arrows, OK, Back, Home, Exit)
 
-**Phase 2b: DevKit client (install, launch, list, uninstall). Do this before 2a: it needs no cert.**
+**Phase 2b: DevKit client. Done.**
 - `plugins/vidaa.rs`:
-  - `vidaa_devkit_connect(code)`, `vidaa_devkit_disconnect`
-  - `vidaa_list_apps`, `vidaa_install`, `vidaa_launch`, `vidaa_uninstall`, `vidaa_edit`
-  - pushes (TV_INFO, INSTALLED_APPS, TV_Log, offline) over a Tauri `Channel`
-- UI:
-  - a Connect field for the TV's code, with the connection state
-  - one-click PreProd / UAT / Prod install presets, plus a custom URL
-  - Launch and Remove per row
-  - Close appears once 2a or 9226 lands
+  - commands `vidaa_connect(code, onEvent)`, `vidaa_disconnect`, `vidaa_status`, `vidaa_install`,
+    `vidaa_launch`, `vidaa_close`, `vidaa_uninstall`
+  - pushes (TV_INFO, INSTALLED_APPS, TV_Log / WEBLOG, offline) over a Tauri `Channel`
+- Commands are serialized per session, because replies carry no message id. Install and uninstall
+  resolve on the type 8 feedback; launch and close resolve on the relay's send ack.
+- **Not done:**
+  - EDIT_APP (9)
+  - auto-reconnect with the same `authCode`
+  - `'vidaa'` in the `Platform` / `DeviceProvider` types, which the factory does not use anyway
 
 For either plugin, list every command in all three places (see
 [Adding a Tauri Command](#adding-a-tauri-command--three-places-not-one)), and extend `acl_tests` to it.

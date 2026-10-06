@@ -1,0 +1,11 @@
+[default]
+description = "Default permissions for the VIDAA DevKit relay plugin"
+permissions = [
+  "allow-vidaa-connect",
+  "allow-vidaa-disconnect",
+  "allow-vidaa-status",
+  "allow-vidaa-install",
+  "allow-vidaa-launch",
+  "allow-vidaa-close",
+  "allow-vidaa-uninstall",
+]

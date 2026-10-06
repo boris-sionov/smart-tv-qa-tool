@@ -13,7 +13,7 @@ Built with **Tauri 2** (Rust backend) + **Angular 17** frontend. Runs natively o
 | 🟦 **Samsung Tizen** | ✅ Full | SDB TCP:26101 | WGT / TPK |
 | 🤖 **Android TV** | ✅ Full | ADB TCP:5555 | APK |
 | ⬛ **LG WebOS** | ✅ Full | SSH:22/9922 | IPK |
-| 🟧 **VIDAA (Hisense)** | 🔜 Planned | MQTT-TLS:36669 | — |
+| 🟧 **VIDAA (Hisense)** | ✅ Install, launch, close, remove | VIDAA DevKit (Connect to PC code) | Hosted web app (URL) |
 
 ---
 
@@ -221,7 +221,8 @@ The `.npmrc` pins exact dependency versions (`save-exact=true`) for reproducible
 ## Roadmap
 
 - [ ] Fix device info display across all platforms
-- [ ] VIDAA TV (Hisense) — MQTT-over-TLS implementation
+- [x] VIDAA TV (Hisense) — app control through VIDAA DevKit
+- [ ] VIDAA TV (Hisense) — logs / Inspect (needs VIDAA to open DevTools)
 - [ ] Screenshot capture from TV (SDB shell + CDP)
 - [ ] LG WebOS `WebOSProvider` in platform factory
 - [ ] Persistent device state (no wipe on app restart)
@@ -236,7 +237,7 @@ The `.npmrc` pins exact dependency versions (`save-exact=true`) for reproducible
 | LG WebOS backend | Forked from [`webosbrew/dev-manager-desktop`](https://github.com/webosbrew/dev-manager-desktop) |
 | Samsung Tizen | Built from scratch using SDB + tz CLI |
 | Android TV | Ported from an internal Python/PySide6 QA tool |
-| VIDAA research | Based on [`tombabolewski/vidaa-control`](https://github.com/tombabolewski/vidaa-control) |
+| VIDAA | VIDAA DevKit relay protocol, read from DevKit Web — see `AGENTS.md` |
 
 ---
 
