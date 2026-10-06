@@ -546,7 +546,7 @@ smooth transitions.
 
 ## VIDAA (Hisense) — Implementation Plan
 
-Status: **researched, not started** (October 2026; two research rounds). Goal: the same per-app **Launch / Close** buttons,
+Status: **researched; DevKit install + launch verified on our TV, no product code yet** (October 2026). Goal: the same per-app **Launch / Close** buttons,
 install and logs that Tizen, LG and Android TV have, for FreeTV on a Hisense VIDAA TV.
 
 ### How QA does it by hand today
@@ -582,15 +582,68 @@ DevTools on this set.**
 
 ### Research findings
 
-**DevKit Web has no API we can call directly.**
-- Every `*.html` under `partner-doc.vidaa.com/vdocs/` answers 302 → `www.vidaa.com/oauth/authorize`
-  (WordPress login with reCAPTCHA). Static assets (`manifest.json`, images) are public, but the hashed
-  JS bundle names are unknown, so the backend protocol could not be read.
-- The order is: partner OAuth session → SPA loads → TV connection code entered inside the SPA.
-- Lead, unconfirmed: `devkit.vidaahub.com` is an AWS API Gateway (`{"message":"Not Found"}` on
-  every guessed path). Probably the cloud relay between the PC page and the TV.
-- Consequence: a human has to sign in in a real browser. Automation can only take over that browser
-  afterwards.
+**DevKit Web is a thin client over a public WebSocket relay, which we can call directly. It was
+read from its JS and exercised on our TV on 2026-10-06.**
+- **The documentation pages need the partner login; the API does not.** Every `*.html` under
+  `partner-doc.vidaa.com/vdocs/` redirects to the VIDAA partner OAuth login (WordPress + reCAPTCHA).
+  The DevKit SPA's JS chunks under `/vdocs/assets/js/` are public: `app.<hash>.js` holds the whole
+  partner documentation, and the DevKit components are `DevKitWeb-*` chunks (`Home` = 15,
+  `AppInstaller` = 29, `TvManager` = 20, `Logger` = 25). The API itself is plain axios against
+  `execute-api.us-east-1.amazonaws.com`, with no cookies and no partner token, so the 6-character
+  connection code shown by the TV is the only credential.
+- **Handshake:**
+  1. `POST https://t71feyeud8.execute-api.us-east-1.amazonaws.com/verifyConnectionCode`
+     with `{"connectionCode":"<CODE>"}` returns `{"authCode":"…"}`.
+  2. Open `wss://0007z5zfh1.execute-api.us-east-1.amazonaws.com/pc?authCode=<urlencoded authCode>`.
+  3. Send `{"action":"connectPC","data":{"connectionCode":"<CODE>","messageId":n}}`.
+  4. The reply is `{"responseTypeCode":1,"resultCode":0,…}`, meaning the PC is online.
+
+  Result codes: 0 OK, 1 server error, 2 duplicate code, 3 wrong code, 4 target offline, 5 already
+  online, 6 app failure.
+- **Keepalive:** the page sends the text frame `heartbeat` every 9 minutes, and reconnects on close
+  with the same `authCode`.
+- **Commands:** `{"action":"sendMessage","data":{"typeCode":T,"payload":P,"messageId":n}}`. Every
+  send is acked with `{"responseTypeCode":2,"resultCode":0}`, and the TV's answer follows as
+  `{"typeCode":…,"resultCode":…,"sourceTypeCode":…,"payload":…}`.
+
+  | T | Name | Payload (PC → TV) | TV → PC |
+  |---|---|---|---|
+  | 0 | TV_INFO | — | pushed on connect: VIDAA Version, Platform, Model, Firmware, LAN IP/MAC, Device Code/ID, `Support Background Running` |
+  | 2 | INSTALL_APP | `{"name","url","IconUrl","currentUpdateDate":"","resolution":"hisense","configUrl":""}` | type 8 feedback, then a fresh type 4 list |
+  | 3 | DEEPLINKING (Launch) | `{"url","type":"hisense"}` | ack only |
+  | 4 | INSTALLED_APPS | — | pushed: `[{Id:"debug-<name>",AppName,URL,IconURL,StoreType,InstallTime,RunTimes,…}]` |
+  | 5 | WEBLOG | — | streaming-test log lines |
+  | 6 | STREAMING_TEST | test payload | — |
+  | 7 | OTHER_SIDE_OFFLINE | — | TV went away; the page logs out |
+  | 8 | INSTALL_FEEDBACK | — | `resultCode` 0 = done, 6 = failed; `sourceTypeCode` tells install / edit / uninstall |
+  | 9 | EDIT_APP | install payload + `Id` | type 8 |
+  | 10 | UNINSTALL_APP | `{"Id":"debug-<name>"}` | type 8 |
+  | 11 | TV_Log | — | log lines, pushed by the TV only |
+
+- **Field values and gotchas:**
+  - `resolution` / `type` values: `store` = 720P, **`hisense` = 1080P**, `hbbtv`, `opera` = Vewd, `netrange`.
+  - `configUrl` is one of the fixed JSON URLs (Ads, Pay&Account, IOT, NavigateTo, Game, CrossDomain,
+    All) listed in chunk 29, or `""`.
+  - **Do not send `"Id":""` on install.** The TV answers `resultCode 6` (seen live). Leave `Id` out,
+    as the form does.
+  - The app name must match `^[a-zA-Z0-9_\s]*$`.
+  - The id becomes `debug-<name>`.
+  - The page refuses to install a URL that is already in the list. Use EDIT_APP for that.
+  - Launch disconnects the PC session unless TV_INFO says `Support Background Running: Yes`. Ours
+    does, so launching kept the session.
+- **Logs:** the Logger tab is passive. It only shows TV_Log (11) frames the TV pushes, and has no
+  "start" request. With FreeTV PreProd running, nothing arrived. App `console.log` is not forwarded
+  by default.
+- **Verified end to end on our TV:**
+  - QA deleted FreeTV PreProd on the TV.
+  - Install over the socket: `debug-FreeTV PreProd` with the PreProd badged icon appeared, on the TV
+    and in the list.
+  - Launch over the socket: the app opened on the TV.
+
+  Both were driven through the page's socket in a CDP-controlled Chrome.
+  - **No browser needed, verified the same day.** A plain Node script, with no cookies and no partner
+    login, took a fresh TV code through `verifyConnectionCode` (200, `authCode`) and `connectPC`
+    (OK). It then received TV_INFO and the installed-apps list, including `debug-FreeTV PreProd`.
 
 **The TV can expose Chrome DevTools, the route for logs and Inspect, but on our U9 set it is closed.**
 - Current official page: <https://partner-doc.vidaa.com/vdocs/development/devtools.html> (behind the
@@ -694,60 +747,33 @@ reports **`transport_protocol=3290`**, which is the "modern" (VIDAA 2.0, 2024+) 
 ### Design
 
 **CDP** is the Chrome DevTools Protocol, the JSON-over-WebSocket protocol that DevTools itself uses
-to control a Chromium browser. It lets you run JS in a page, click, read the console and watch the
-network. Playwright and Puppeteer are wrappers around it.
+to control a Chromium browser. Playwright and Puppeteer are wrappers around it. We use it on the TV
+(once 9226 is open) and used it to explore DevKit Web. **The product does not need it for DevKit:**
+the DevKit protocol above is spoken directly.
 
-**Driving DevKit Web: raw CDP, not Playwright or Selenium.**
-- Playwright would mean shipping Node + Playwright (~100 MB+) as a sidecar.
-- Selenium needs a chromedriver that matches the installed Chrome.
-- Playwright's own `connectOverCDP` is just "launch Chrome with `--remote-debugging-port`, then speak
-  CDP". We already speak CDP (Tizen/LG stress) and already have `tokio-tungstenite`, so we do that
-  directly, with no new dependency.
-
-```
-[Connect DevKit] ─► Rust launches Chrome/Edge/Chromium:
-                      --remote-debugging-port=<free port>
-                      --user-data-dir=<app-data>/vidaa-devkit-profile   (persistent: OAuth survives)
-                      --no-first-run  https://partner-doc.vidaa.com/vdocs/more/devkitweb.html
-                  ─► user signs in + types the TV's connection code (the only manual step)
-                  ─► app polls the page until the App Sideload form exists
-                  ─► Browser.setWindowBounds {windowState:"minimized"}, refocus our window
-                  ─► every action = Runtime.evaluate(<driver JS>) on that page target
-```
-
-- **Browser discovery:** standard install paths for Chrome, Edge, Chromium and Brave on
-  macOS / Windows / Linux. Safari has no CDP. If none is found, say so plainly.
-- **Logged in or not** is read from the page, not assumed. A session that drops (expired code, TV
-  disconnected) surfaces as "Reconnect DevKit" rather than a silent failure.
-- **Never automate the sign-in or the connection code.** The user types both.
-
-**One driver file holds every DevKit selector**, so a VIDAA redesign is a one-file fix. The page is Vue 2
-+ Element-UI, so setting `input.value` is not enough: dispatch an `input` event so Vue's `v-model` sees it.
-
-| Action | Selector (from the live DOM) |
-|---|---|
-| Tabs | `.el-tabs__item` by text: `Index`, `App Sideload`, `Logger` |
-| Installed apps | `.appManageLeft .itemWrapper` → `.appName`, `.appUrl`, `img.icon[src]` |
-| AppUrl input | `label[for=url] + .el-form-item__content input` |
-| Launch | `.urlInput button.el-button--primary` |
-| Type (720P / **1080P** / HbbTV / Vewd / NetRange) | click `label[for=resolution] + … .el-select`, then `li.el-select-dropdown__item` by text |
-| AppName | `label[for=name] + .el-form-item__content input` |
-| IconUrl | `label[for=IconUrl] + .el-form-item__content input` |
-| configUrl (Ads, Pay&Account, IOT, NavigateTo, Game, CrossDomain, All) | same pattern as Type |
-| Install / Clear | last form item: `button.el-button--primary` / `button.el-button--default` |
+**DevKit client in Rust, with no browser:**
+- `reqwest` for the verify POST and `tokio-tungstenite` for the socket. Both are already dependencies.
+- QA types the 6-character code the TV shows (DevKit → Connect to PC) into our app once per session.
+  Nothing else is manual.
+- One socket per TV, kept alive with `heartbeat`, and reconnected on close with the same `authCode`.
+  TV_INFO and INSTALLED_APPS arrive as pushes and update the UI.
+- Requests are correlated by `messageId`. Install, edit and uninstall resolve on the type 8 feedback.
+- Verified without a browser (see above). If the relay ever starts requiring the partner session, fall back to the CDP-driven Chrome:
+  `--remote-debugging-port`, a persistent `--user-data-dir`, the user signs in once, and frames are
+  sent through the page's own socket (`Home` component → `sendMessage`). That is how the first test ran.
 
 **Where each operation comes from:**
 
 | Operation | Primary | Fallback | Depends on |
 |---|---|---|---|
-| List installed apps | MQTT `applist` | DevKit Web, Installed Apps panel | client cert + pairing |
-| Install | DevKit Web form (official; presets from the URL table; Type `1080P`) | MQTT `uievent` `app_install` (community, one implementation) | — |
-| Launch | MQTT `launchapp` with the applist entry | DevKit Web, AppUrl + Launch | the launchapp check on our TV |
+| List installed apps | DevKit INSTALLED_APPS (4), pushed | MQTT `applist` | connection code |
+| Install | DevKit INSTALL_APP (2), with presets from the URL table and `resolution:"hisense"`. **Verified.** | MQTT `uievent` `app_install` | connection code |
+| Launch | DevKit DEEPLINKING (3) `{url,type}`. **Verified.** | MQTT `launchapp` | connection code |
 | Close | MQTT `sendkey KEY_EXIT`, confirmed by the state topic going to `remote_launcher` | TV CDP `window.close()` | client cert / 9226 |
-| Uninstall | none programmatic; the launcher tile's Remove | ask VIDAA (PEM) | — |
+| Uninstall | DevKit UNINSTALL_APP (10) `{Id}` | the launcher tile's Remove | connection code |
 | Running app / standby | MQTT retained `broadcast/ui_service/state` | — | client cert |
 | Inspect | open the target's DevTools frontend (`devtoolsFrontendUrl` from `/json/list`), as `chrome://inspect` does | `http://<tv-ip>:9226` | 9226 opened by VIDAA |
-| Live logs | TV CDP: `Runtime.enable`, `Log.enable` → `DeviceLogService` | DevKit Web **Logger** tab | 9226 / phase 0 |
+| Live logs | TV CDP: `Runtime.enable`, `Log.enable` → `DeviceLogService` | DevKit TV_Log (11), if the TV ever pushes it (it did not for FreeTV) | 9226 opened by VIDAA |
 | Environment / version | `appEnvironment()` on the app URL; the version from the hosted bundle's `APP_VERSION`, as `lg-hosted-app-version.service.ts` does | — | — |
 
 **Debug mode on U9: what does not work, so nobody retries it.**
@@ -776,19 +802,14 @@ the DevKit home screen.
 
 ### Phases
 
-**Phase 0: checks on a real TV.** These need a person with the TV.
-1. ~~DevTools port probe~~: done, closed. Send the PEM questions.
-2. MQTT spike, once QA has the client `.p12`. Run a throwaway script (pyvidaa or Sidee, not shipped):
-   pair with the PIN, then confirm on our TV that:
-   - `applist` lists the DevKit-installed FreeTV builds (record their `appId` / `url` / `storeType`)
-   - `launchapp` starts one
-   - `sendkey KEY_EXIT` closes it (and which payload form works)
-   - the state topic reports both transitions
-
-   This decides whether Launch and Close go over MQTT or through DevKit Web.
-3. In DevKit Web with DevTools → Network: open the Logger tab while FreeTV runs and record what it
-   shows. Note the main JS bundle URL from Sources.
-4. ~~Record the TV model and VIDAA version~~: done (see "Our test TV").
+**Phase 0: checks on a real TV.**
+1. ~~DevTools port probe~~: closed. Send the PEM questions.
+2. ~~DevKit install + launch~~: verified on 2026-10-06 (see above).
+3. ~~Connection code from a non-browser client~~: verified. No partner login is needed.
+4. Uninstall over the socket (type 10) on a throwaway entry.
+5. MQTT spike (Close via `KEY_EXIT` and the state topic), once QA has the client `.p12`. Close is
+   the one operation DevKit lacks.
+6. ~~Record the TV model and VIDAA version~~: done.
 
 **Phase 1: platform skeleton.**
 - Add `'vidaa'` to `Platform` (`device-provider.interface.ts`) and `LogPlatform` (`device-log.model.ts`).
@@ -798,7 +819,7 @@ the DevKit home screen.
 - `VidaaStateService`: saved TVs `{name, ip}` in localStorage, keys `smart-tv-qa-vidaa-*`.
 - Info tab: model and firmware from the UPnP descriptor; `transport_protocol` decides the auth profile.
 
-**Phase 2a: MQTT control (if the phase 0 spike passes).**
+**Phase 2a: MQTT control: Close, keys, state (if the phase 0 spike passes).**
 - New Rust plugin `vidaa` (`plugins/vidaa.rs`) using `rumqttc` with `TlsConfiguration::Rustls`:
   - a verifier that accepts RemoteCA without the name check
   - client auth from PEM
@@ -816,10 +837,16 @@ the DevKit home screen.
   - **Launch / Close** per row, the same buttons as Tizen
   - a small remote (arrows, OK, Back, Home, Exit)
 
-**Phase 2b: DevKit Web bridge (install; and launch/list if MQTT is unavailable).**
-- `vidaa_devkit_open` / `_status` / `_close` / `_install`, plus `_list` / `_launch` as fallbacks. This is
-  the CDP-driven Chrome described above, with the driver JS beside it via `include_str!`.
-- Install with one-click PreProd / UAT / Prod presets, plus a custom URL, through the progress dialog.
+**Phase 2b: DevKit client (install, launch, list, uninstall). Do this before 2a: it needs no cert.**
+- `plugins/vidaa.rs`:
+  - `vidaa_devkit_connect(code)`, `vidaa_devkit_disconnect`
+  - `vidaa_list_apps`, `vidaa_install`, `vidaa_launch`, `vidaa_uninstall`, `vidaa_edit`
+  - pushes (TV_INFO, INSTALLED_APPS, TV_Log, offline) over a Tauri `Channel`
+- UI:
+  - a Connect field for the TV's code, with the connection state
+  - one-click PreProd / UAT / Prod install presets, plus a custom URL
+  - Launch and Remove per row
+  - Close appears once 2a or 9226 lands
 
 For either plugin, list every command in all three places (see
 [Adding a Tauri Command](#adding-a-tauri-command--three-places-not-one)), and extend `acl_tests` to it.
@@ -839,10 +866,11 @@ For either plugin, list every command in all three places (see
 
 ### Risks
 
-- **DevKit Web markup changes:** contained in the one driver file. Every driver call reports which
-  selector failed.
-- **Sessions expire:** detect it and offer Reconnect. Never retry the connection code.
-- **No Chromium-family browser installed:** explicit message. Safari cannot be driven.
+- **The DevKit relay is undocumented:** VIDAA can change the endpoints or the `typeCode`s. Keep them
+  in one Rust module. If the API ever starts requiring the partner session, fall back to the
+  CDP-driven browser.
+- **Sessions expire, or the TV goes offline (type 7):** detect it and ask for a fresh code. Never
+  retry or guess the connection code.
 - **9226 closed on our firmware** (repeated probes confirm it): ask VIDAA via the PEM to open it. Until then, full console logs need the DevKit Logger, Chii, or a debug flag from the FreeTV team.
 - **MQTT client certificate:** Hisense's own key, extracted from their app. Don't commit or redistribute
   it; prefer a cert from VIDAA. Hisense can rotate it: the 2018 one is already rejected.
