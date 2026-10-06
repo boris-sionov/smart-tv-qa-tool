@@ -1,0 +1,174 @@
+// Layered over tizen-apps.component.scss — only what VIDAA adds.
+$primary-blue: #5B9FF5;
+$text-secondary: #A8B8CC;
+$border-color: rgba(91, 159, 245, 0.2);
+$vidaa: #00A3A1;
+
+.vidaa-device {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+
+  .device-name {
+    color: #E4EBF5;
+    font-weight: 700;
+  }
+}
+
+.vidaa-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: #FFFFFF;
+  background: $vidaa;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+
+  i { font-size: 7px; }
+
+  &.online {
+    color: #4ADE80;
+    background: rgba(74, 222, 128, 0.12);
+  }
+}
+
+.connect-panel {
+  max-width: 640px;
+  min-height: 0;
+  margin: 24px auto 0;
+}
+
+.connect-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.code-input {
+  max-width: 220px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 18px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+
+  &::placeholder {
+    font-family: inherit;
+    font-size: 14px;
+    letter-spacing: normal;
+    text-transform: none;
+  }
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+
+  i { margin-top: 2px; }
+
+  &.error {
+    color: #FF9AA5;
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.28);
+  }
+
+  &.warn {
+    color: #E8C97A;
+    background: rgba(255, 190, 50, 0.08);
+    border: 1px solid rgba(255, 190, 50, 0.25);
+  }
+}
+
+.preset-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.preset-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid $border-color;
+  border-radius: 10px;
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.04);
+  text-align: left;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(91, 159, 245, 0.55);
+    background: rgba(91, 159, 245, 0.12);
+    transform: translateY(-2px);
+  }
+
+  &:disabled {
+    opacity: 0.7;
+  }
+}
+
+.preset-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.preset-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.preset-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.preset-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: $text-secondary;
+  font-size: 12px;
+}
+
+.custom-form {
+  display: grid;
+  grid-template-columns: 1fr 2fr 2fr 110px auto;
+  gap: 8px;
+
+  select.modern-input option {
+    color: #0F172B;
+  }
+}
+
+@media (max-width: 900px) {
+  .preset-row,
+  .custom-form {
+    grid-template-columns: 1fr;
+  }
+}

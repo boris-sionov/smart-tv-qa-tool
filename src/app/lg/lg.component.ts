@@ -51,6 +51,10 @@ export class LgComponent implements OnInit {
         this.router.navigate(['/tizen']);
     }
 
+    openVidaa(): void {
+        this.router.navigate(['/vidaa']);
+    }
+
     markDefault(device: Device): void {
         this.deviceManager.setDefault(device.name).catch(reason => {
             console.log(reason);

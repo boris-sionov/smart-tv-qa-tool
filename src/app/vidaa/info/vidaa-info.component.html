@@ -1,0 +1,38 @@
+<div class="vidaa-info">
+  @if (!state.connected || !state.tvInfo) {
+    <div class="empty">
+      <i class="bi bi-tv"></i>
+      <h4>Not connected</h4>
+      <p>Connect to the TV from the <strong>Apps</strong> tab with the code DevKit shows.</p>
+    </div>
+  } @else {
+    <section class="card-panel">
+      <h3>TV Information</h3>
+      <dl class="info-grid">
+        @for (row of rows; track row[0]) {
+          <dt>{{ row[0] }}</dt>
+          <dd>{{ row[1] }}</dd>
+        }
+      </dl>
+    </section>
+
+    <section class="card-panel">
+      <div class="log-head">
+        <h3>DevKit Log</h3>
+        <button class="clear-btn" type="button" (click)="clearLog()" [disabled]="state.log.length === 0">
+          <i class="bi bi-trash"></i> Clear
+        </button>
+      </div>
+      @if (state.log.length === 0) {
+        <p class="hint">The TV sends log lines here on its own; it sent none for FreeTV in our tests. Full console
+          logs need DevTools, which VIDAA has to open for this set.</p>
+      } @else {
+        <div class="log">
+          @for (line of state.log; track $index) {
+            <div>{{ line }}</div>
+          }
+        </div>
+      }
+    </section>
+  }
+</div>

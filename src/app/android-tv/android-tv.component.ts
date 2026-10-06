@@ -57,4 +57,8 @@ export class AndroidTvComponent implements OnInit {
     openTizen(): void {
         this.router.navigate(['/tizen']);
     }
+
+    openVidaa(): void {
+        this.router.navigate(['/vidaa']);
+    }
 }

@@ -6,19 +6,19 @@
           <i class="bi bi-chevron-left"></i>
         </button>
         <div class="platform-switcher" aria-label="Switch platform">
-          <button class="platform-chip" type="button" title="LG WebOS" (click)="openLg()">
+          <button class="platform-chip" type="button" title="LG WebOS" (click)="open('lg')">
             <span class="platform-mark lg-mark">LG</span>
             <span>LG</span>
           </button>
-          <button class="platform-chip" type="button" title="Android TV" (click)="openAndroid()">
+          <button class="platform-chip" type="button" title="Android TV" (click)="open('android-tv')">
             <i class="bi bi-android2"></i>
             <span>ATV</span>
           </button>
-          <button class="platform-chip active" type="button" title="Samsung Tizen" (click)="openTizen()">
+          <button class="platform-chip" type="button" title="Samsung Tizen" (click)="open('tizen')">
             <span class="platform-mark samsung-mark">S</span>
             <span>Tizen</span>
           </button>
-          <button class="platform-chip" type="button" title="VIDAA (Hisense)" (click)="openVidaa()">
+          <button class="platform-chip active" type="button" title="VIDAA (Hisense)" (click)="open('vidaa')">
             <span class="platform-mark vidaa-mark">V</span>
             <span>VIDAA</span>
           </button>
@@ -31,13 +31,9 @@
             <i class="bi bi-grid"></i>
             <span>Apps</span>
           </a>
-          <a class="nav-link-modern" routerLink="info" routerLinkActive="active" replaceUrl title="Device Info">
+          <a class="nav-link-modern" routerLink="info" routerLinkActive="active" replaceUrl title="TV Info">
             <i class="bi bi-info-circle"></i>
             <span>Info</span>
-          </a>
-          <a class="nav-link-modern" routerLink="devices" routerLinkActive="active" replaceUrl title="Manage Devices">
-            <i class="bi bi-hdd-rack"></i>
-            <span>Manage</span>
           </a>
         </div>
       </div>
@@ -47,6 +43,6 @@
   </nav>
 
   <main role="main" class="modern-main">
-    <router-outlet (activate)="onDevicesChanged()"></router-outlet>
+    <router-outlet></router-outlet>
   </main>
 </div>

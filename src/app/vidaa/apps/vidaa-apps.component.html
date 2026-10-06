@@ -1,0 +1,166 @@
+<div class="tizen-apps-page">
+  <div class="manager-toolbar bg-panel border-bottom">
+    <div class="vidaa-device">
+      <span class="vidaa-dot">V</span>
+      <span class="device-name">{{ state.connected ? tvLabel : 'Not connected' }}</span>
+      @if (state.connected) {
+        <span class="status-pill online"><i class="bi bi-circle-fill"></i>DevKit connected</span>
+      }
+    </div>
+    @if (state.connected) {
+      <div class="toolbar-actions">
+        <button class="btn btn-secondary text-nowrap" style="height:42px;" (click)="disconnect()">
+          <i class="bi bi-plug me-2"></i>Disconnect
+        </button>
+      </div>
+    }
+  </div>
+
+  <div class="p-3 flex-fill overflow-auto">
+    @if (!state.connected) {
+      <section class="action-panel connect-panel">
+        <div class="connect-head">
+          <div class="panel-icon"><i class="bi bi-tv"></i></div>
+          <div class="panel-copy">
+            <h3>Connect to a Hisense TV</h3>
+            <p>On the TV open <strong>DevKit</strong> → <strong>Connect to PC</strong> and type the
+              6-character Connection Code it shows. The TV and this computer only need internet access.</p>
+          </div>
+        </div>
+
+        @if (state.lostReason) {
+          <div class="notice warn"><i class="bi bi-exclamation-triangle"></i>{{ state.lostReason }} Get a new code from the TV to reconnect.</div>
+        }
+
+        <form class="uninstall-row" (ngSubmit)="connect()">
+          <input class="modern-input code-input" name="code" placeholder="Code from the TV" autocomplete="off"
+                 spellcheck="false" maxlength="6" [ngModel]="code" (ngModelChange)="onCodeInput($event)"
+                 [disabled]="connecting" autofocus>
+          <button class="action-button primary" type="submit" [disabled]="code.length !== 6 || connecting">
+            @if (connecting) {
+              <span class="spinner-mini"></span><span>Connecting…</span>
+            } @else {
+              <i class="bi bi-link-45deg"></i><span>Connect</span>
+            }
+          </button>
+        </form>
+
+        @if (connectError) {
+          <div class="notice error"><i class="bi bi-x-circle"></i>{{ connectError }}</div>
+        }
+      </section>
+    } @else {
+      <section class="tizen-shell">
+        <div class="installed-apps-panel">
+          <div class="installed-apps-header">
+            <div>
+              <div class="tizen-kicker">FreeTV</div>
+              <h3>Install a build</h3>
+            </div>
+            <button class="action-button small" type="button" (click)="showCustom = !showCustom">
+              <i class="bi" [class.bi-plus-lg]="!showCustom" [class.bi-x-lg]="showCustom"></i>
+              <span>Custom URL</span>
+            </button>
+          </div>
+
+          <div class="preset-row">
+            @for (preset of presets; track preset.url) {
+              @let installed = installedFrom(preset);
+              <button class="preset-card" type="button" (click)="installPreset(preset)"
+                      [disabled]="!!busy || !!installed"
+                      [title]="installed ? preset.name + ' is installed as ' + installed.AppName : 'Install ' + preset.url">
+                <img [src]="preset.iconUrl" alt="" class="preset-icon">
+                <span class="preset-copy">
+                  <span class="preset-name">{{ preset.environment }}</span>
+                  <span class="preset-state">
+                    @if (busy === preset.name) {
+                      <span class="spinner-mini"></span> Installing…
+                    } @else if (installed) {
+                      <i class="bi bi-check2"></i> Installed
+                    } @else {
+                      <i class="bi bi-download"></i> Install
+                    }
+                  </span>
+                </span>
+              </button>
+            }
+          </div>
+
+          @if (showCustom) {
+            <form class="custom-form" (ngSubmit)="installCustom()">
+              <input class="modern-input" name="name" placeholder="App name (letters, digits, spaces)" [(ngModel)]="custom.name" required>
+              <input class="modern-input" name="url" placeholder="App URL — https://…/index.html" [(ngModel)]="custom.url" required>
+              <input class="modern-input" name="icon" placeholder="Icon URL (optional)" [(ngModel)]="custom.iconUrl">
+              <select class="modern-input" name="resolution" [(ngModel)]="custom.resolution">
+                <option value="hisense">1080P</option>
+                <option value="store">720P</option>
+              </select>
+              <button class="action-button primary" type="submit" [disabled]="!!busy || !custom.name.trim() || !custom.url.trim()">
+                @if (busy === 'custom') {
+                  <span class="spinner-mini"></span><span>Installing…</span>
+                } @else {
+                  <i class="bi bi-download"></i><span>Install</span>
+                }
+              </button>
+            </form>
+          }
+        </div>
+
+        <div class="tizen-header">
+          <div>
+            <div class="tizen-kicker">VIDAA DevKit</div>
+            <h2>Installed Apps</h2>
+          </div>
+        </div>
+
+        @if (apps.length === 0) {
+          <div class="mini-empty"><i class="bi bi-inbox"></i>No sideloaded apps on this TV yet.</div>
+        } @else {
+          <div class="tizen-app-list">
+            @for (app of apps; track app.Id) {
+              <article class="tizen-app-row">
+                <div class="app-identity">
+                  <div class="app-icon-frame">
+                    @if (app.IconURL) {
+                      <img [src]="app.IconURL" [alt]="app.AppName" class="app-icon-img">
+                    } @else {
+                      <div class="app-icon-placeholder">V</div>
+                    }
+                  </div>
+                  <div class="app-copy">
+                    <div class="app-title">{{ app.AppName }}</div>
+                    <div class="app-meta">
+                      @if (environment(app); as env) {
+                        <span class="version-pill">{{ env }}</span>
+                      }
+                      <span class="package-id" [title]="app.URL">{{ app.URL }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="app-actions">
+                  <button class="app-action primary" type="button" aria-label="Launch" (click)="launch(app)" [disabled]="!!busy">
+                    @if (busy === app.Id) {
+                      <span class="spinner-mini"></span>
+                    } @else {
+                      <i class="bi bi-play-fill"></i>
+                    }
+                    <span>Launch</span>
+                  </button>
+                  <button class="app-action warning" type="button" aria-label="Close" disabled
+                          title="DevKit has no close command. Use Exit on the remote for now — closing from here needs the TV's MQTT remote or DevTools (see AGENTS.md).">
+                    <i class="bi bi-stop-fill"></i>
+                    <span>Close</span>
+                  </button>
+                  <button class="app-action danger" type="button" aria-label="Remove" (click)="remove(app)" [disabled]="!!busy">
+                    <i class="bi bi-trash"></i>
+                    <span>Remove</span>
+                  </button>
+                </div>
+              </article>
+            }
+          </div>
+        }
+      </section>
+    }
+  </div>
+</div>
