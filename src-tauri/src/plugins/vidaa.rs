@@ -111,6 +111,8 @@ pub struct VidaaSnapshot {
     connected: bool,
     tv_info: Option<Value>,
     apps: Vec<Value>,
+    /// The TV has sent its app list at least once — tells "no apps" from "not loaded yet".
+    apps_loaded: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -225,7 +227,11 @@ fn dispatch(
         }
         Some(TYPE_INSTALLED_APPS) => {
             let apps = frame.get("payload").and_then(Value::as_array).cloned().unwrap_or_default();
-            snapshot.lock().unwrap().apps = apps.clone();
+            {
+                let mut snap = snapshot.lock().unwrap();
+                snap.apps = apps.clone();
+                snap.apps_loaded = true;
+            }
             let _ = events.send(VidaaEvent::Apps(apps));
         }
         Some(TYPE_INSTALL_FEEDBACK) => {
@@ -424,7 +430,8 @@ async fn vidaa_install(
     if !valid_app_name(&name) {
         return Err(Error::new("App names may only contain letters, digits, spaces and underscores."));
     }
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
+    // `data:text/html` is the self-switching DevTools launcher (vidaa-presets.ts → devtoolsLauncher).
+    if !(url.starts_with("http://") || url.starts_with("https://") || url.starts_with("data:text/html")) {
         return Err(Error::new("The app URL must start with http:// or https://."));
     }
     let session = state.current().await?;
@@ -473,9 +480,13 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             vidaa_launch,
             vidaa_close,
             vidaa_uninstall,
+            super::vidaa_devtools::vidaa_devtools_start,
+            super::vidaa_devtools::vidaa_devtools_targets,
+            super::vidaa_devtools::vidaa_devtools_stop,
         ])
         .setup(|app, _api| {
             app.manage(VidaaState::default());
+            app.manage(super::vidaa_devtools::VidaaDevtoolsState::default());
             Ok(())
         })
         .build()
@@ -559,7 +570,10 @@ mod acl_tests {
         body[..end]
             .lines()
             .skip(1)
-            .map(|line| line.trim().trim_end_matches(',').to_owned())
+            .map(|line| {
+                let name = line.trim().trim_end_matches(',');
+                name.rsplit("::").next().unwrap_or(name).to_owned()
+            })
             .filter(|name| !name.is_empty())
             .collect()
     }
@@ -589,7 +603,7 @@ mod acl_tests {
     #[test]
     fn every_registered_command_is_declared_and_permitted() {
         let registered = registered();
-        assert!(registered.len() >= 6, "parsed too few commands: {registered:?}");
+        assert!(registered.len() >= 9, "parsed too few commands: {registered:?}");
         let declared = declared_in_build_rs();
         let allowed = allowed_by_default();
         for name in &registered {

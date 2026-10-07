@@ -27,7 +27,9 @@
   </div>
 
   <div class="p-3 flex-fill overflow-auto">
-    @if (!state.connected) {
+    @if (connecting || (state.connected && !state.appsLoaded)) {
+      <app-loading-card></app-loading-card>
+    } @else if (!state.connected) {
       <section class="action-panel connect-panel">
         <div class="connect-head">
           <div class="panel-icon"><i class="bi bi-tv"></i></div>
@@ -81,6 +83,11 @@
                 <option value="hisense">1080P</option>
                 <option value="store">720P</option>
               </select>
+              <label class="devtools-check"
+                     title="Each time the app opens it checks for this Mac: if the QA tool is reachable it runs with DevTools, otherwise it opens normally">
+                <input type="checkbox" name="devtools" [(ngModel)]="custom.devtools">
+                <span>With DevTools</span>
+              </label>
               <button class="action-button primary" type="submit" [disabled]="!!busy || !custom.name.trim() || !custom.url.trim()">
                 <i class="bi bi-download"></i><span>Install</span>
               </button>
@@ -98,8 +105,8 @@
         @if (apps.length === 0) {
           <div class="tizen-empty-state">
             <i class="bi bi-inbox"></i>
-            <h3>No Apps Found</h3>
-            <p>No sideloaded apps on this TV yet. Use <strong>Install App</strong> to add one.</p>
+            <h3>No apps installed</h3>
+            <p>There are no sideloaded apps on this TV. Use <strong>Install App</strong> to add one.</p>
           </div>
         } @else {
           <div class="tizen-app-list">
@@ -119,11 +126,28 @@
                       @if (environment(app); as env) {
                         <span class="version-pill">{{ env }}</span>
                       }
-                      <span class="package-id" [title]="app.URL">{{ app.URL }}</span>
+                      @if (isLauncher(app)) {
+                        <span class="version-pill devtools-pill" title="Opens with DevTools when this Mac's QA tool is reachable, normally otherwise">DevTools auto</span>
+                      }
+                      @if (isProxied(app)) {
+                        <span class="version-pill devtools-pill" title="An older DevTools install: it loads from this computer and fails when the Mac is away. Remove it and install the build directly.">Needs Mac</span>
+                      }
+                      <span class="package-id" [title]="displayUrl(app)">{{ displayUrl(app) }}</span>
                     </div>
                   </div>
                 </div>
                 <div class="app-actions">
+                  @if (canInspect(app)) {
+                    <button class="app-action secondary" type="button" aria-label="Inspect" (click)="inspect(app)" [disabled]="!!busy"
+                            title="Opens the app once through this Mac and Chrome DevTools (Console, Network) on it. Nothing is installed; needs the TV on this Mac's network.">
+                      @if (busy === 'inspect:' + app.Id) {
+                        <span class="spinner-mini"></span>
+                      } @else {
+                        <i class="bi bi-search"></i>
+                      }
+                      <span>Inspect</span>
+                    </button>
+                  }
                   <button class="app-action primary" type="button" aria-label="Launch" (click)="launch(app)" [disabled]="!!busy">
                     @if (busy === app.Id) {
                       <span class="spinner-mini"></span>
