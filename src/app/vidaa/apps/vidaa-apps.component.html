@@ -27,7 +27,9 @@
   </div>
 
   <div class="p-3 flex-fill overflow-auto">
-    @if (!state.connected) {
+    @if (connecting || (state.connected && !state.appsLoaded)) {
+      <app-loading-card></app-loading-card>
+    } @else if (!state.connected) {
       <section class="action-panel connect-panel">
         <div class="connect-head">
           <div class="panel-icon"><i class="bi bi-tv"></i></div>
@@ -98,8 +100,8 @@
         @if (apps.length === 0) {
           <div class="tizen-empty-state">
             <i class="bi bi-inbox"></i>
-            <h3>No Apps Found</h3>
-            <p>No sideloaded apps on this TV yet. Use <strong>Install App</strong> to add one.</p>
+            <h3>No apps installed</h3>
+            <p>There are no sideloaded apps on this TV. Use <strong>Install App</strong> to add one.</p>
           </div>
         } @else {
           <div class="tizen-app-list">

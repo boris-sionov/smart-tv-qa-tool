@@ -20,6 +20,8 @@ export interface VidaaState {
     connected: boolean;
     tvInfo: VidaaTvInfo | null;
     apps: VidaaApp[];
+    /** The TV has sent its app list — `apps: []` then means "none installed", not "still loading". */
+    appsLoaded: boolean;
     /** TV_Log / WEBLOG lines, newest last. The TV only sends these on its own. */
     log: string[];
     /** Why the last session ended, when it ended without us asking. */
@@ -36,6 +38,7 @@ interface Snapshot {
     connected: boolean;
     tvInfo: VidaaTvInfo | null;
     apps: VidaaApp[];
+    appsLoaded: boolean;
 }
 
 /** A DevTools proxy the QA tool runs for one upstream origin. */
@@ -59,6 +62,8 @@ export interface DevtoolsTarget {
 export type VidaaResolution = 'hisense' | 'store';
 
 const LOG_LIMIT = 2000;
+/** How long to wait for the TV's app list before treating it as empty. */
+const APPS_WAIT_MS = 10000;
 
 /**
  * The VIDAA DevKit session, held by the `vidaa` Rust plugin — it outlives page navigation, so
@@ -69,7 +74,7 @@ const LOG_LIMIT = 2000;
 @Injectable({providedIn: 'root'})
 export class VidaaService {
     readonly state$ = new BehaviorSubject<VidaaState>({
-        connected: false, tvInfo: null, apps: [], log: [], lostReason: null,
+        connected: false, tvInfo: null, apps: [], appsLoaded: false, log: [], lostReason: null,
     });
 
     constructor(private zone: NgZone) {
@@ -78,20 +83,26 @@ export class VidaaService {
 
     async refresh(): Promise<void> {
         const snap = await invoke<Snapshot>('plugin:vidaa|vidaa_status');
-        this.patch({connected: snap.connected, tvInfo: snap.tvInfo, apps: snap.apps ?? []});
+        this.patch({connected: snap.connected, tvInfo: snap.tvInfo, apps: snap.apps ?? [], appsLoaded: snap.appsLoaded});
     }
 
     async connect(code: string): Promise<void> {
         const onEvent = new Channel<VidaaEvent>();
         onEvent.onmessage = ev => this.zone.run(() => this.handle(ev));
         const snap = await invoke<Snapshot>('plugin:vidaa|vidaa_connect', {code, onEvent});
-        this.patch({connected: true, tvInfo: snap.tvInfo, apps: snap.apps ?? [], log: [], lostReason: null});
+        this.patch({connected: true, tvInfo: snap.tvInfo, apps: snap.apps ?? [], appsLoaded: snap.appsLoaded, log: [], lostReason: null});
+        // The list is pushed by the TV right after connecting; if it never comes, stop waiting.
+        if (!snap.appsLoaded) {
+            setTimeout(() => {
+                if (this.state$.value.connected && !this.state$.value.appsLoaded) this.patch({appsLoaded: true});
+            }, APPS_WAIT_MS);
+        }
         vidaaLog(`connected to ${snap.tvInfo?.['Model'] ?? 'TV'}`);
     }
 
     async disconnect(): Promise<void> {
         await invoke('plugin:vidaa|vidaa_disconnect');
-        this.patch({connected: false, tvInfo: null, apps: [], lostReason: null});
+        this.patch({connected: false, tvInfo: null, apps: [], appsLoaded: false, lostReason: null});
     }
 
     async install(name: string, url: string, iconUrl: string, resolution: VidaaResolution = 'hisense'): Promise<void> {
@@ -141,7 +152,7 @@ export class VidaaService {
                 this.patch({tvInfo: ev.data});
                 break;
             case 'apps':
-                this.patch({apps: ev.data});
+                this.patch({apps: ev.data, appsLoaded: true});
                 break;
             case 'log':
                 this.patch({log: [...this.state$.value.log, ev.data].slice(-LOG_LIMIT)});

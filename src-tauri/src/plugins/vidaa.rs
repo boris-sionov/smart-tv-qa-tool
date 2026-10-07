@@ -111,6 +111,8 @@ pub struct VidaaSnapshot {
     connected: bool,
     tv_info: Option<Value>,
     apps: Vec<Value>,
+    /// The TV has sent its app list at least once — tells "no apps" from "not loaded yet".
+    apps_loaded: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -225,7 +227,11 @@ fn dispatch(
         }
         Some(TYPE_INSTALLED_APPS) => {
             let apps = frame.get("payload").and_then(Value::as_array).cloned().unwrap_or_default();
-            snapshot.lock().unwrap().apps = apps.clone();
+            {
+                let mut snap = snapshot.lock().unwrap();
+                snap.apps = apps.clone();
+                snap.apps_loaded = true;
+            }
             let _ = events.send(VidaaEvent::Apps(apps));
         }
         Some(TYPE_INSTALL_FEEDBACK) => {
