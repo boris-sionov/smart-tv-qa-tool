@@ -473,9 +473,13 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             vidaa_launch,
             vidaa_close,
             vidaa_uninstall,
+            super::vidaa_devtools::vidaa_devtools_start,
+            super::vidaa_devtools::vidaa_devtools_targets,
+            super::vidaa_devtools::vidaa_devtools_stop,
         ])
         .setup(|app, _api| {
             app.manage(VidaaState::default());
+            app.manage(super::vidaa_devtools::VidaaDevtoolsState::default());
             Ok(())
         })
         .build()
@@ -559,7 +563,10 @@ mod acl_tests {
         body[..end]
             .lines()
             .skip(1)
-            .map(|line| line.trim().trim_end_matches(',').to_owned())
+            .map(|line| {
+                let name = line.trim().trim_end_matches(',');
+                name.rsplit("::").next().unwrap_or(name).to_owned()
+            })
             .filter(|name| !name.is_empty())
             .collect()
     }
@@ -589,7 +596,7 @@ mod acl_tests {
     #[test]
     fn every_registered_command_is_declared_and_permitted() {
         let registered = registered();
-        assert!(registered.len() >= 6, "parsed too few commands: {registered:?}");
+        assert!(registered.len() >= 9, "parsed too few commands: {registered:?}");
         let declared = declared_in_build_rs();
         let allowed = allowed_by_default();
         for name in &registered {

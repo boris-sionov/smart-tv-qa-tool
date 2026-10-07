@@ -8,3 +8,4 @@ pub mod local_file;
 pub mod samsung_tizen;
 pub mod shell;
 pub mod vidaa;
+pub mod vidaa_devtools;

@@ -467,8 +467,31 @@ open questions are in [VIDAA (Hisense) — Implementation Plan](#vidaa-hisense--
 - **Close** launches a `data:` page that calls `window.close()`. DevKit has no close command, but
   launching any URL replaces the app on screen, and a page that closes itself hands the screen back
   to the launcher. It closes whatever is on screen, because the TV runs one web app at a time.
-- **Debug / logs:** Chrome DevTools at `http://<tv-ip>:9226` per VIDAA's docs. **Closed on our set**;
-  VIDAA has to open it.
+- **Debug / logs: Inspect → Chrome DevTools (Console, Network, Elements) without the TV's port.** The
+  TV's own DevTools port (9226) is closed on our set, so `plugins/vidaa_devtools.rs` serves the app
+  instead:
+  - **Install App → "With DevTools"** installs the same build as `http://<this-mac>:<port>/apps/…`
+    and names it `… DevTools`. The port is 8765 for `uat-web.freetv.tv` (PreProd, UAT) and 8766 for
+    `web.freetv.tv` (Prod). The ports are fixed because the URL is stored on the TV.
+  - That listener is a **reverse proxy**: every request goes to the real host, so page, JS and
+    `/api` share one origin, as on `uat-web.freetv.tv`.
+  - The only change is to the app's `index.html`: its own origin becomes the proxy's, and
+    **Chii's `target.js`** is injected first in `<head>`. Chii is MIT, from github.com/liriliri/chii,
+    and its DevTools frontend ships as an app resource from the `chii` npm devDependency.
+    `target.js` speaks the DevTools protocol from inside the page (chobitsu). The same listener
+    relays it at `/__chii/target/<id>` ↔ `/__chii/client/<id>?target=<id>`.
+  - **Inspect** on a DevTools row launches the app if needed, waits for its page to attach, and opens
+    `…/__chii/front_end/chii_app.html?ws=…` in the default browser. Use Chrome or Edge.
+  - The proxies start whenever the VIDAA page sees such an app installed, after a restart of the
+    tool too. The TV can only load the app while the QA tool runs.
+  - **Limits:**
+    - Network lists JS requests (XHR / fetch: the API, the player's segments), not images or CSS.
+    - No breakpoints in Sources.
+    - The app runs from `http://<mac>`, so DRM and https-only features may behave differently.
+      Confirm such bugs on a normal install.
+    - The Mac's LAN IP is baked into the install; if it changes, reinstall.
+  - Verified on our U9 set on 2026-10-06: live Console (FreeTV logs and uncaught errors with
+    stacks), Network (160 requests, including `live.livx` segments) and Elements.
 
 #### Devkit Install — App And Icon URLs
 

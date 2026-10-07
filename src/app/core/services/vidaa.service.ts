@@ -38,6 +38,23 @@ interface Snapshot {
     apps: VidaaApp[];
 }
 
+/** A DevTools proxy the QA tool runs for one upstream origin. */
+export interface DevtoolsProxy {
+    origin: string;
+    port: number;
+    lanIp: string;
+}
+
+/** A page on the TV that loaded Chii's target script and can be inspected. */
+export interface DevtoolsTarget {
+    id: string;
+    url: string;
+    title: string;
+    ip: string;
+    port: number;
+    connectedAt: number;
+}
+
 /** Resolution codes DevKit uses; `hisense` is the form's "1080P". */
 export type VidaaResolution = 'hisense' | 'store';
 
@@ -101,6 +118,17 @@ export class VidaaService {
     async uninstall(app: VidaaApp): Promise<void> {
         vidaaLog(`uninstall ${app.Id}`);
         await invoke('plugin:vidaa|vidaa_uninstall', {id: app.Id});
+    }
+
+    /** Starts (or reuses) the DevTools proxy for `origin`; the TV's IP picks the right LAN address. */
+    async devtoolsStart(origin: string): Promise<DevtoolsProxy> {
+        const tvIp = this.state$.value.tvInfo?.['LAN IP'] || null;
+        return invoke<DevtoolsProxy>('plugin:vidaa|vidaa_devtools_start', {origin, tvIp});
+    }
+
+    /** Pages attached to the DevTools proxies, newest first. */
+    async devtoolsTargets(): Promise<DevtoolsTarget[]> {
+        return invoke<DevtoolsTarget[]>('plugin:vidaa|vidaa_devtools_targets');
     }
 
     clearLog(): void {
