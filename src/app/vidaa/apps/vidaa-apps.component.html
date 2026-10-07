@@ -81,10 +81,6 @@
                 <option value="hisense">1080P</option>
                 <option value="store">720P</option>
               </select>
-              <label class="devtools-check" title="Installs the same build served through this computer, so Inspect can open Chrome DevTools (Console, Network, Elements) on it">
-                <input type="checkbox" name="devtools" [(ngModel)]="custom.devtools">
-                <span>With DevTools</span>
-              </label>
               <button class="action-button primary" type="submit" [disabled]="!!busy || !custom.name.trim() || !custom.url.trim()">
                 <i class="bi bi-download"></i><span>Install</span>
               </button>
@@ -123,17 +119,17 @@
                       @if (environment(app); as env) {
                         <span class="version-pill">{{ env }}</span>
                       }
-                      @if (hasDevtools(app)) {
-                        <span class="version-pill devtools-pill" title="Served through this computer; Inspect opens Chrome DevTools">DevTools</span>
+                      @if (isProxied(app)) {
+                        <span class="version-pill devtools-pill" title="An older DevTools install: it loads from this computer and fails when the Mac is away. Remove it and install the build directly.">Needs Mac</span>
                       }
                       <span class="package-id" [title]="app.URL">{{ app.URL }}</span>
                     </div>
                   </div>
                 </div>
                 <div class="app-actions">
-                  @if (hasDevtools(app)) {
+                  @if (canInspect(app)) {
                     <button class="app-action secondary" type="button" aria-label="Inspect" (click)="inspect(app)" [disabled]="!!busy"
-                            title="Open Chrome DevTools on this app as it runs on the TV">
+                            title="Opens the app once through this Mac and Chrome DevTools (Console, Network) on it. Nothing is installed; needs the TV on this Mac's network.">
                       @if (busy === 'inspect:' + app.Id) {
                         <span class="spinner-mini"></span>
                       } @else {

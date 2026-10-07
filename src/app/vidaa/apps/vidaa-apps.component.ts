@@ -5,7 +5,7 @@ import {open as openUrl} from '@tauri-apps/plugin-shell';
 import {errorMessage, VidaaApp, VidaaResolution, VidaaService, VidaaState} from '../../core/services/vidaa.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {appEnvironment, isPriorityApp} from '../../shared/known-apps';
-import {devtoolsUpstream, presetForUrl, VIDAA_PRESETS} from '../vidaa-presets';
+import {DEVTOOLS_PORTS, devtoolsUpstream, presetForUrl, VIDAA_PRESETS} from '../vidaa-presets';
 
 @Component({
     selector: 'app-vidaa-apps',
@@ -25,7 +25,7 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
     busy: string | null = null;
 
     showInstall = false;
-    custom = {name: '', url: '', iconUrl: '', resolution: 'hisense' as VidaaResolution, devtools: false};
+    custom = {name: '', url: '', iconUrl: '', resolution: 'hisense' as VidaaResolution};
 
     /** Upstream origins whose DevTools proxy is already running in this session. */
     private proxiesStarted = new Set<string>();
@@ -88,9 +88,29 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
         return presetForUrl(url)?.environment ?? appEnvironment(url, app.AppName);
     }
 
-    /** Installed "with DevTools": served through this computer, so it can be inspected. */
-    hasDevtools(app: VidaaApp): boolean {
+    /**
+     * An older install whose URL points at this computer's proxy. It only loads while the QA tool
+     * runs on the TV's network, so the row says so; installs are always direct now.
+     */
+    isProxied(app: VidaaApp): boolean {
         return !!devtoolsUpstream(app.URL);
+    }
+
+    /** Inspect works for FreeTV builds on a host the DevTools proxy knows. */
+    canInspect(app: VidaaApp): boolean {
+        return !!this.inspectTarget(app);
+    }
+
+    /** The FreeTV URL to serve through the proxy for this row. */
+    private inspectTarget(app: VidaaApp): {origin: string; path: string} | null {
+        const proxied = devtoolsUpstream(app.URL);
+        const url = proxied?.url ?? app.URL;
+        try {
+            const u = new URL(url);
+            return DEVTOOLS_PORTS[u.origin] ? {origin: u.origin, path: u.pathname + u.search} : null;
+        } catch {
+            return null;
+        }
     }
 
     /**
@@ -116,25 +136,9 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
     }
 
     async installCustom(): Promise<void> {
-        let {name, url} = this.custom;
-        const {iconUrl, resolution, devtools} = this.custom;
-        name = name.trim();
-        url = url.trim();
-        if (devtools) {
-            // Same build, served through this computer's proxy with Chii attached.
-            try {
-                const u = new URL(url);
-                const proxy = await this.vidaa.devtoolsStart(u.origin);
-                this.proxiesStarted.add(proxy.origin);
-                url = `http://${proxy.lanIp}:${proxy.port}${u.pathname}${u.search}`;
-                if (!/devtools$/i.test(name)) name = `${name} DevTools`;
-            } catch (e) {
-                this.fail('Could not start DevTools', errorMessage(e), e);
-                return;
-            }
-        }
-        if (await this.runInstall(name, url, iconUrl.trim(), resolution)) {
-            this.custom = {name: '', url: '', iconUrl: '', resolution: 'hisense', devtools: false};
+        const {name, url, iconUrl, resolution} = this.custom;
+        if (await this.runInstall(name.trim(), url.trim(), iconUrl.trim(), resolution)) {
+            this.custom = {name: '', url: '', iconUrl: '', resolution: 'hisense'};
             this.showInstall = false;
         }
     }
@@ -184,22 +188,24 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
     }
 
     /**
-     * Opens Chrome DevTools on the app as it runs on the TV. Launches it first when it is not
-     * running, because the page only attaches once it has loaded.
+     * Opens Chrome DevTools on the app for this session only. Nothing is installed: the build is
+     * launched once through this computer's proxy (DevKit launches any URL), so the app on the TV
+     * stays the direct install and keeps working without the Mac. Opening it from the TV again
+     * runs it directly. Needs the TV and this computer on the same network.
      */
     async inspect(app: VidaaApp): Promise<void> {
-        const up = devtoolsUpstream(app.URL);
+        const up = this.inspectTarget(app);
         if (!up || this.busy) return;
         this.busy = 'inspect:' + app.Id;
         try {
-            await this.vidaa.devtoolsStart(up.origin);
-            const path = new URL(app.URL).pathname;
+            const proxy = await this.vidaa.devtoolsStart(up.origin);
+            const pathOnly = up.path.split('?')[0];
             const tvIp = this.state.tvInfo?.['LAN IP'];
             const find = async () => (await this.vidaa.devtoolsTargets()).find(t =>
-                t.port === up.port && t.url.includes(path) && (!tvIp || t.ip.endsWith(tvIp)));
+                t.port === proxy.port && t.url.includes(pathOnly) && (!tvIp || t.ip.endsWith(tvIp)));
             let target = await find();
             if (!target) {
-                await this.vidaa.launch(app);
+                await this.vidaa.launch({URL: `http://${proxy.lanIp}:${proxy.port}${up.path}`, StoreType: app.StoreType});
                 for (let i = 0; i < 30 && !target; i++) {
                     await new Promise(r => setTimeout(r, 1000));
                     target = await find();
@@ -207,12 +213,12 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
             }
             if (!target) {
                 this.fail('DevTools did not attach',
-                    `"${app.AppName}" did not report in within 30 seconds. Check that it opened on the TV and that this computer is on the TV's network.`);
+                    `"${app.AppName}" did not report in within 30 seconds. Inspect needs the TV and this computer on the same network — the TV loads the app from this computer for the session. The installed app is not affected.`);
                 return;
             }
             const client = Math.random().toString(36).slice(2, 8);
-            const ws = `localhost:${up.port}/__chii/client/${client}?target=${target.id}`;
-            await openUrl(`http://localhost:${up.port}/__chii/front_end/chii_app.html?ws=${encodeURIComponent(ws)}&rtc=false`);
+            const ws = `localhost:${proxy.port}/__chii/client/${client}?target=${target.id}`;
+            await openUrl(`http://localhost:${proxy.port}/__chii/front_end/chii_app.html?ws=${encodeURIComponent(ws)}&rtc=false`);
         } catch (e) {
             this.fail('Inspect failed', errorMessage(e), e);
         } finally {
