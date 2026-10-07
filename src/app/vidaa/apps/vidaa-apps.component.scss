@@ -103,6 +103,16 @@ $vidaa: #00A3A1;
   option { color: #0F172B; }
 }
 
+.devtools-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #EAF2FF;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
 .devtools-pill {
   color: #FFBE32;
   border-color: rgba(255, 190, 50, 0.35);
@@ -110,7 +120,7 @@ $vidaa: #00A3A1;
 
 .custom-form {
   display: grid;
-  grid-template-columns: 1fr 2fr 2fr 100px auto;
+  grid-template-columns: 1fr 2fr 2fr 100px auto auto;
   align-items: center;
   gap: 8px;
 

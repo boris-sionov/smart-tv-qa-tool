@@ -5,7 +5,7 @@ import {open as openUrl} from '@tauri-apps/plugin-shell';
 import {errorMessage, VidaaApp, VidaaResolution, VidaaService, VidaaState} from '../../core/services/vidaa.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {appEnvironment, isPriorityApp} from '../../shared/known-apps';
-import {DEVTOOLS_PORTS, devtoolsUpstream, presetForUrl, VIDAA_PRESETS} from '../vidaa-presets';
+import {DEVTOOLS_PORTS, devtoolsLauncher, devtoolsUpstream, launcherTarget, presetForUrl, VIDAA_PRESETS} from '../vidaa-presets';
 
 @Component({
     selector: 'app-vidaa-apps',
@@ -25,7 +25,7 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
     busy: string | null = null;
 
     showInstall = false;
-    custom = {name: '', url: '', iconUrl: '', resolution: 'hisense' as VidaaResolution};
+    custom = {name: '', url: '', iconUrl: '', resolution: 'hisense' as VidaaResolution, devtools: false};
 
     /** Upstream origins whose DevTools proxy is already running in this session. */
     private proxiesStarted = new Set<string>();
@@ -83,8 +83,18 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
         await this.vidaa.disconnect().catch(() => undefined);
     }
 
+    /** The address a row stands for: a launcher's FreeTV URL, or the URL itself. */
+    displayUrl(app: VidaaApp): string {
+        return launcherTarget(app.URL) ?? app.URL;
+    }
+
+    /** Installed "with DevTools": goes through this Mac when the QA tool is reachable, else direct. */
+    isLauncher(app: VidaaApp): boolean {
+        return !!launcherTarget(app.URL);
+    }
+
     environment(app: VidaaApp): string | null {
-        const url = devtoolsUpstream(app.URL)?.url ?? app.URL;
+        const url = launcherTarget(app.URL) ?? devtoolsUpstream(app.URL)?.url ?? app.URL;
         return presetForUrl(url)?.environment ?? appEnvironment(url, app.AppName);
     }
 
@@ -103,8 +113,7 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
 
     /** The FreeTV URL to serve through the proxy for this row. */
     private inspectTarget(app: VidaaApp): {origin: string; path: string} | null {
-        const proxied = devtoolsUpstream(app.URL);
-        const url = proxied?.url ?? app.URL;
+        const url = launcherTarget(app.URL) ?? devtoolsUpstream(app.URL)?.url ?? app.URL;
         try {
             const u = new URL(url);
             return DEVTOOLS_PORTS[u.origin] ? {origin: u.origin, path: u.pathname + u.search} : null;
@@ -119,12 +128,14 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
      */
     private startProxiesFor(apps: VidaaApp[]): void {
         for (const app of apps) {
-            const up = devtoolsUpstream(app.URL);
-            if (!up || this.proxiesStarted.has(up.origin)) continue;
-            this.proxiesStarted.add(up.origin);
-            this.vidaa.devtoolsStart(up.origin).catch(e => {
-                this.proxiesStarted.delete(up.origin);
-                console.warn('[vidaa] DevTools proxy', up.origin, e);
+            const target = launcherTarget(app.URL);
+            const origin = target ? new URL(target).origin : devtoolsUpstream(app.URL)?.origin;
+            if (!origin || !DEVTOOLS_PORTS[origin] || this.proxiesStarted.has(origin)) continue;
+            this.proxiesStarted.add(origin);
+            this.vidaa.rememberDevtoolsOrigin(origin);
+            this.vidaa.devtoolsStart(origin).catch(e => {
+                this.proxiesStarted.delete(origin);
+                console.warn('[vidaa] DevTools proxy', origin, e);
             });
         }
     }
@@ -136,9 +147,30 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
     }
 
     async installCustom(): Promise<void> {
-        const {name, url, iconUrl, resolution} = this.custom;
-        if (await this.runInstall(name.trim(), url.trim(), iconUrl.trim(), resolution)) {
-            this.custom = {name: '', url: '', iconUrl: '', resolution: 'hisense'};
+        let {name, url} = this.custom;
+        const {iconUrl, resolution, devtools} = this.custom;
+        name = name.trim();
+        url = url.trim();
+        if (devtools) {
+            // Install a launcher that picks proxied-with-DevTools or direct each time it opens.
+            try {
+                const origin = new URL(url).origin;
+                if (!DEVTOOLS_PORTS[origin]) {
+                    this.fail('DevTools not available', `DevTools works for FreeTV builds on ${Object.keys(DEVTOOLS_PORTS).join(' or ')}.`);
+                    return;
+                }
+                const proxy = await this.vidaa.devtoolsStart(origin);
+                this.proxiesStarted.add(origin);
+                this.vidaa.rememberDevtoolsOrigin(origin);
+                url = devtoolsLauncher(url, proxy.lanIp, proxy.port);
+                if (!/devtools$/i.test(name)) name = `${name} DevTools`;
+            } catch (e) {
+                this.fail('Could not start DevTools', errorMessage(e), e);
+                return;
+            }
+        }
+        if (await this.runInstall(name, url, iconUrl.trim(), resolution)) {
+            this.custom = {name: '', url: '', iconUrl: '', resolution: 'hisense', devtools: false};
             this.showInstall = false;
         }
     }
@@ -205,7 +237,8 @@ export class VidaaAppsComponent implements OnInit, OnDestroy {
                 t.port === proxy.port && t.url.includes(pathOnly) && (!tvIp || t.ip.endsWith(tvIp)));
             let target = await find();
             if (!target) {
-                await this.vidaa.launch({URL: `http://${proxy.lanIp}:${proxy.port}${up.path}`, StoreType: app.StoreType});
+                const url = this.isLauncher(app) ? app.URL : `http://${proxy.lanIp}:${proxy.port}${up.path}`;
+                await this.vidaa.launch({URL: url, StoreType: app.StoreType});
                 for (let i = 0; i < 30 && !target; i++) {
                     await new Promise(r => setTimeout(r, 1000));
                     target = await find();

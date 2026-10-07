@@ -83,6 +83,11 @@
                 <option value="hisense">1080P</option>
                 <option value="store">720P</option>
               </select>
+              <label class="devtools-check"
+                     title="Each time the app opens it checks for this Mac: if the QA tool is reachable it runs with DevTools, otherwise it opens normally">
+                <input type="checkbox" name="devtools" [(ngModel)]="custom.devtools">
+                <span>With DevTools</span>
+              </label>
               <button class="action-button primary" type="submit" [disabled]="!!busy || !custom.name.trim() || !custom.url.trim()">
                 <i class="bi bi-download"></i><span>Install</span>
               </button>
@@ -121,10 +126,13 @@
                       @if (environment(app); as env) {
                         <span class="version-pill">{{ env }}</span>
                       }
+                      @if (isLauncher(app)) {
+                        <span class="version-pill devtools-pill" title="Opens with DevTools when this Mac's QA tool is reachable, normally otherwise">DevTools auto</span>
+                      }
                       @if (isProxied(app)) {
                         <span class="version-pill devtools-pill" title="An older DevTools install: it loads from this computer and fails when the Mac is away. Remove it and install the build directly.">Needs Mac</span>
                       }
-                      <span class="package-id" [title]="app.URL">{{ app.URL }}</span>
+                      <span class="package-id" [title]="displayUrl(app)">{{ displayUrl(app) }}</span>
                     </div>
                   </div>
                 </div>

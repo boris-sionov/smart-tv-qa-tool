@@ -430,7 +430,8 @@ async fn vidaa_install(
     if !valid_app_name(&name) {
         return Err(Error::new("App names may only contain letters, digits, spaces and underscores."));
     }
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
+    // `data:text/html` is the self-switching DevTools launcher (vidaa-presets.ts → devtoolsLauncher).
+    if !(url.starts_with("http://") || url.starts_with("https://") || url.starts_with("data:text/html")) {
         return Err(Error::new("The app URL must start with http:// or https://."));
     }
     let session = state.current().await?;

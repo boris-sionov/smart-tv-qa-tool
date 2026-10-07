@@ -62,6 +62,8 @@ export interface DevtoolsTarget {
 export type VidaaResolution = 'hisense' | 'store';
 
 const LOG_LIMIT = 2000;
+/** Upstream origins with a DevTools launcher installed on some TV — their proxies start with the app. */
+const DEVTOOLS_ORIGINS_KEY = 'smart-tv-qa-vidaa-devtools-origins';
 /** How long to wait for the TV's app list before treating it as empty. */
 const APPS_WAIT_MS = 10000;
 
@@ -79,6 +81,11 @@ export class VidaaService {
 
     constructor(private zone: NgZone) {
         this.refresh().catch(e => console.warn('[vidaa] status', e));
+        // A DevTools launcher on the TV goes through this computer only if the proxy answers, so
+        // have it listening from startup — not just once the VIDAA page is opened.
+        for (const origin of this.devtoolsOrigins()) {
+            this.devtoolsStart(origin).catch(e => console.warn('[vidaa] DevTools proxy', origin, e));
+        }
     }
 
     async refresh(): Promise<void> {
@@ -135,6 +142,25 @@ export class VidaaService {
     async devtoolsStart(origin: string): Promise<DevtoolsProxy> {
         const tvIp = this.state$.value.tvInfo?.['LAN IP'] || null;
         return invoke<DevtoolsProxy>('plugin:vidaa|vidaa_devtools_start', {origin, tvIp});
+    }
+
+    rememberDevtoolsOrigin(origin: string): void {
+        const set = new Set(this.devtoolsOrigins());
+        if (set.has(origin)) return;
+        set.add(origin);
+        try {
+            localStorage.setItem(DEVTOOLS_ORIGINS_KEY, JSON.stringify([...set]));
+        } catch {
+            // Best-effort: the VIDAA page also starts proxies for launchers it sees.
+        }
+    }
+
+    private devtoolsOrigins(): string[] {
+        try {
+            return JSON.parse(localStorage.getItem(DEVTOOLS_ORIGINS_KEY) || '[]');
+        } catch {
+            return [];
+        }
     }
 
     /** Pages attached to the DevTools proxies, newest first. */

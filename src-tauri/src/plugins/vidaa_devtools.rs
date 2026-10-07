@@ -48,6 +48,9 @@ use crate::error::Error;
 /// Where the Chii server and its files live on every proxy port.
 const CHII: &str = "/__chii/";
 
+/// Answers the TV-side launcher: "the QA tool is here, go through the proxy".
+const PING: &str = "/__qa/ping";
+
 /// Fixed ports for the FreeTV hosts, so an installed app's URL survives a restart of the tool.
 /// Mirrored by `DEVTOOLS_PORTS` in `src/app/vidaa/vidaa-presets.ts`.
 const KNOWN_PORTS: &[(&str, u16)] = &[("https://uat-web.freetv.tv", 8765), ("https://web.freetv.tv", 8766)];
@@ -231,6 +234,14 @@ fn plain(status: StatusCode, text: impl Into<Bytes>) -> Response<Body> {
 
 async fn handle(req: Request<Incoming>, ctx: Arc<Ctx>) -> Result<Response<Body>, Infallible> {
     let path = req.uri().path().to_owned();
+    if path == PING {
+        // The launcher installed on the TV asks this before choosing proxied or direct; it runs
+        // from a data: URL, so the answer has to be readable cross-origin.
+        let mut r = plain(StatusCode::NO_CONTENT, Bytes::new());
+        r.headers_mut().insert("access-control-allow-origin", HeaderValue::from_static("*"));
+        r.headers_mut().insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        return Ok(r);
+    }
     let result = if let Some(rest) = path.strip_prefix(CHII) {
         chii(req, rest.to_owned(), &ctx).await
     } else {
