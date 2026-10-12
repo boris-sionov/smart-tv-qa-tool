@@ -39,9 +39,15 @@ nohup ~/apk-library/run.sh > /dev/null 2>&1 &
 sleep 2
 REMOTE
 
-if curl -fsS -m 5 "http://${TARGET#*@}:8090/" > /dev/null; then
-  echo "APK library is up at http://${TARGET#*@}:8090/"
+URL="http://${TARGET#*@}:8090"
+if curl -fsS -m 5 "$URL/" > /dev/null; then
+  # Seed the Google Play history with the releases copied from Play Console, the first time only.
+  if ! curl -fsS -m 5 -o /dev/null "$URL/play-history.json"; then
+    curl -fsS -m 10 -T "$HERE/play-history-seed.json" "$URL/play-history.json?overwrite=0" > /dev/null \
+      && echo "Loaded the Google Play release history"
+  fi
+  echo "APK library is up at $URL/"
 else
-  echo "Installed, but http://${TARGET#*@}:8090/ does not answer yet — check ~/apk-library/server.log on the server." >&2
+  echo "Installed, but $URL/ does not answer yet — check ~/apk-library/server.log on the server." >&2
   exit 1
 fi
