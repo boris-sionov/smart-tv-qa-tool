@@ -6,6 +6,14 @@ Built with **Tauri 2** (Rust backend) + **Angular 17** frontend. Runs natively o
 
 ---
 
+## Demo
+
+[![Smart TV QA Management Tool — 70-second walkthrough](https://img.youtube.com/vi/uYnDg0J6vs0/maxresdefault.jpg)](https://youtu.be/uYnDg0J6vs0)
+
+▶️ **[Watch the 70-second walkthrough on YouTube](https://youtu.be/uYnDg0J6vs0)**: installing builds, build identity, app lifecycle, Samsung signing, and the architecture.
+
+---
+
 ## Supported Platforms
 
 | Platform | Status | Connection | App Format |
