@@ -6,7 +6,7 @@
 use std::time::UNIX_EPOCH;
 
 use regex::Regex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_http::reqwest::Url;
 
@@ -23,13 +23,44 @@ pub(crate) struct LibraryApk {
     modified: Option<String>,
 }
 
+/// One version Google Play served, as the tool saw it on the public listing.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PlayRelease {
+    package_id: String,
+    version: String,
+    /// The listing's "Updated on" date, in unix seconds — when this version went live.
+    updated: Option<i64>,
+    /// When the tool first saw this version on the listing, in unix seconds.
+    first_seen: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Library {
+    apks: Vec<LibraryApk>,
+    play_history: Vec<PlayRelease>,
+}
+
+/// The history file, kept beside the APKs so every Mac sees the same one.
+const HISTORY: &str = "play-history.json";
+
 #[tauri::command]
-pub(crate) async fn apk_library_list(source: String) -> Result<Vec<LibraryApk>, Error> {
-    let source = source.trim();
+pub(crate) async fn apk_library_list(source: String) -> Result<Library, Error> {
+    let apks = list_apks(source.trim()).await?;
+    let play_history = read_history(source.trim()).await.unwrap_or_default();
+    Ok(Library { apks, play_history })
+}
+
+/// A directory URL without its trailing slash resolves links against its parent.
+fn library_url(source: &str) -> Result<Url, Error> {
+    Url::parse(&if source.ends_with('/') { source.to_owned() } else { format!("{source}/") })
+        .map_err(|e| Error::new(format!("{source} is not a valid URL: {e}")))
+}
+
+async fn list_apks(source: &str) -> Result<Vec<LibraryApk>, Error> {
     if is_url(source) {
-        // A directory URL without its trailing slash resolves links against its parent.
-        let base = Url::parse(&if source.ends_with('/') { source.to_owned() } else { format!("{source}/") })
-            .map_err(|e| Error::new(format!("{source} is not a valid URL: {e}")))?;
+        let base = library_url(source)?;
         let listing = reqwest::get(base.as_str())
             .await
             .map_err(|e| Error::new(format!("Could not reach {base}: {e}")))?
@@ -38,7 +69,7 @@ pub(crate) async fn apk_library_list(source: String) -> Result<Vec<LibraryApk>, 
             .text()
             .await
             .map_err(|e| Error::new(format!("Could not read the file list at {base}: {e}")))?;
-        return Ok(parse_listing(&base, &listing));
+        return Ok(parse_json_listing(&base, &listing).unwrap_or_else(|| parse_listing(&base, &listing)));
     }
 
     let entries = std::fs::read_dir(source)
@@ -95,9 +126,17 @@ pub(crate) async fn apk_library_fetch<R: Runtime>(app: AppHandle<R>, location: S
     Ok(path.to_string_lossy().into_owned())
 }
 
-/// The package id an APK declares, so a refused downgrade knows which app to uninstall.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ApkManifest {
+    package_id: String,
+    version_name: Option<String>,
+}
+
+/// The package id and version an APK declares — the id so a refused downgrade knows which app to
+/// uninstall, the version to name an upload by.
 #[tauri::command]
-pub(crate) async fn apk_package_id(path: String) -> Result<String, Error> {
+pub(crate) async fn apk_manifest(path: String) -> Result<ApkManifest, Error> {
     let file = std::fs::File::open(&path)?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::new(format!("{path} is not an APK: {e}")))?;
     let mut manifest = Vec::new();
@@ -107,12 +146,22 @@ pub(crate) async fn apk_package_id(path: String) -> Result<String, Error> {
             .map_err(|e| Error::new(format!("{path} has no manifest: {e}")))?,
         &mut manifest,
     )?;
-    manifest_package(&manifest).ok_or_else(|| Error::new(format!("Could not read the package id of {path}")))
+    let attrs = manifest_attributes(&manifest);
+    let attr = |name: &str| attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v.clone());
+    Ok(ApkManifest {
+        package_id: attr("package").ok_or_else(|| Error::new(format!("Could not read the package id of {path}")))?,
+        version_name: attr("versionName"),
+    })
 }
 
-/// The `package` attribute of `<manifest>` in a compiled (binary XML) manifest: the string pool
-/// first, then the first start-element chunk, which is `<manifest>`.
-fn manifest_package(axml: &[u8]) -> Option<String> {
+/// The string attributes of `<manifest>` in a compiled (binary XML) manifest: the string pool
+/// first, then the first start-element chunk, which is `<manifest>`. An attribute set from a
+/// resource rather than a literal (`@string/…`) has no raw string and is left out.
+fn manifest_attributes(axml: &[u8]) -> Vec<(String, String)> {
+    manifest_attributes_opt(axml).unwrap_or_default()
+}
+
+fn manifest_attributes_opt(axml: &[u8]) -> Option<Vec<(String, String)>> {
     let u16_at = |o: usize| axml.get(o..o + 2).map(|b| u16::from_le_bytes([b[0], b[1]]));
     let u32_at = |o: usize| axml.get(o..o + 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
 
@@ -150,13 +199,16 @@ fn manifest_package(axml: &[u8]) -> Option<String> {
             0x0102 => {
                 let attrs = chunk + header + u16_at(chunk + header + 8)? as usize;
                 let attr_size = u16_at(chunk + header + 10)? as usize;
+                let mut found = Vec::new();
                 for k in 0..u16_at(chunk + header + 12)? as usize {
                     let a = attrs + k * attr_size;
-                    if strings.get(u32_at(a + 4)? as usize).map(String::as_str) == Some("package") {
-                        return strings.get(u32_at(a + 8)? as usize).cloned();
+                    let name = strings.get(u32_at(a + 4)? as usize);
+                    let value = strings.get(u32_at(a + 8)? as usize);
+                    if let (Some(name), Some(value)) = (name, value) {
+                        found.push((name.clone(), value.clone()));
                     }
                 }
-                return None;
+                return Some(found);
             }
             _ => {}
         }
@@ -166,6 +218,155 @@ fn manifest_package(axml: &[u8]) -> Option<String> {
         chunk += size;
     }
     None
+}
+
+/// Adds an APK on this Mac to the library under `name`. A name already there is refused with
+/// "already in the library" unless `overwrite`.
+#[tauri::command]
+pub(crate) async fn apk_library_upload(source: String, path: String, name: String, overwrite: bool) -> Result<(), Error> {
+    let source = source.trim();
+    let bytes = std::fs::read(&path).map_err(|e| Error::new(format!("Could not read {path}: {e}")))?;
+    if !is_url(source) {
+        let target = std::path::Path::new(source).join(&name);
+        if target.exists() && !overwrite {
+            return Err(Error::new(format!("{name} is already in the library")));
+        }
+        std::fs::write(&target, &bytes)?;
+        return Ok(());
+    }
+    let url = library_url(source)?.join(&name).map_err(|e| Error::new(format!("Bad file name {name}: {e}")))?;
+    let response = reqwest::Client::new()
+        .put(url.as_str())
+        .query(&[("overwrite", if overwrite { "1" } else { "0" })])
+        .body(bytes)
+        .send()
+        .await
+        .map_err(|e| Error::new(format!("Could not upload {name}: {e}")))?;
+    match response.status().as_u16() {
+        200..=299 => Ok(()),
+        409 => Err(Error::new(format!("{name} is already in the library"))),
+        405 | 501 => Err(Error::new("This library server does not take uploads")),
+        status => Err(Error::new(format!("Upload of {name} failed: HTTP {status}"))),
+    }
+}
+
+/// What the public Play listing shows now: the version and its "Updated on" date.
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PlayListing {
+    version: Option<String>,
+    updated: Option<i64>,
+}
+
+#[tauri::command]
+pub(crate) async fn play_store_listing(package_id: String) -> Result<PlayListing, Error> {
+    let url = format!("https://play.google.com/store/apps/details?id={package_id}&hl=en&gl=IL");
+    let html = reqwest::Client::new()
+        .get(url)
+        .header("User-Agent", "Mozilla/5.0")
+        .send()
+        .await
+        .map_err(|e| Error::new(format!("Could not reach Google Play: {e}")))?
+        .error_for_status()
+        .map_err(|e| Error::new(format!("Google Play did not return the listing: {e}")))?
+        .text()
+        .await
+        .map_err(|e| Error::new(format!("Could not read the Google Play listing: {e}")))?;
+    Ok(parse_play_listing(&html))
+}
+
+/// Neither value has markup on the listing; both sit in its embedded data — the version as
+/// `[[["1.10.3"]]`, the update date as `[["Jul 27, 2026",[1785141668,…` with the unix time
+/// beside the display text.
+fn parse_play_listing(html: &str) -> PlayListing {
+    let version = Regex::new(r#"\[\[\["(\d+(?:\.\d+)+)"\]\]"#).unwrap().captures(html).map(|c| c[1].to_owned());
+    let updated = Regex::new(r#"\[\["[A-Z][a-z]{2} \d{1,2}, \d{4}",\[(\d{9,11}),"#)
+        .unwrap()
+        .captures_iter(html)
+        .filter_map(|c| c[1].parse::<i64>().ok())
+        .max();
+    PlayListing { version, updated }
+}
+
+/// Records what the Play listing showed, once per package, version and update date.
+#[tauri::command]
+pub(crate) async fn apk_library_record_play(
+    source: String,
+    package_id: String,
+    version: String,
+    updated: Option<i64>,
+) -> Result<Vec<PlayRelease>, Error> {
+    let source = source.trim();
+    let mut history = read_history(source).await?;
+    if history.iter().any(|r| r.package_id == package_id && r.version == version && r.updated == updated) {
+        return Ok(history);
+    }
+    let now = std::time::SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
+    history.push(PlayRelease { package_id, version, updated, first_seen: now });
+    let body = serde_json::to_vec_pretty(&history).unwrap();
+    if is_url(source) {
+        let url = library_url(source)?.join(HISTORY).unwrap();
+        reqwest::Client::new()
+            .put(url.as_str())
+            .query(&[("overwrite", "1")])
+            .body(body)
+            .send()
+            .await
+            .and_then(|r| r.error_for_status())
+            .map_err(|e| Error::new(format!("Could not save the Play history: {e}")))?;
+    } else {
+        std::fs::write(std::path::Path::new(source).join(HISTORY), body)?;
+    }
+    Ok(history)
+}
+
+/// The Play history kept in the library; empty when there is none yet.
+async fn read_history(source: &str) -> Result<Vec<PlayRelease>, Error> {
+    let text = if is_url(source) {
+        let url = library_url(source)?.join(HISTORY).unwrap();
+        let response = reqwest::get(url.as_str())
+            .await
+            .map_err(|e| Error::new(format!("Could not reach {url}: {e}")))?;
+        if response.status().as_u16() == 404 {
+            return Ok(Vec::new());
+        }
+        response
+            .error_for_status()
+            .map_err(|e| Error::new(format!("Could not read the Play history: {e}")))?
+            .text()
+            .await
+            .map_err(|e| Error::new(format!("Could not read the Play history: {e}")))?
+    } else {
+        match std::fs::read_to_string(std::path::Path::new(source).join(HISTORY)) {
+            Ok(text) => text,
+            Err(_) => return Ok(Vec::new()),
+        }
+    };
+    serde_json::from_str(&text).map_err(|e| Error::new(format!("The Play history file is damaged: {e}")))
+}
+
+/// nginx's `autoindex_format json` — also what our own library server returns:
+/// `[{"name", "type", "mtime", "size"}]`. `None` when the page is not JSON.
+fn parse_json_listing(base: &Url, body: &str) -> Option<Vec<LibraryApk>> {
+    let entries: Vec<serde_json::Value> = serde_json::from_str(body).ok()?;
+    Some(
+        entries
+            .iter()
+            .filter(|e| e["type"].as_str() != Some("directory"))
+            .filter_map(|e| {
+                let name = e["name"].as_str()?;
+                if !name.to_lowercase().ends_with(".apk") {
+                    return None;
+                }
+                Some(LibraryApk {
+                    name: name.to_owned(),
+                    location: base.join(name).ok()?.to_string(),
+                    size: e["size"].as_u64(),
+                    modified: e["mtime"].as_str().map(str::to_owned),
+                })
+            })
+            .collect(),
+    )
 }
 
 fn is_url(source: &str) -> bool {
@@ -225,9 +426,9 @@ mod tests {
     #[ignore]
     fn reads_a_real_manifest() {
         let path = std::env::var("APK").unwrap();
-        let id = tauri::async_runtime::block_on(apk_package_id(path)).unwrap();
-        println!("package = {id}");
-        assert!(id.contains('.'));
+        let m = tauri::async_runtime::block_on(apk_manifest(path)).unwrap();
+        println!("package = {} version = {:?}", m.package_id, m.version_name);
+        assert!(m.package_id.contains('.'));
     }
 
     #[test]
@@ -245,6 +446,26 @@ mod tests {
         assert_eq!(apks[0].size, Some(26703206));
         assert_eq!(apks[0].modified.as_deref(), Some("12-Oct-2026 09:14"));
         assert_eq!(apks[1].name, "FreeTV 1.9.0.apk");
+    }
+
+    #[test]
+    fn reads_the_play_listing_data() {
+        let html = r#"…,[[["1.10.3"]],…app faster. "]],[["Jul 27, 2026",[1785141668,115000000]]…"#;
+        let listing = parse_play_listing(html);
+        assert_eq!(listing.version.as_deref(), Some("1.10.3"));
+        assert_eq!(listing.updated, Some(1785141668));
+    }
+
+    #[test]
+    fn reads_a_json_listing() {
+        let base = Url::parse("http://freetv-server:8090/").unwrap();
+        let body = r#"[{"name":"tv.freetv.androidtv-1.10.3.apk","type":"file","size":26703206,"mtime":"Mon, 12 Oct 2026 09:14:00 GMT"},
+                      {"name":"play-history.json","type":"file","size":10,"mtime":""}]"#;
+        let apks = parse_json_listing(&base, body).unwrap();
+        assert_eq!(apks.len(), 1);
+        assert_eq!(apks[0].location, "http://freetv-server:8090/tv.freetv.androidtv-1.10.3.apk");
+        assert_eq!(apks[0].size, Some(26703206));
+        assert!(parse_json_listing(&base, "<html>").is_none());
     }
 
     #[test]

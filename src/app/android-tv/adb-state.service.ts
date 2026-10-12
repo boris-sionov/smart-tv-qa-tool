@@ -15,6 +15,8 @@ export function deviceSerial(d: SavedDevice): string {
 const STORAGE_KEY = 'freetv-android-tv-devices';
 const SELECTED_STORAGE_KEY = 'freetv-android-tv-selected-device';
 const LIBRARY_STORAGE_KEY = 'freetv-android-tv-apk-library';
+/** The team's library on freetv-server, reached over Tailscale. */
+export const DEFAULT_APK_LIBRARY = 'http://freetv-server:8090/';
 
 @Injectable({providedIn: 'root'})
 export class AdbStateService {
@@ -46,7 +48,7 @@ export class AdbStateService {
 
     /** Where the APK library lives: a folder path or a server URL. */
     get apkLibrary(): string {
-        return localStorage.getItem(LIBRARY_STORAGE_KEY) ?? '';
+        return localStorage.getItem(LIBRARY_STORAGE_KEY) || DEFAULT_APK_LIBRARY;
     }
 
     set apkLibrary(source: string) {

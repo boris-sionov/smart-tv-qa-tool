@@ -363,23 +363,41 @@ DUID comparison is containment-based (`0 duid` can echo more than the bare id) a
 
 #### APK Library (Install from library)
 
-A shared set of APKs — store builds saved per version, older releases to go back to — that the
-apps page installs from. `plugins/apk_library.rs`, on `adb-manager`:
+A shared set of APKs — store builds per version, older releases to go back to — that the apps
+page installs from. By default it is the team's server, `http://freetv-server:8090/` (Tailscale);
+"Change" in the dialog points it at another server or a folder (a Google Drive folder synced by
+Drive for Desktop works). Kept in `localStorage` (`freetv-android-tv-apk-library`).
 
-- `apk_library_list(source)` — `source` is a folder (a Google Drive folder synced by Drive for
-  Desktop works) or an `http(s)` URL of a server that lists its files: nginx `autoindex on`,
-  Apache, or `python3 -m http.server` run in the folder. It reads `.apk` links off the page;
-  nginx/Apache print date and size after each link and those are shown too.
-- `apk_library_fetch(location)` — downloads a server APK into the app cache (`apk-library/`); a
-  folder path is returned as is.
-- `apk_package_id(path)` — the package id from the APK's binary manifest.
+**Server.** `scripts/apk-library-server.py`, standard-library Python, no sudo. `GET /` lists the
+APKs as nginx-autoindex JSON, `PUT /<name>.apk` uploads (409 unless `?overwrite=1`), and
+`play-history.json` is read and written the same way. Install or update it from a Mac with
+`sh scripts/install-apk-library-server.sh` — it copies the script to `~/apk-library/`, starts it on
+the server's Tailscale address only, and adds an `@reboot` line to the user's crontab (the user
+has no sudo and no lingering, so a systemd user unit would stop at logout). The client also reads
+plain nginx/Apache/`python3 -m http.server` listings, which cannot take uploads.
 
-The source is kept in `localStorage` (`freetv-android-tv-apk-library`). Installs run
-`adb install -r -d` (`adb_install`'s `downgrade` flag). A retail TV (`ro.debuggable=0`) honours
-`-d` only for a debuggable app, so downgrading a release build still answers
-`INSTALL_FAILED_VERSION_DOWNGRADE`; a different signing key (store build over a CI one) answers
-`INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Both make the dialog offer uninstall-and-install, which
-clears the app's data, so it asks first.
+**Commands** (`plugins/apk_library.rs`, on `adb-manager`): `apk_library_list`,
+`apk_library_fetch` (downloads to the app cache, `apk-library/`), `apk_library_upload`,
+`apk_manifest` (package id and versionName out of the binary manifest), `play_store_listing`,
+`apk_library_record_play`.
+
+**Uploads are named from the manifest**, `<package>-<versionName>.apk`, so CI artifacts called
+`app-release.apk` do not collide and the list sorts by version. A store build and a CI build of
+the same version get the same name; replacing one asks first.
+
+**Google Play dates.** Play publishes only the current version and its "Updated on" date — no
+history, and the Wayback Machine's snapshots of the listing carry dates but no versions. So each
+time the dialog opens it reads the listing (version as `[[["1.10.3"]]`, date as
+`[["Jul 27, 2026",[1785141668,…` in the embedded data) and appends it to the library's
+`play-history.json`. Every Mac contributes to the same file, and a library row whose version is
+in it shows the date that version went live. History starts the day this shipped; the full
+release list is only in Play Console (Test and release → Production → Releases).
+
+**Install.** `adb install -r -d` (`adb_install`'s `downgrade` flag). A retail TV
+(`ro.debuggable=0`) honours `-d` only for a debuggable app, so downgrading a release build still
+answers `INSTALL_FAILED_VERSION_DOWNGRADE`; a different signing key (store build over a CI one)
+answers `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Both make the dialog offer uninstall-and-install,
+which clears the app's data, so it asks first.
 
 ### LG WebOS (Luna API)
 - **Connection:** SSH port 22 / 9922, Ed25519 key auth

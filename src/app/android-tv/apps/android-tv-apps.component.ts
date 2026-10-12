@@ -168,7 +168,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
             } catch (e) {
                 const message = extractMessage(e, '');
                 if (!REPLACE_REFUSED.test(message)) throw e;
-                const packageId = await this.adb.apkPackageId(path);
+                const {packageId} = await this.adb.apkManifest(path);
                 const confirm = MessageDialogComponent.open(this.modalService, {
                     title: 'Uninstall first?',
                     message: (message.includes('VERSION_DOWNGRADE')

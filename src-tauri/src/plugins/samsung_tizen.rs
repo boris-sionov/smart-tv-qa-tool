@@ -1534,7 +1534,10 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             super::adb::adb_install,
             super::apk_library::apk_library_list,
             super::apk_library::apk_library_fetch,
-            super::apk_library::apk_package_id,
+            super::apk_library::apk_manifest,
+            super::apk_library::apk_library_upload,
+            super::apk_library::apk_library_record_play,
+            super::apk_library::play_store_listing,
         ])
         .build()
 }

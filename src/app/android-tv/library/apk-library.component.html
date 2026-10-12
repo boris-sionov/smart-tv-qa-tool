@@ -2,6 +2,13 @@
   <div class="wizard-header">
     <div class="header-text">
       <h5 class="wizard-title">Install from library</h5>
+      @if (playNow?.version) {
+        <div class="play-now">
+          <i class="bi bi-google-play"></i>
+          On Google Play now: <strong>v{{ playNow!.version }}</strong>
+          @if (playNowDate) { <span>· since {{ playNowDate | date:'d MMM y' }}</span> }
+        </div>
+      }
     </div>
     <button class="close-btn" (click)="modal.dismiss()" aria-label="Close">
       <i class="bi bi-x-lg"></i>
@@ -9,43 +16,61 @@
   </div>
 
   <div class="wizard-body">
-    <label class="form-field-label" for="library-source">Library — a folder or a server URL</label>
-    <div class="source-row">
-      <div class="input-wrapper">
-        <i class="bi bi-hdd-stack input-icon"></i>
-        <input id="library-source" class="modern-input" [(ngModel)]="source" (keydown.enter)="load()"
-               placeholder="http://my-server/freetv-apks/  or  ~/Google Drive/FreeTV APKs" spellcheck="false">
-      </div>
-      <button class="wizard-btn secondary" (click)="browse()" title="Choose a folder on this Mac">
-        <i class="bi bi-folder2-open"></i>
-      </button>
-      <button class="wizard-btn primary" (click)="load()" [disabled]="!source.trim() || loading">
-        <i class="bi bi-arrow-clockwise"></i>
-        <span>Load</span>
-      </button>
+    <div class="library-bar">
+      @if (editingSource) {
+        <div class="input-wrapper">
+          <i class="bi bi-hdd-stack input-icon"></i>
+          <input class="modern-input" [(ngModel)]="source" (keydown.enter)="load()" spellcheck="false"
+                 placeholder="http://freetv-server:8090/  or a folder" aria-label="Library location">
+        </div>
+        <button class="wizard-btn secondary" (click)="browse()" title="Choose a folder on this Mac">
+          <i class="bi bi-folder2-open"></i>
+        </button>
+        <button class="wizard-btn primary" (click)="load()" [disabled]="!source.trim() || loading">Load</button>
+      } @else {
+        <span class="library-source"><i class="bi bi-hdd-stack"></i>{{ source }}</span>
+        <button class="link-btn" (click)="editingSource = true">Change</button>
+        <button class="wizard-btn secondary ms-auto" (click)="load()" [disabled]="loading" title="Refresh">
+          <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        <button class="wizard-btn secondary" (click)="upload()" [disabled]="loading || !!uploading">
+          @if (uploading) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-upload"></i> }
+          <span>Upload APK</span>
+        </button>
+      }
     </div>
+
+    @if (uploading) {
+      <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Uploading {{ uploading }}…</div>
+    }
+    @if (error) {
+      <div class="library-state error"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>
+    }
 
     @if (loading) {
       <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Reading the library…</div>
-    } @else if (error) {
-      <div class="library-state error"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>
-    } @else if (apks && apks.length === 0) {
-      <div class="library-state">No .apk files there.</div>
-    } @else if (apks) {
-      <div class="apk-list" role="listbox">
-        @for (apk of apks; track apk.location) {
-          <button type="button" class="apk-row" role="option" [class.selected]="selected === apk"
-                  [attr.aria-selected]="selected === apk" (click)="selected = apk" (dblclick)="install()">
+    } @else if (rows && rows.length === 0) {
+      <div class="library-state">No versions in the library yet — add one with <strong>Upload APK</strong>.</div>
+    } @else if (rows) {
+      <div class="apk-list" role="listbox" aria-label="Versions">
+        @for (row of rows; track row.apk.location) {
+          <button type="button" class="apk-row" role="option" [class.selected]="selected === row.apk"
+                  [attr.aria-selected]="selected === row.apk" (click)="selected = row.apk" (dblclick)="install()">
             <i class="bi bi-android2 apk-icon"></i>
-            <span class="apk-name">{{ apk.name }}</span>
-            <span class="apk-meta">{{ modified(apk) }}</span>
-            <span class="apk-meta size">{{ size(apk) }}</span>
+            <span class="apk-name">
+              @if (row.version) { <span class="apk-version">v{{ row.version }}</span> }
+              <span class="apk-file">{{ row.apk.name }}</span>
+            </span>
+            @if (row.onPlayNow) {
+              <span class="play-tag now"><i class="bi bi-google-play"></i>On Google Play</span>
+            } @else if (row.playDate) {
+              <span class="play-tag" title="When this version went live on Google Play">
+                <i class="bi bi-google-play"></i>{{ row.playDate | date:'d MMM y' }}
+              </span>
+            }
+            <span class="apk-meta size">{{ size(row.apk) }}</span>
           </button>
         }
-      </div>
-    } @else {
-      <div class="library-state">
-        Point this at a folder (a synced Google Drive folder works) or at a web server that lists its files.
       </div>
     }
   </div>

@@ -19,6 +19,25 @@ export interface LibraryApk {
     modified: string | null;
 }
 
+/** One version Google Play served, as the tool saw it on the public listing. Times in unix seconds. */
+export interface PlayRelease {
+    packageId: string;
+    version: string;
+    /** The listing's "Updated on" date — when this version went live. */
+    updated: number | null;
+    firstSeen: number;
+}
+
+export interface ApkLibrary {
+    apks: LibraryApk[];
+    playHistory: PlayRelease[];
+}
+
+export interface PlayListing {
+    version: string | null;
+    updated: number | null;
+}
+
 export interface AdbPackageInfo {
     id: string;
     name: string;
@@ -213,8 +232,23 @@ export class AdbService implements DeviceProvider {
         return invoke<void>('plugin:adb-manager|adb_install', {serial, apkPath, downgrade});
     }
 
-    async listLibrary(source: string): Promise<LibraryApk[]> {
-        return invoke<LibraryApk[]>('plugin:adb-manager|apk_library_list', {source});
+    async listLibrary(source: string): Promise<ApkLibrary> {
+        return invoke<ApkLibrary>('plugin:adb-manager|apk_library_list', {source});
+    }
+
+    /** Adds an APK on this Mac to the library as `name`; refused when the name exists, unless `overwrite`. */
+    async uploadToLibrary(source: string, path: string, name: string, overwrite: boolean): Promise<void> {
+        return invoke<void>('plugin:adb-manager|apk_library_upload', {source, path, name, overwrite});
+    }
+
+    /** What the public Play listing shows now: the version and its "Updated on" date. */
+    async playListing(packageId: string): Promise<PlayListing> {
+        return invoke<PlayListing>('plugin:adb-manager|play_store_listing', {packageId});
+    }
+
+    /** Records a version seen on Google Play in the library's history; returns the history. */
+    async recordPlayRelease(source: string, packageId: string, version: string, updated: number | null): Promise<PlayRelease[]> {
+        return invoke<PlayRelease[]>('plugin:adb-manager|apk_library_record_play', {source, packageId, version, updated});
     }
 
     /** The local path of a library APK, downloaded first when it lives on a server. */
@@ -222,9 +256,9 @@ export class AdbService implements DeviceProvider {
         return invoke<string>('plugin:adb-manager|apk_library_fetch', {location});
     }
 
-    /** The package id an APK on this Mac declares. */
-    async apkPackageId(path: string): Promise<string> {
-        return invoke<string>('plugin:adb-manager|apk_package_id', {path});
+    /** The package id and version name an APK on this Mac declares. */
+    async apkManifest(path: string): Promise<{packageId: string; versionName: string | null}> {
+        return invoke('plugin:adb-manager|apk_manifest', {path});
     }
 
     async openLibraryFolderChooser(): Promise<string | null> {
