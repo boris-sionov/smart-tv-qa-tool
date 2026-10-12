@@ -47,7 +47,11 @@ pub(crate) async fn confluence_save_token(token: String) -> Result<String, Error
         .await
         .map_err(|e| Error::new(format!("Unexpected Confluence reply: {e}")))?;
     if user["type"].as_str() == Some("anonymous") {
-        return Err(Error::new("Confluence did not accept this token"));
+        // Confluence answers an unknown token as an anonymous visitor rather than with a 401.
+        return Err(Error::new(
+            "Confluence did not accept this token. It has to be made in Confluence itself — a Jira token \
+             does not work here: confluence.redge.com → your avatar → Profile → Personal Access Tokens.",
+        ));
     }
     keychain()?
         .set_password(&token)

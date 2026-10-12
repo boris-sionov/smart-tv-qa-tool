@@ -2,9 +2,9 @@
   <form class="token-card" (ngSubmit)="saveToken()">
     <div class="token-title"><i class="bi bi-key"></i> Connect to Confluence</div>
     <p class="token-hint">
-      Builds come from <strong>{{ page }}</strong> on confluence.redge.com. Paste a Personal Access Token —
-      Confluence → your avatar → <strong>Profile</strong> → <strong>Personal Access Tokens</strong> → Create token.
-      It is kept in the macOS Keychain, not in a file.
+      Builds come from <strong>{{ page }}</strong> on confluence.redge.com. Paste a Confluence Personal Access
+      Token — <a appExternalLink href="https://confluence.redge.com/plugins/personalaccesstokens/usertokens.action">create one here</a>
+      (a Jira token does not work). It is kept in the macOS Keychain, not in a file.
     </p>
     <div class="token-row">
       <input class="token-input" type="password" name="token" [(ngModel)]="token" autocomplete="off"
