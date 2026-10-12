@@ -8,19 +8,21 @@ import {extractMessage} from '../../core/utils/error.utils';
 import {BuildKind, RELEASE_PAGES} from '../../core/services/confluence.service';
 import {PickedBuild} from '../../shared/components/confluence-builds/confluence-builds.component';
 
-export type Tab = 'store' | 'uat' | 'prod';
+export type Tab = 'store' | 'uat' | 'prodDebug';
 
 /** The store app — the only package the freetv-server library holds. */
 const STORE_PACKAGE = 'tv.freetv.androidtv';
 
-/** The builds on "Releases Android TV", told apart by file name. `.aab` bundles are not installable. */
-const ANDROID_KINDS: Record<'uat' | 'prod', BuildKind[]> = {
+/**
+ * The builds on "Releases Android TV" the dialog offers, told apart by file name. PROD itself is
+ * the store tab; Confluence supplies UAT and the PROD debug build. `.aab` bundles are not installable.
+ */
+const ANDROID_KINDS: Record<'uat' | 'prodDebug', BuildKind[]> = {
     uat: [
         {label: 'UAT', match: /-nodebugTesting-FreeTVUat-.*\.apk$/},
         {label: 'UAT', debug: true, match: /-debug(?:Testing|Developer)-FreeTVUat-.*\.apk$/},
     ],
-    prod: [
-        {label: 'PROD', match: /-(?:release|nodebugTesting)-FreeTVProd-.*\.apk$/},
+    prodDebug: [
         {label: 'PROD', debug: true, match: /-debug(?:Testing|Developer)-FreeTVProd-.*\.apk$/},
     ],
 };
@@ -46,9 +48,9 @@ export interface LibraryRow {
 }
 
 /**
- * FreeTV builds to install, in three tabs. Store is the latest store build from the team's
- * library on freetv-server — the one Google Play serves when it is there. UAT and PROD are the
- * newest builds, debug ones included, from the "Releases Android TV" Confluence page. Closes with
+ * FreeTV builds to install, in three tabs. Store / PROD is every Google-signed store build in the
+ * team's library on freetv-server, the live one marked. UAT (debug included) and PROD Debug are
+ * the newest builds from the "Releases Android TV" Confluence page. Closes with
  * a {@link LibraryPick}; the caller installs it.
  */
 @Component({
@@ -81,10 +83,8 @@ export class ApkLibraryComponent implements OnInit {
         this.load();
     }
 
-    /** Only the latest store build: the one live on Google Play when the library has it, else the newest. */
     get rows(): LibraryRow[] {
-        const live = this.all.find(r => r.onPlayNow) ?? this.all[0];
-        return live ? [live] : [];
+        return this.all;
     }
 
     async browse(): Promise<void> {

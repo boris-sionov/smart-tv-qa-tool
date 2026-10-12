@@ -29,9 +29,9 @@
         <button class="wizard-btn primary" (click)="load()" [disabled]="!source.trim() || loading">Load</button>
       } @else {
         <div class="flavor-tabs" role="tablist">
-          <button role="tab" [class.active]="tab === 'store'" [attr.aria-selected]="tab === 'store'" (click)="tab = 'store'">Store</button>
+          <button role="tab" [class.active]="tab === 'store'" [attr.aria-selected]="tab === 'store'" (click)="tab = 'store'">Store / PROD</button>
           <button role="tab" [class.active]="tab === 'uat'" [attr.aria-selected]="tab === 'uat'" (click)="tab = 'uat'">UAT</button>
-          <button role="tab" [class.active]="tab === 'prod'" [attr.aria-selected]="tab === 'prod'" (click)="tab = 'prod'">PROD</button>
+          <button role="tab" [class.active]="tab === 'prodDebug'" [attr.aria-selected]="tab === 'prodDebug'" (click)="tab = 'prodDebug'">PROD Debug</button>
         </div>
         @if (tab === 'store') {
           <button class="wizard-btn secondary ms-auto" (click)="load()" [disabled]="loading" title="Refresh">
@@ -47,7 +47,7 @@
 
     @if (tab !== 'store') {
       <div class="confluence-tab">
-        <app-confluence-builds [page]="androidPage" [kinds]="tab === 'uat' ? kinds.uat : kinds.prod"
+        <app-confluence-builds [page]="androidPage" [kinds]="tab === 'uat' ? kinds.uat : kinds.prodDebug"
                                (picked)="installBuild($event)"></app-confluence-builds>
       </div>
     } @else {

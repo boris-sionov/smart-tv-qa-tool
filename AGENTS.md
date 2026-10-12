@@ -379,10 +379,9 @@ plain nginx/Apache/`python3 -m http.server` listings, which cannot take uploads.
 `apk_library_fetch` (downloads to the app cache, `apk-library/`), `apk_library_upload`,
 `apk_manifest` (package id and versionName out of the binary manifest), `play_store_listing`.
 
-**Three tabs.** Store is the freetv-server library, which holds the store app
-(`tv.freetv.androidtv`) only — Add version refuses any other package — and shows just the latest
-store build: the one live on Google Play when it is there, else the newest. UAT and PROD come from
-Confluence (see [Confluence Release Pages](#confluence-release-pages)). Each store row is the version's leading number (`1.1.50-(26010150)` reads `1.1.50`), its date
+**Three tabs.** Store / PROD is the freetv-server library — every Google-signed store build of
+`tv.freetv.androidtv`, the live one marked; Add version refuses any other package. UAT (and its
+debug build) and PROD Debug come from Confluence (see [Confluence Release Pages](#confluence-release-pages)). Each store row is the version's leading number (`1.1.50-(26010150)` reads `1.1.50`), its date
 and an Install button. The date is the file's mtime on the server — an upload stamps today, so
 for back-filled builds set it to the Play Console date with `touch -d`, as was done for the
 1.1.x–1.10.3 store builds.
@@ -427,7 +426,7 @@ kind*, not the top row — 1.28.2 on Releases Smart TV has Samsung but no LG bui
 
 | Where | Kinds (file name) |
 |---|---|
-| Android TV → library → UAT / PROD | `nodebugTesting-FreeTVUat`, `debug(Testing\|Developer)-FreeTVUat`; `(release\|nodebugTesting)-FreeTVProd`, `debug…-FreeTVProd`. `.aab` skipped |
+| Android TV → library → UAT / PROD Debug | `nodebugTesting-FreeTVUat`, `debug(Testing\|Developer)-FreeTVUat`; `debug(Testing\|Developer)-FreeTVProd`. PROD itself is the store library. `.aab` skipped |
 | Samsung → From Confluence | `samsung-tizen-uat-*.wgt`, `samsung-tizen-preprod-*.wgt` → the signed install |
 | LG → From Confluence | `lg-webos-{uhd,hd}-{uat,preprod}-*.ipk` → `installByPath` |
 
