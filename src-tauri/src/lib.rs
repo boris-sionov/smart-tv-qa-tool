@@ -47,6 +47,7 @@ pub fn run() {
         .plugin(plugins::local_file::plugin("local-file"))
         .plugin(plugins::samsung_tizen::plugin("adb-manager"))
         .plugin(plugins::lg_remote::plugin("lg-remote"))
+        .plugin(plugins::vidaa::plugin("vidaa"))
         .manage(DeviceManager::default())
         .manage(SessionManager::default())
         .manage(SpawnManager::default())

@@ -1,0 +1,102 @@
+$text-secondary: #A8B8CC;
+$border-color: rgba(91, 159, 245, 0.2);
+
+:host {
+  display: block;
+  height: 100%;
+  overflow: auto;
+}
+
+.vidaa-info {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.empty {
+  margin-top: 80px;
+  text-align: center;
+  color: $text-secondary;
+
+  i {
+    font-size: 42px;
+    color: #5B9FF5;
+  }
+
+  h4 {
+    margin: 12px 0 6px;
+    color: #FFFFFF;
+  }
+}
+
+.card-panel {
+  padding: 18px;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  background: rgba(26, 39, 68, 0.6);
+
+  h3 {
+    margin: 0 0 12px;
+    color: #FFFFFF;
+    font-size: 17px;
+    font-weight: 700;
+  }
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 20px;
+  margin: 0;
+
+  dt {
+    color: $text-secondary;
+    font-weight: 600;
+  }
+
+  dd {
+    margin: 0;
+    color: #FFFFFF;
+    font-family: 'SF Mono', 'Consolas', monospace;
+    word-break: break-all;
+  }
+}
+
+.log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  h3 { margin: 0; }
+}
+
+.clear-btn {
+  padding: 4px 10px;
+  border: 1px solid $border-color;
+  border-radius: 8px;
+  color: #EAF2FF;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+}
+
+.hint {
+  margin: 12px 0 0;
+  color: $text-secondary;
+  font-size: 13px;
+}
+
+.log {
+  max-height: 420px;
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  color: #D7E3F4;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  white-space: pre-wrap;
+  overflow: auto;
+}

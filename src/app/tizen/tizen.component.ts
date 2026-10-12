@@ -47,4 +47,8 @@ export class TizenComponent implements OnInit {
     openTizen(): void {
         this.router.navigate(['/tizen']);
     }
+
+    openVidaa(): void {
+        this.router.navigate(['/vidaa']);
+    }
 }

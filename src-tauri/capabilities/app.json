@@ -43,6 +43,7 @@
     "local-file:default",
     "adb-manager:default",
     "lg-remote:default",
+    "vidaa:default",
     "log:default",
     "os:default",
     {

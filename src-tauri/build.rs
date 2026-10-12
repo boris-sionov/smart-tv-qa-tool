@@ -48,6 +48,18 @@ fn main() {
                 InlinedPlugin::new().commands(&["press_button", "list_apps"]),
             )
             .plugin(
+                "vidaa",
+                InlinedPlugin::new().commands(&[
+                    "vidaa_connect",
+                    "vidaa_disconnect",
+                    "vidaa_status",
+                    "vidaa_install",
+                    "vidaa_launch",
+                    "vidaa_close",
+                    "vidaa_uninstall",
+                ]),
+            )
+            .plugin(
                 "adb-manager",
                 InlinedPlugin::new().commands(&[
                     "adb_list_devices",
