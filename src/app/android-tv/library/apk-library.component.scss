@@ -9,20 +9,6 @@
   .wizard-btn { height: 40px; padding: 0 14px; }
 }
 
-.library-source {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #A8B8CC;
-  font-size: 13px;
-
-  i.bi { color: #5B9FF5; }
-}
-
 .link-btn {
   border: 0;
   background: none;
@@ -46,8 +32,7 @@
   strong { color: #FFFFFF; }
 }
 
-.apk-version { font-weight: 700; margin-right: 10px; }
-.apk-file { color: #7E92B0; font-weight: 400; font-size: 12px; }
+.apk-version { font-size: 15px; font-weight: 700; }
 
 .play-tag {
   display: inline-flex;
@@ -117,33 +102,46 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 100%;
-  padding: 11px 14px;
+  padding: 8px 8px 8px 16px;
   border-radius: 10px;
   border: 1.5px solid rgba(255, 255, 255, 0.06);
   background: rgba(15, 23, 43, 0.5);
   color: #FFFFFF;
-  font-size: 14px;
-  text-align: left;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease;
 
   &:hover { border-color: rgba(91, 159, 245, 0.35); }
 
-  &.selected {
-    border-color: #5B9FF5;
-    background: rgba(91, 159, 245, 0.14);
+  .install-btn { padding: 8px 14px; }
+}
+
+.flavor-tabs {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+
+  button {
+    border: 0;
+    background: none;
+    padding: 7px 16px;
+    border-radius: 8px;
+    color: #A8B8CC;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+
+    &.active {
+      background: rgba(91, 159, 245, 0.18);
+      color: #FFFFFF;
+    }
   }
 }
 
-.apk-icon { color: #4ADE80; font-size: 16px; }
-
-.apk-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
+.tab-count {
+  margin-left: 4px;
+  color: #7E92B0;
+  font-weight: 500;
 }
 
 .apk-meta {
@@ -155,6 +153,10 @@
 }
 
 .footer-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   color: #7E92B0;
   font-size: 12px;
 

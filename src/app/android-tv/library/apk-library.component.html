@@ -28,8 +28,12 @@
         </button>
         <button class="wizard-btn primary" (click)="load()" [disabled]="!source.trim() || loading">Load</button>
       } @else {
-        <span class="library-source"><i class="bi bi-hdd-stack"></i>{{ source }}</span>
-        <button class="link-btn" (click)="editingSource = true">Change</button>
+        <div class="flavor-tabs" role="tablist">
+          <button role="tab" [class.active]="flavor === 'store'" [attr.aria-selected]="flavor === 'store'"
+                  (click)="flavor = 'store'">Store <span class="tab-count">{{ count('store') }}</span></button>
+          <button role="tab" [class.active]="flavor === 'uat'" [attr.aria-selected]="flavor === 'uat'"
+                  (click)="flavor = 'uat'">UAT <span class="tab-count">{{ count('uat') }}</span></button>
+        </div>
         <button class="wizard-btn secondary ms-auto" (click)="load()" [disabled]="loading" title="Refresh">
           <i class="bi bi-arrow-clockwise"></i>
         </button>
@@ -49,39 +53,38 @@
 
     @if (loading) {
       <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Reading the library…</div>
-    } @else if (rows && rows.length === 0) {
+    } @else if (rows.length === 0) {
       <div class="library-empty">
         <i class="bi bi-collection"></i>
-        <p>No versions in the library yet.</p>
+        <p>No {{ flavor === 'store' ? 'Store' : 'UAT' }} versions in the library yet.</p>
         <button class="wizard-btn add-btn" (click)="addVersion()" [disabled]="!!uploading">
           <i class="bi bi-plus-lg"></i><span>Add version</span>
         </button>
       </div>
-    } @else if (rows) {
-      <div class="apk-list" role="listbox" aria-label="Versions">
+    } @else {
+      <div class="apk-list" aria-label="Versions">
         @for (row of rows; track row.apk.location) {
-          <button type="button" class="apk-row" role="option" [class.selected]="selected === row.apk"
-                  [attr.aria-selected]="selected === row.apk" (click)="selected = row.apk" (dblclick)="install()">
-            <i class="bi bi-android2 apk-icon"></i>
-            <span class="apk-name">
-              @if (row.version) { <span class="apk-version">v{{ row.version }}</span> }
-              <span class="apk-file">{{ row.apk.name }}</span>
-            </span>
+          <div class="apk-row" [title]="row.apk.name">
+            <span class="apk-version">{{ row.version }}</span>
             @if (row.onPlayNow) {
               <span class="play-tag"><i class="bi bi-google-play"></i>On Google Play</span>
             }
+            <span class="apk-meta ms-auto">{{ row.added | date:'d MMM y' }}</span>
             <span class="apk-meta size">{{ size(row.apk) }}</span>
-          </button>
+            <button class="wizard-btn primary install-btn" (click)="install(row)">
+              <i class="bi bi-download"></i><span>Install</span>
+            </button>
+          </div>
         }
       </div>
     }
   </div>
 
   <div class="wizard-footer">
-    <span class="footer-note">Installs with <code>adb install -r -d</code> — downgrades allowed</span>
-    <button class="wizard-btn primary ms-auto" (click)="install()" [disabled]="!selected">
-      <i class="bi bi-download"></i>
-      <span>Install</span>
-    </button>
+    <span class="footer-note">
+      <i class="bi bi-hdd-stack"></i> {{ source }}
+      @if (!editingSource) { <button class="link-btn" (click)="editingSource = true">Change</button> }
+    </span>
+    <span class="footer-note ms-auto">Installs with <code>adb install -r -d</code> — downgrades allowed</span>
   </div>
 </div>

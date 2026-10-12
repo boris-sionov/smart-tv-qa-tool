@@ -379,6 +379,13 @@ plain nginx/Apache/`python3 -m http.server` listings, which cannot take uploads.
 `apk_library_fetch` (downloads to the app cache, `apk-library/`), `apk_library_upload`,
 `apk_manifest` (package id and versionName out of the binary manifest), `play_store_listing`.
 
+**FreeTV only, two tabs.** The dialog shows Store (`tv.freetv.androidtv`) and UAT
+(`tv.freetv.androidtv.uat`, `tv.freetv.portal.preprod`) builds; Add version refuses any other
+package. Each row is the version's leading number (`1.1.50-(26010150)` reads `1.1.50`), its date
+and an Install button. The date is the file's mtime on the server — an upload stamps today, so
+for back-filled builds set it to the Play Console date with `touch -d`, as was done for the
+1.1.x–1.10.3 store builds.
+
 **Uploads are named from the manifest**, `<package>-<versionName>.apk`, so CI artifacts called
 `app-release.apk` do not collide and the list sorts by version. A store build and a CI build of
 the same version get the same name; replacing one asks first.
