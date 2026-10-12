@@ -23,33 +23,9 @@ pub(crate) struct LibraryApk {
     modified: Option<String>,
 }
 
-/// One version Google Play served, as the tool saw it on the public listing.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct PlayRelease {
-    package_id: String,
-    version: String,
-    /// The listing's "Updated on" date, in unix seconds — when this version went live.
-    updated: Option<i64>,
-    /// When the tool first saw this version on the listing, in unix seconds.
-    first_seen: i64,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct Library {
-    apks: Vec<LibraryApk>,
-    play_history: Vec<PlayRelease>,
-}
-
-/// The history file, kept beside the APKs so every Mac sees the same one.
-const HISTORY: &str = "play-history.json";
-
 #[tauri::command]
-pub(crate) async fn apk_library_list(source: String) -> Result<Library, Error> {
-    let apks = list_apks(source.trim()).await?;
-    let play_history = read_history(source.trim()).await.unwrap_or_default();
-    Ok(Library { apks, play_history })
+pub(crate) async fn apk_library_list(source: String) -> Result<Vec<LibraryApk>, Error> {
+    list_apks(source.trim()).await
 }
 
 /// A directory URL without its trailing slash resolves links against its parent.
@@ -288,63 +264,6 @@ fn parse_play_listing(html: &str) -> PlayListing {
     PlayListing { version, updated }
 }
 
-/// Records what the Play listing showed, once per package, version and update date.
-#[tauri::command]
-pub(crate) async fn apk_library_record_play(
-    source: String,
-    package_id: String,
-    version: String,
-    updated: Option<i64>,
-) -> Result<Vec<PlayRelease>, Error> {
-    let source = source.trim();
-    let mut history = read_history(source).await?;
-    if history.iter().any(|r| r.package_id == package_id && r.version == version && r.updated == updated) {
-        return Ok(history);
-    }
-    let now = std::time::SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as i64;
-    history.push(PlayRelease { package_id, version, updated, first_seen: now });
-    let body = serde_json::to_vec_pretty(&history).unwrap();
-    if is_url(source) {
-        let url = library_url(source)?.join(HISTORY).unwrap();
-        reqwest::Client::new()
-            .put(url.as_str())
-            .query(&[("overwrite", "1")])
-            .body(body)
-            .send()
-            .await
-            .and_then(|r| r.error_for_status())
-            .map_err(|e| Error::new(format!("Could not save the Play history: {e}")))?;
-    } else {
-        std::fs::write(std::path::Path::new(source).join(HISTORY), body)?;
-    }
-    Ok(history)
-}
-
-/// The Play history kept in the library; empty when there is none yet.
-async fn read_history(source: &str) -> Result<Vec<PlayRelease>, Error> {
-    let text = if is_url(source) {
-        let url = library_url(source)?.join(HISTORY).unwrap();
-        let response = reqwest::get(url.as_str())
-            .await
-            .map_err(|e| Error::new(format!("Could not reach {url}: {e}")))?;
-        if response.status().as_u16() == 404 {
-            return Ok(Vec::new());
-        }
-        response
-            .error_for_status()
-            .map_err(|e| Error::new(format!("Could not read the Play history: {e}")))?
-            .text()
-            .await
-            .map_err(|e| Error::new(format!("Could not read the Play history: {e}")))?
-    } else {
-        match std::fs::read_to_string(std::path::Path::new(source).join(HISTORY)) {
-            Ok(text) => text,
-            Err(_) => return Ok(Vec::new()),
-        }
-    };
-    serde_json::from_str(&text).map_err(|e| Error::new(format!("The Play history file is damaged: {e}")))
-}
-
 /// nginx's `autoindex_format json` — also what our own library server returns:
 /// `[{"name", "type", "mtime", "size"}]`. `None` when the page is not JSON.
 fn parse_json_listing(base: &Url, body: &str) -> Option<Vec<LibraryApk>> {
@@ -460,7 +379,7 @@ mod tests {
     fn reads_a_json_listing() {
         let base = Url::parse("http://freetv-server:8090/").unwrap();
         let body = r#"[{"name":"tv.freetv.androidtv-1.10.3.apk","type":"file","size":26703206,"mtime":"Mon, 12 Oct 2026 09:14:00 GMT"},
-                      {"name":"play-history.json","type":"file","size":10,"mtime":""}]"#;
+                      {"name":"notes.txt","type":"file","size":10,"mtime":""}]"#;
         let apks = parse_json_listing(&base, body).unwrap();
         assert_eq!(apks.len(), 1);
         assert_eq!(apks[0].location, "http://freetv-server:8090/tv.freetv.androidtv-1.10.3.apk");

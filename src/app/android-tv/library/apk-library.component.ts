@@ -1,12 +1,12 @@
 import {Component, OnInit} from '@angular/core';
 import {NgbActiveModal, NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {open as showOpenDialog} from '@tauri-apps/plugin-dialog';
-import {AdbService, LibraryApk, PlayListing, PlayRelease} from '../../core/services/adb.service';
+import {AdbService, LibraryApk, PlayListing} from '../../core/services/adb.service';
 import {AdbStateService} from '../adb-state.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {extractMessage} from '../../core/utils/error.utils';
 
-/** The app whose Google Play history the library tracks. */
+/** The app whose live Google Play version the list marks. */
 const PLAY_PACKAGE = 'tv.freetv.androidtv';
 
 /** The version in a library file name: `tv.freetv.androidtv-1.10.3.apk` → `1.10.3`. */
@@ -17,8 +17,6 @@ function versionOf(name: string): string | null {
 export interface LibraryRow {
     apk: LibraryApk;
     version: string | null;
-    /** Google Play's "Updated on" date for this version, when the tool has seen it there. */
-    playDate: Date | null;
     /** The version Google Play serves now. */
     onPlayNow: boolean;
 }
@@ -27,9 +25,7 @@ export interface LibraryRow {
  * Picks an APK from the shared library — by default the team's on freetv-server — and closes
  * with the chosen {@link LibraryApk}; the caller installs it.
  *
- * Each open also reads the public Play listing and records its version and "Updated on" date in
- * the library's `play-history.json`, so every Mac builds the same history of what was on Google
- * Play and when. Play itself publishes only the current version.
+ * The public Play listing says which version is live; that row is marked "On Google Play".
  */
 @Component({
     selector: 'app-apk-library',
@@ -46,8 +42,6 @@ export class ApkLibraryComponent implements OnInit {
     uploading: string | null = null;
     error: string | null = null;
     selected: LibraryApk | null = null;
-    private history: PlayRelease[] = [];
-
     constructor(public modal: NgbActiveModal, private modalService: NgbModal,
                 private adb: AdbService, private state: AdbStateService) {}
 
@@ -75,19 +69,9 @@ export class ApkLibraryComponent implements OnInit {
             return null;
         });
         try {
-            const library = await this.adb.listLibrary(this.source);
-            this.history = library.playHistory;
+            const apks = await this.adb.listLibrary(this.source);
             this.playNow = await listing;
-            this.setRows(library.apks);
-            if (this.playNow?.version) {
-                // Best-effort: a library that cannot be written to still lists and installs.
-                this.adb.recordPlayRelease(this.source, PLAY_PACKAGE, this.playNow.version, this.playNow.updated)
-                    .then(history => {
-                        this.history = history;
-                        this.setRows(this.rows?.map(r => r.apk) ?? []);
-                    })
-                    .catch(e => console.warn('[APK library] Could not record the Play version', e));
-            }
+            this.setRows(apks);
         } catch (e) {
             this.rows = null;
             this.error = extractMessage(e, 'Could not read the library');
@@ -100,16 +84,7 @@ export class ApkLibraryComponent implements OnInit {
         this.rows = apks
             .map(apk => {
                 const version = versionOf(apk.name);
-                const release = version
-                    ? this.history.filter(r => r.packageId === PLAY_PACKAGE && r.version === version)
-                        .sort((a, b) => (a.updated ?? a.firstSeen) - (b.updated ?? b.firstSeen))[0]
-                    : undefined;
-                const seconds = release ? (release.updated ?? release.firstSeen) : null;
-                return {
-                    apk, version,
-                    playDate: seconds ? new Date(seconds * 1000) : null,
-                    onPlayNow: !!version && version === this.playNow?.version,
-                };
+                return {apk, version, onPlayNow: !!version && version === this.playNow?.version};
             })
             // Newest version first: a numeric-aware compare puts 1.10.3 above 1.9.0.
             .sort((a, b) => b.apk.name.localeCompare(a.apk.name, undefined, {numeric: true}));
@@ -120,10 +95,10 @@ export class ApkLibraryComponent implements OnInit {
     }
 
     /**
-     * Uploads an APK from this Mac, named `<package>-<version>.apk` from its own manifest so the
-     * library sorts and matches Play history by version whatever the file was called.
+     * Adds an APK from this Mac, named `<package>-<version>.apk` from its own manifest so the
+     * library sorts by version and the live one is found, whatever the file was called.
      */
-    async upload(): Promise<void> {
+    async addVersion(): Promise<void> {
         const path = await showOpenDialog({filters: [{name: 'APK package', extensions: ['apk']}], multiple: false});
         if (!path) return;
         this.error = null;

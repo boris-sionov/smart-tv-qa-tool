@@ -6,7 +6,6 @@ Runs on freetv-server, reachable over Tailscale only. Standard library only, no 
     GET  /            the APKs as nginx-autoindex-style JSON: [{name, type, mtime, size}]
     GET  /<name>.apk  the file
     PUT  /<name>.apk  stores the body; 409 when it exists, unless ?overwrite=1
-    GET/PUT /play-history.json  the versions the tool saw on Google Play, and when
 
 Install (as the server user):
     mkdir -p ~/apk-library/apks && cp apk-library-server.py ~/apk-library/server.py
@@ -24,7 +23,6 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 ROOT = os.path.expanduser(os.environ.get('APK_LIBRARY', '~/apk-library/apks'))
 MAX_SIZE = 1024 * 1024 * 1024
-HISTORY = 'play-history.json'
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -32,10 +30,8 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=ROOT, **kwargs)
 
     def _apk_name(self):
-        """The file name a PUT names, or None unless it is a plain `*.apk` at the root or the history."""
+        """The file name a PUT names, or None unless it is a plain `*.apk` at the root."""
         name = unquote(urlsplit(self.path).path).lstrip('/')
-        if name == HISTORY:
-            return name
         if not name.lower().endswith('.apk') or '/' in name or '\\' in name or name.startswith('.'):
             return None
         return name

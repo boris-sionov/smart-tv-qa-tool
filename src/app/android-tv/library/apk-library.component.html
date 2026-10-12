@@ -33,15 +33,15 @@
         <button class="wizard-btn secondary ms-auto" (click)="load()" [disabled]="loading" title="Refresh">
           <i class="bi bi-arrow-clockwise"></i>
         </button>
-        <button class="wizard-btn secondary" (click)="upload()" [disabled]="loading || !!uploading">
-          @if (uploading) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-upload"></i> }
-          <span>Upload APK</span>
+        <button class="wizard-btn add-btn" (click)="addVersion()" [disabled]="loading || !!uploading">
+          @if (uploading) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-plus-lg"></i> }
+          <span>Add version</span>
         </button>
       }
     </div>
 
     @if (uploading) {
-      <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Uploading {{ uploading }}…</div>
+      <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Adding {{ uploading }}…</div>
     }
     @if (error) {
       <div class="library-state error"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>
@@ -50,7 +50,13 @@
     @if (loading) {
       <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Reading the library…</div>
     } @else if (rows && rows.length === 0) {
-      <div class="library-state">No versions in the library yet — add one with <strong>Upload APK</strong>.</div>
+      <div class="library-empty">
+        <i class="bi bi-collection"></i>
+        <p>No versions in the library yet.</p>
+        <button class="wizard-btn add-btn" (click)="addVersion()" [disabled]="!!uploading">
+          <i class="bi bi-plus-lg"></i><span>Add version</span>
+        </button>
+      </div>
     } @else if (rows) {
       <div class="apk-list" role="listbox" aria-label="Versions">
         @for (row of rows; track row.apk.location) {
@@ -62,11 +68,7 @@
               <span class="apk-file">{{ row.apk.name }}</span>
             </span>
             @if (row.onPlayNow) {
-              <span class="play-tag now"><i class="bi bi-google-play"></i>On Google Play</span>
-            } @else if (row.playDate) {
-              <span class="play-tag" title="When this version went live on Google Play">
-                <i class="bi bi-google-play"></i>{{ row.playDate | date:'d MMM y' }}
-              </span>
+              <span class="play-tag"><i class="bi bi-google-play"></i>On Google Play</span>
             }
             <span class="apk-meta size">{{ size(row.apk) }}</span>
           </button>

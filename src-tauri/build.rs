@@ -75,7 +75,6 @@ fn main() {
                     "apk_library_fetch",
                     "apk_manifest",
                     "apk_library_upload",
-                    "apk_library_record_play",
                     "play_store_listing",
                     "tizen_connect",
                     "tizen_get_prop",
