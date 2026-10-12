@@ -288,6 +288,46 @@ fn parse_json_listing(base: &Url, body: &str) -> Option<Vec<LibraryApk>> {
     )
 }
 
+/// Whether Tailscale is up on this Mac — `freetv-server` is reached through it, so a library
+/// that does not answer is most often just Tailscale being off. `missing` when there is no CLI.
+#[tauri::command]
+pub(crate) async fn tailscale_state() -> Result<String, Error> {
+    let cli = [
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+        "/usr/local/bin/tailscale",
+        "/opt/homebrew/bin/tailscale",
+        "/usr/bin/tailscale",
+        "C:\\Program Files\\Tailscale\\tailscale.exe",
+    ]
+    .into_iter()
+    .find(|p| std::path::Path::new(p).exists());
+    let Some(cli) = cli else { return Ok("missing".into()) };
+    let output = std::process::Command::new(cli)
+        .args(["status", "--json"])
+        .output()
+        .map_err(|e| Error::new(format!("Could not run Tailscale: {e}")))?;
+    let status: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap_or_default();
+    Ok(match status["BackendState"].as_str() {
+        Some("Running") => "running",
+        Some("NeedsLogin") => "needs-login",
+        _ => "stopped",
+    }
+    .into())
+}
+
+/// Opens the Tailscale app so it can be switched on.
+#[tauri::command]
+pub(crate) async fn tailscale_open() -> Result<(), Error> {
+    #[cfg(target_os = "macos")]
+    let result = std::process::Command::new("open").args(["-a", "Tailscale"]).status();
+    #[cfg(target_os = "windows")]
+    let result = std::process::Command::new("cmd").args(["/C", "start", "", "tailscale-ipn"]).status();
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let result: std::io::Result<std::process::ExitStatus> =
+        Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "run `tailscale up`"));
+    result.map(|_| ()).map_err(|e| Error::new(format!("Could not open Tailscale: {e}")))
+}
+
 fn is_url(source: &str) -> bool {
     source.starts_with("http://") || source.starts_with("https://")
 }

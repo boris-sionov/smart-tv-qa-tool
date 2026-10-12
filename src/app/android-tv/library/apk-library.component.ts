@@ -63,6 +63,10 @@ export class ApkLibraryComponent implements OnInit {
     loading = false;
     uploading: string | null = null;
     error: string | null = null;
+    /** Why a server library did not answer, when it is Tailscale rather than the server. */
+    tailscale: 'stopped' | 'needs-login' | 'missing' | 'waiting' | null = null;
+    /** The library did not answer although Tailscale is up (or it is a folder). */
+    unreachable: string | null = null;
     private all: (LibraryRow & {flavor: Flavor})[] = [];
 
     constructor(public modal: NgbActiveModal, private modalService: NgbModal,
@@ -94,6 +98,8 @@ export class ApkLibraryComponent implements OnInit {
         this.editingSource = false;
         this.loading = true;
         this.error = null;
+        this.tailscale = null;
+        this.unreachable = null;
         const listing = this.adb.playListing(PLAY_PACKAGE).catch(e => {
             console.warn('[APK library] Could not read the Play listing', e);
             return null;
@@ -117,10 +123,28 @@ export class ApkLibraryComponent implements OnInit {
                 .sort((a, b) => b.version.localeCompare(a.version, undefined, {numeric: true}));
         } catch (e) {
             this.all = [];
-            this.error = extractMessage(e, 'Could not read the library');
+            this.unreachable = extractMessage(e, 'Could not read the library');
+            if (/^https?:/.test(this.source.trim())) {
+                const state = await this.adb.tailscaleState().catch(() => 'running' as const);
+                if (state !== 'running') this.tailscale = state;
+            }
         } finally {
             this.loading = false;
         }
+    }
+
+    /** Opens Tailscale and reloads by itself once it is connected — up to a minute. */
+    async openTailscale(): Promise<void> {
+        await this.adb.openTailscale().catch(e => this.error = extractMessage(e, 'Could not open Tailscale'));
+        this.tailscale = 'waiting';
+        for (let i = 0; i < 30 && this.tailscale === 'waiting'; i++) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            if (await this.adb.tailscaleState().catch(() => null) === 'running') {
+                await this.load();
+                return;
+            }
+        }
+        if (this.tailscale === 'waiting') this.tailscale = 'stopped';
     }
 
     /** A folder library gives ms since the epoch; a server gives an HTTP date. */

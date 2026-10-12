@@ -242,6 +242,15 @@ export class AdbService implements DeviceProvider {
         return invoke('plugin:adb-manager|apk_manifest', {path});
     }
 
+    /** Whether Tailscale is up on this Mac: `running`, `stopped`, `needs-login` or `missing`. */
+    async tailscaleState(): Promise<'running' | 'stopped' | 'needs-login' | 'missing'> {
+        return invoke('plugin:adb-manager|tailscale_state');
+    }
+
+    async openTailscale(): Promise<void> {
+        return invoke<void>('plugin:adb-manager|tailscale_open');
+    }
+
     async openLibraryFolderChooser(): Promise<string | null> {
         return showOpenDialog({title: 'APK library folder', directory: true, multiple: false});
     }
