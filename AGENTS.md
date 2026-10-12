@@ -361,6 +361,26 @@ DUID comparison is containment-based (`0 duid` can echo more than the bare id) a
   placeholder. Nothing is written to the device — an installed APK's launcher banner is baked into
   the APK and cannot be changed over ADB, so this is our list only, not the TV's home screen.
 
+#### APK Library (Install from library)
+
+A shared set of APKs — store builds saved per version, older releases to go back to — that the
+apps page installs from. `plugins/apk_library.rs`, on `adb-manager`:
+
+- `apk_library_list(source)` — `source` is a folder (a Google Drive folder synced by Drive for
+  Desktop works) or an `http(s)` URL of a server that lists its files: nginx `autoindex on`,
+  Apache, or `python3 -m http.server` run in the folder. It reads `.apk` links off the page;
+  nginx/Apache print date and size after each link and those are shown too.
+- `apk_library_fetch(location)` — downloads a server APK into the app cache (`apk-library/`); a
+  folder path is returned as is.
+- `apk_package_id(path)` — the package id from the APK's binary manifest.
+
+The source is kept in `localStorage` (`freetv-android-tv-apk-library`). Installs run
+`adb install -r -d` (`adb_install`'s `downgrade` flag). A retail TV (`ro.debuggable=0`) honours
+`-d` only for a debuggable app, so downgrading a release build still answers
+`INSTALL_FAILED_VERSION_DOWNGRADE`; a different signing key (store build over a CI one) answers
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Both make the dialog offer uninstall-and-install, which
+clears the app's data, so it asks first.
+
 ### LG WebOS (Luna API)
 - **Connection:** SSH port 22 / 9922, Ed25519 key auth
 - **App format:** IPK

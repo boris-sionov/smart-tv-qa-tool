@@ -1,0 +1,81 @@
+@import "../wizard/android-tv-wizard.component";
+
+.source-row {
+  display: flex;
+  gap: 10px;
+
+  .input-wrapper { flex: 1; }
+  .wizard-btn { height: 44px; padding: 0 16px; }
+}
+
+.library-state {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #A8B8CC;
+  font-size: 13px;
+
+  &.error {
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    color: #FF6B6B;
+  }
+}
+
+.apk-list {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.apk-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.06);
+  background: rgba(15, 23, 43, 0.5);
+  color: #FFFFFF;
+  font-size: 14px;
+  text-align: left;
+  transition: all 0.2s ease;
+
+  &:hover { border-color: rgba(91, 159, 245, 0.35); }
+
+  &.selected {
+    border-color: #5B9FF5;
+    background: rgba(91, 159, 245, 0.14);
+  }
+}
+
+.apk-icon { color: #4ADE80; font-size: 16px; }
+
+.apk-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.apk-meta {
+  color: #7E92B0;
+  font-size: 12px;
+  white-space: nowrap;
+
+  &.size { min-width: 64px; text-align: right; }
+}
+
+.footer-note {
+  color: #7E92B0;
+  font-size: 12px;
+
+  code { color: #A8B8CC; }
+}

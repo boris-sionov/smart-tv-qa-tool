@@ -24,6 +24,10 @@
 
     <!-- Install APK Button -->
     <div class="install-btn-container">
+      <button class="btn btn-outline-light text-nowrap install-btn" (click)="installFromLibrary()" [disabled]="!serial"
+              title="Install a version from the shared APK library — downgrades allowed">
+        <i class="bi bi-collection-fill me-2"></i>Install from library
+      </button>
       <button class="btn btn-primary text-nowrap install-btn" (click)="installApk()" [disabled]="!serial">
         <i class="bi bi-folder-fill me-2"></i>Install APK
       </button>

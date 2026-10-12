@@ -9,6 +9,16 @@ export interface AdbDevice {
     state: 'device' | 'offline' | 'unauthorized' | string;
 }
 
+/** An APK in the shared library — a folder on this Mac or a web server's file list. */
+export interface LibraryApk {
+    name: string;
+    /** A path for a folder library, a URL for a server one. */
+    location: string;
+    size: number | null;
+    /** A ms timestamp for a folder; the listing's own date text for a server. */
+    modified: string | null;
+}
+
 export interface AdbPackageInfo {
     id: string;
     name: string;
@@ -198,8 +208,27 @@ export class AdbService implements DeviceProvider {
         return invoke<void>('plugin:adb-manager|adb_uninstall', {serial, packageId});
     }
 
-    async install(serial: string, apkPath: string): Promise<void> {
-        return invoke<void>('plugin:adb-manager|adb_install', {serial, apkPath});
+    /** `downgrade` adds `-d`, letting an older version replace a newer one where Android allows it. */
+    async install(serial: string, apkPath: string, downgrade = false): Promise<void> {
+        return invoke<void>('plugin:adb-manager|adb_install', {serial, apkPath, downgrade});
+    }
+
+    async listLibrary(source: string): Promise<LibraryApk[]> {
+        return invoke<LibraryApk[]>('plugin:adb-manager|apk_library_list', {source});
+    }
+
+    /** The local path of a library APK, downloaded first when it lives on a server. */
+    async fetchFromLibrary(location: string): Promise<string> {
+        return invoke<string>('plugin:adb-manager|apk_library_fetch', {location});
+    }
+
+    /** The package id an APK on this Mac declares. */
+    async apkPackageId(path: string): Promise<string> {
+        return invoke<string>('plugin:adb-manager|apk_package_id', {path});
+    }
+
+    async openLibraryFolderChooser(): Promise<string | null> {
+        return showOpenDialog({title: 'APK library folder', directory: true, multiple: false});
     }
 
     // DeviceProvider bridge methods

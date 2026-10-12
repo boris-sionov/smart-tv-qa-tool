@@ -14,6 +14,7 @@ export function deviceSerial(d: SavedDevice): string {
 
 const STORAGE_KEY = 'freetv-android-tv-devices';
 const SELECTED_STORAGE_KEY = 'freetv-android-tv-selected-device';
+const LIBRARY_STORAGE_KEY = 'freetv-android-tv-apk-library';
 
 @Injectable({providedIn: 'root'})
 export class AdbStateService {
@@ -41,6 +42,15 @@ export class AdbStateService {
             localStorage.setItem('adb-state-initialized', 'true');
             this.selected$.next(null);
         }
+    }
+
+    /** Where the APK library lives: a folder path or a server URL. */
+    get apkLibrary(): string {
+        return localStorage.getItem(LIBRARY_STORAGE_KEY) ?? '';
+    }
+
+    set apkLibrary(source: string) {
+        localStorage.setItem(LIBRARY_STORAGE_KEY, source.trim());
     }
 
     getSavedDevices(): SavedDevice[] {
