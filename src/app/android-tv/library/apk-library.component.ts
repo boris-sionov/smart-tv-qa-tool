@@ -5,35 +5,37 @@ import {AdbService, LibraryApk, PlayListing} from '../../core/services/adb.servi
 import {AdbStateService} from '../adb-state.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {extractMessage} from '../../core/utils/error.utils';
+import {BuildKind, RELEASE_PAGES} from '../../core/services/confluence.service';
+import {PickedBuild} from '../../shared/components/confluence-builds/confluence-builds.component';
 
-export type Flavor = 'store' | 'uat';
+export type Tab = 'store' | 'uat' | 'prod';
 
-/** The FreeTV packages each tab holds. The library takes these and nothing else. */
-const FLAVORS: Record<Flavor, string[]> = {
-    store: ['tv.freetv.androidtv'],
-    uat: ['tv.freetv.androidtv.uat', 'tv.freetv.portal.preprod'],
+/** The store app — the only package the freetv-server library holds. */
+const STORE_PACKAGE = 'tv.freetv.androidtv';
+
+/** The builds on "Releases Android TV", told apart by file name. `.aab` bundles are not installable. */
+const ANDROID_KINDS: Record<'uat' | 'prod', BuildKind[]> = {
+    uat: [
+        {label: 'UAT', match: /-nodebugTesting-FreeTVUat-.*\.apk$/},
+        {label: 'UAT', debug: true, match: /-debug(?:Testing|Developer)-FreeTVUat-.*\.apk$/},
+    ],
+    prod: [
+        {label: 'PROD', match: /-(?:release|nodebugTesting)-FreeTVProd-.*\.apk$/},
+        {label: 'PROD', debug: true, match: /-debug(?:Testing|Developer)-FreeTVProd-.*\.apk$/},
+    ],
 };
 
-/** The app whose live Google Play version the Store tab marks. */
-const PLAY_PACKAGE = 'tv.freetv.androidtv';
-
-/** Longest first, so `tv.freetv.androidtv.uat-…` is not read as the store package. */
-const PACKAGES = Object.values(FLAVORS).flat().sort((a, b) => b.length - a.length);
-
-function flavorOf(packageId: string): Flavor | null {
-    return (Object.keys(FLAVORS) as Flavor[]).find(f => FLAVORS[f].includes(packageId)) ?? null;
-}
-
 /**
- * Package and version out of a library file name, `<package>-<versionName>.apk`. The version is
- * its leading dotted number only: `1.1.50-(26010150)` reads `1.1.50`.
+ * The version out of a library file name, `<package>-<versionName>.apk` — its leading dotted
+ * number only: `1.1.50-(26010150)` reads `1.1.50`.
  */
-function parseName(name: string): {packageId: string; version: string | null} | null {
-    const packageId = PACKAGES.find(p => name.startsWith(`${p}-`));
-    if (!packageId) return null;
-    const version = name.slice(packageId.length + 1).match(/^\d+(?:\.\d+)*/)?.[0] ?? null;
-    return {packageId, version};
+function storeVersion(name: string): string | null {
+    if (!name.startsWith(`${STORE_PACKAGE}-`)) return null;
+    return name.slice(STORE_PACKAGE.length + 1).match(/^\d+(?:\.\d+)*/)?.[0] ?? null;
 }
+
+/** What the dialog closes with: a store build still on the server, or a Confluence build already downloaded. */
+export type LibraryPick = {kind: 'store'; apk: LibraryApk; version: string} | {kind: 'confluence'; build: PickedBuild};
 
 export interface LibraryRow {
     apk: LibraryApk;
@@ -44,10 +46,10 @@ export interface LibraryRow {
 }
 
 /**
- * The FreeTV builds in the shared library — by default the team's on freetv-server — in a Store
- * and a UAT tab. Closes with the {@link LibraryApk} to install; the caller installs it.
- *
- * The public Play listing says which store version is live; that row is marked "On Google Play".
+ * FreeTV builds to install, in three tabs. Store is the latest store build from the team's
+ * library on freetv-server — the one Google Play serves when it is there. UAT and PROD are the
+ * newest builds, debug ones included, from the "Releases Android TV" Confluence page. Closes with
+ * a {@link LibraryPick}; the caller installs it.
  */
 @Component({
     selector: 'app-apk-library',
@@ -58,7 +60,9 @@ export class ApkLibraryComponent implements OnInit {
 
     source = '';
     editingSource = false;
-    flavor: Flavor = 'store';
+    tab: Tab = 'store';
+    readonly androidPage = RELEASE_PAGES.androidTv;
+    readonly kinds = ANDROID_KINDS;
     playNow: PlayListing | null = null;
     loading = false;
     uploading: string | null = null;
@@ -67,7 +71,7 @@ export class ApkLibraryComponent implements OnInit {
     tailscale: 'stopped' | 'needs-login' | 'missing' | 'waiting' | null = null;
     /** The library did not answer although Tailscale is up (or it is a folder). */
     unreachable: string | null = null;
-    private all: (LibraryRow & {flavor: Flavor})[] = [];
+    private all: LibraryRow[] = [];
 
     constructor(public modal: NgbActiveModal, private modalService: NgbModal,
                 private adb: AdbService, private state: AdbStateService) {}
@@ -77,12 +81,10 @@ export class ApkLibraryComponent implements OnInit {
         this.load();
     }
 
+    /** Only the latest store build: the one live on Google Play when the library has it, else the newest. */
     get rows(): LibraryRow[] {
-        return this.all.filter(r => r.flavor === this.flavor);
-    }
-
-    count(flavor: Flavor): number {
-        return this.all.filter(r => r.flavor === flavor).length;
+        const live = this.all.find(r => r.onPlayNow) ?? this.all[0];
+        return live ? [live] : [];
     }
 
     async browse(): Promise<void> {
@@ -100,7 +102,7 @@ export class ApkLibraryComponent implements OnInit {
         this.error = null;
         this.tailscale = null;
         this.unreachable = null;
-        const listing = this.adb.playListing(PLAY_PACKAGE).catch(e => {
+        const listing = this.adb.playListing(STORE_PACKAGE).catch(e => {
             console.warn('[APK library] Could not read the Play listing', e);
             return null;
         });
@@ -109,15 +111,9 @@ export class ApkLibraryComponent implements OnInit {
             this.playNow = await listing;
             this.all = apks
                 .flatMap(apk => {
-                    const parsed = parseName(apk.name);
-                    const flavor = parsed && flavorOf(parsed.packageId);
-                    if (!parsed?.version || !flavor) return [];
-                    return [{
-                        apk, flavor,
-                        version: parsed.version,
-                        added: this.dateOf(apk),
-                        onPlayNow: parsed.packageId === PLAY_PACKAGE && parsed.version === this.playNow?.version,
-                    }];
+                    const version = storeVersion(apk.name);
+                    if (!version) return [];
+                    return [{apk, version, added: this.dateOf(apk), onPlayNow: version === this.playNow?.version}];
                 })
                 // Newest version first: a numeric-aware compare puts 1.10.3 above 1.9.0.
                 .sort((a, b) => b.version.localeCompare(a.version, undefined, {numeric: true}));
@@ -158,8 +154,8 @@ export class ApkLibraryComponent implements OnInit {
     }
 
     /**
-     * Adds a FreeTV APK from this Mac, named `<package>-<version>.apk` from its own manifest so it
-     * lands in the right tab and sorts by version, whatever the file was called.
+     * Adds a store APK from this Mac, named `<package>-<version>.apk` from its own manifest so it
+     * sorts by version and the live one is found, whatever the file was called.
      */
     async addVersion(): Promise<void> {
         const path = await showOpenDialog({filters: [{name: 'APK package', extensions: ['apk']}], multiple: false});
@@ -167,9 +163,9 @@ export class ApkLibraryComponent implements OnInit {
         this.error = null;
         try {
             const manifest = await this.adb.apkManifest(path);
-            const flavor = flavorOf(manifest.packageId);
-            if (!flavor) {
-                throw new Error(`${manifest.packageId} is not a FreeTV Store or UAT build — the library holds only those.`);
+            if (manifest.packageId !== STORE_PACKAGE) {
+                throw new Error(`${manifest.packageId} is not the FreeTV store app (${STORE_PACKAGE}) — `
+                    + 'the library holds store builds only; UAT and PROD come from Confluence.');
             }
             if (!manifest.versionName) throw new Error('The APK does not state its version.');
             const name = `${manifest.packageId}-${manifest.versionName}.apk`;
@@ -188,7 +184,6 @@ export class ApkLibraryComponent implements OnInit {
                 if (!await confirm.result.catch(() => false)) return;
                 await this.adb.uploadToLibrary(this.source, path, name, true);
             }
-            this.flavor = flavor;
             await this.load();
         } catch (e) {
             this.error = extractMessage(e, 'Could not add the version');
@@ -202,6 +197,10 @@ export class ApkLibraryComponent implements OnInit {
     }
 
     install(row: LibraryRow): void {
-        this.modal.close(row.apk);
+        this.modal.close({kind: 'store', apk: row.apk, version: row.version} satisfies LibraryPick);
+    }
+
+    installBuild(build: PickedBuild): void {
+        this.modal.close({kind: 'confluence', build} satisfies LibraryPick);
     }
 }

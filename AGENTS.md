@@ -379,9 +379,10 @@ plain nginx/Apache/`python3 -m http.server` listings, which cannot take uploads.
 `apk_library_fetch` (downloads to the app cache, `apk-library/`), `apk_library_upload`,
 `apk_manifest` (package id and versionName out of the binary manifest), `play_store_listing`.
 
-**FreeTV only, two tabs.** The dialog shows Store (`tv.freetv.androidtv`) and UAT
-(`tv.freetv.androidtv.uat`, `tv.freetv.portal.preprod`) builds; Add version refuses any other
-package. Each row is the version's leading number (`1.1.50-(26010150)` reads `1.1.50`), its date
+**Three tabs.** Store is the freetv-server library, which holds the store app
+(`tv.freetv.androidtv`) only — Add version refuses any other package — and shows just the latest
+store build: the one live on Google Play when it is there, else the newest. UAT and PROD come from
+Confluence (see [Confluence Release Pages](#confluence-release-pages)). Each store row is the version's leading number (`1.1.50-(26010150)` reads `1.1.50`), its date
 and an Install button. The date is the file's mtime on the server — an upload stamps today, so
 for back-filled builds set it to the Play Console date with `touch -d`, as was done for the
 1.1.x–1.10.3 store builds.
@@ -406,6 +407,33 @@ releases is kept; Play Console (Test and release → Latest releases and bundles
 answers `INSTALL_FAILED_VERSION_DOWNGRADE`; a different signing key (store build over a CI one)
 answers `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Both make the dialog offer uninstall-and-install,
 which clears the app's data, so it asks first.
+
+#### Confluence Release Pages
+
+UAT, PROD/PREPROD and debug builds are published on `confluence.redge.com` (Data Center, space
+`KRS`): **Releases Android TV** and **Releases Smart TV** (Samsung, LG, VIDAA), one table row per
+version — Version, Release day, then cells of attached files. `plugins/confluence.rs` reads them
+over the REST API (`/rest/api/content?spaceKey=KRS&title=…&expand=body.storage`) and downloads
+attachments from `/download/attachments/<pageId>/<file>` into the app cache.
+
+Auth is the user's **Personal Access Token**, Bearer. It is checked against
+`/rest/api/user/current` before it is kept, and kept only in the OS keychain (`keyring`, service
+`com.smarttv.qa-tool`, account `confluence-token`) — never in a file or `localStorage`, and the
+frontend has no command that reads it back. A refused token brings the token form back.
+
+The UI is one shared panel, `ConfluenceBuildsComponent`: it takes a page and a list of build
+kinds, each a file-name pattern, and shows the newest row that carries each kind. Newest *per
+kind*, not the top row — 1.28.2 on Releases Smart TV has Samsung but no LG builds.
+
+| Where | Kinds (file name) |
+|---|---|
+| Android TV → library → UAT / PROD | `nodebugTesting-FreeTVUat`, `debug(Testing\|Developer)-FreeTVUat`; `(release\|nodebugTesting)-FreeTVProd`, `debug…-FreeTVProd`. `.aab` skipped |
+| Samsung → From Confluence | `samsung-tizen-uat-*.wgt`, `samsung-tizen-preprod-*.wgt` → the signed install |
+| LG → From Confluence | `lg-webos-{uhd,hd}-{uat,preprod}-*.ipk` → `installByPath` |
+
+VIDAA is not here: its install links never change (`vidaa-presets.ts`). **There is no Samsung store
+build**: Samsung re-signs a published app and offers no download of it, and a retail TV refuses
+to hand an installed app back over `sdb`.
 
 ### LG WebOS (Luna API)
 - **Connection:** SSH port 22 / 9922, Ed25519 key auth

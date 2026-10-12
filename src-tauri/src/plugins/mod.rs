@@ -1,6 +1,7 @@
 pub mod adb;
 pub mod apk_library;
 pub mod cmd;
+pub mod confluence;
 pub mod device;
 pub mod devmode;
 pub mod file;

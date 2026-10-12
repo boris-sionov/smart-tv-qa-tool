@@ -7,7 +7,7 @@ import {MessageDialogComponent} from '../../shared/components/message-dialog/mes
 import {ProgressDialogComponent} from '../../shared/components/progress-dialog/progress-dialog.component';
 import {extractMessage} from '../../core/utils/error.utils';
 import {environmentIcon} from '../../shared/app-environment-icons';
-import {ApkLibraryComponent} from '../library/apk-library.component';
+import {ApkLibraryComponent, LibraryPick} from '../library/apk-library.component';
 
 /** pm's answers when an APK cannot replace the installed app without an uninstall first. */
 const REPLACE_REFUSED = /INSTALL_FAILED_UPDATE_INCOMPATIBLE|INSTALL_FAILED_VERSION_DOWNGRADE/;
@@ -150,8 +150,11 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         const serial = this.serial;
         if (!serial) return;
         const picker = this.modalService.open(ApkLibraryComponent, {size: 'lg', centered: true, scrollable: true});
-        const apk = await picker.result.catch(() => null);
-        if (!apk) return;
+        const pick: LibraryPick | null = await picker.result.catch(() => null);
+        if (!pick) return;
+        const label = pick.kind === 'store'
+            ? `Store ${pick.version}`
+            : `${pick.build.label} ${pick.build.version}${/debug/i.test(pick.build.file) ? ' (debug)' : ''}`;
 
         const progress = ProgressDialogComponent.open(this.modalService);
         const dialog = progress.componentInstance as ProgressDialogComponent;
@@ -160,9 +163,9 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
             {key: 'install', label: 'Installing on TV'},
         ]);
         try {
-            dialog.update(`Getting ${apk.name}…`, 20, 'fetch');
-            const path = await this.adb.fetchFromLibrary(apk.location);
-            dialog.update(`Installing ${apk.name}…`, 60, 'install');
+            dialog.update(`Getting ${label}…`, 20, 'fetch');
+            const path = pick.kind === 'store' ? await this.adb.fetchFromLibrary(pick.apk.location) : pick.build.path;
+            dialog.update(`Installing ${label}…`, 60, 'install');
             try {
                 await this.adb.install(serial, path, true);
             } catch (e) {
@@ -172,15 +175,15 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
                 const confirm = MessageDialogComponent.open(this.modalService, {
                     title: 'Uninstall first?',
                     message: (message.includes('VERSION_DOWNGRADE')
-                        ? `The TV refused to downgrade ${packageId} to ${apk.name} — Android allows that only for debug builds.`
-                        : `${apk.name} is signed with a different key than the ${packageId} on the TV.`)
+                        ? `The TV refused to downgrade ${packageId} to ${label} — Android allows that only for debug builds.`
+                        : `${label} is signed with a different key than the ${packageId} on the TV.`)
                         + ' It installs after an uninstall, which also clears the app\'s data and login.',
                     positive: 'Uninstall and install', positiveStyle: 'danger', negative: 'Cancel', autofocus: 'negative',
                 });
                 if (!await confirm.result.catch(() => false)) return;
                 dialog.update(`Uninstalling ${packageId}…`, 75, 'install');
                 await this.adb.uninstall(serial, packageId);
-                dialog.update(`Installing ${apk.name}…`, 85, 'install');
+                dialog.update(`Installing ${label}…`, 85, 'install');
                 await this.adb.install(serial, path, true);
             }
             dialog.update('Done', 100, 'done');

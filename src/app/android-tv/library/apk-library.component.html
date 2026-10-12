@@ -29,96 +29,106 @@
         <button class="wizard-btn primary" (click)="load()" [disabled]="!source.trim() || loading">Load</button>
       } @else {
         <div class="flavor-tabs" role="tablist">
-          <button role="tab" [class.active]="flavor === 'store'" [attr.aria-selected]="flavor === 'store'"
-                  (click)="flavor = 'store'">Store <span class="tab-count">{{ count('store') }}</span></button>
-          <button role="tab" [class.active]="flavor === 'uat'" [attr.aria-selected]="flavor === 'uat'"
-                  (click)="flavor = 'uat'">UAT <span class="tab-count">{{ count('uat') }}</span></button>
+          <button role="tab" [class.active]="tab === 'store'" [attr.aria-selected]="tab === 'store'" (click)="tab = 'store'">Store</button>
+          <button role="tab" [class.active]="tab === 'uat'" [attr.aria-selected]="tab === 'uat'" (click)="tab = 'uat'">UAT</button>
+          <button role="tab" [class.active]="tab === 'prod'" [attr.aria-selected]="tab === 'prod'" (click)="tab = 'prod'">PROD</button>
         </div>
-        <button class="wizard-btn secondary ms-auto" (click)="load()" [disabled]="loading" title="Refresh">
-          <i class="bi bi-arrow-clockwise"></i>
-        </button>
-        <button class="wizard-btn add-btn" (click)="addVersion()" [disabled]="loading || !!uploading">
-          @if (uploading) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-plus-lg"></i> }
-          <span>Add version</span>
-        </button>
+        @if (tab === 'store') {
+          <button class="wizard-btn secondary ms-auto" (click)="load()" [disabled]="loading" title="Refresh">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+          <button class="wizard-btn add-btn" (click)="addVersion()" [disabled]="loading || !!uploading">
+            @if (uploading) { <span class="spinner-border spinner-border-sm"></span> } @else { <i class="bi bi-plus-lg"></i> }
+            <span>Add version</span>
+          </button>
+        }
       }
     </div>
 
-    @if (uploading) {
-      <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Adding {{ uploading }}…</div>
-    }
-    @if (error) {
-      <div class="library-state error"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>
-    }
-
-    @if (loading) {
-      <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Reading the library…</div>
-    } @else if (tailscale) {
-      <div class="library-empty tailscale">
-        <i class="bi bi-shield-lock"></i>
-        @switch (tailscale) {
-          @case ('waiting') {
-            <p><span class="spinner-border spinner-border-sm"></span> Running <code>tailscale up</code>…</p>
-          }
-          @case ('missing') {
-            <p>Tailscale is not installed</p>
-            <span class="hint">freetv-server is reached through Tailscale — install it from tailscale.com and sign in.</span>
-          }
-          @case ('needs-login') {
-            <p>Tailscale needs you to sign in</p>
-            <span class="hint">freetv-server is reached through Tailscale.</span>
-            <button class="wizard-btn primary" (click)="tailscaleUp()"><i class="bi bi-power"></i><span>Tailscale up</span></button>
-          }
-          @default {
-            <p>Tailscale is off</p>
-            <span class="hint">freetv-server is reached through Tailscale.</span>
-            <button class="wizard-btn primary" (click)="tailscaleUp()"><i class="bi bi-power"></i><span>Tailscale up</span></button>
-          }
-        }
-      </div>
-    } @else if (unreachable) {
-      <div class="library-empty">
-        <i class="bi bi-cloud-slash"></i>
-        <p>The library is not answering</p>
-        @if (source.startsWith('http')) {
-          <span class="hint">Tailscale is on, so the server itself may be down. Re-run
-            <code>sh scripts/install-apk-library-server.sh</code> to restart it.</span>
-        }
-        <span class="hint">{{ unreachable }}</span>
-        <button class="wizard-btn secondary" (click)="load()"><i class="bi bi-arrow-clockwise"></i><span>Retry</span></button>
-      </div>
-    } @else if (rows.length === 0) {
-      <div class="library-empty">
-        <i class="bi bi-collection"></i>
-        <p>No {{ flavor === 'store' ? 'Store' : 'UAT' }} versions in the library yet.</p>
-        <button class="wizard-btn add-btn" (click)="addVersion()" [disabled]="!!uploading">
-          <i class="bi bi-plus-lg"></i><span>Add version</span>
-        </button>
+    @if (tab !== 'store') {
+      <div class="confluence-tab">
+        <app-confluence-builds [page]="androidPage" [kinds]="tab === 'uat' ? kinds.uat : kinds.prod"
+                               (picked)="installBuild($event)"></app-confluence-builds>
       </div>
     } @else {
-      <div class="apk-list" aria-label="Versions">
-        @for (row of rows; track row.apk.location) {
-          <div class="apk-row" [title]="row.apk.name">
-            <span class="apk-version">{{ row.version }}</span>
-            @if (row.onPlayNow) {
-              <span class="play-tag"><i class="bi bi-google-play"></i>On Google Play</span>
+      @if (uploading) {
+        <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Adding {{ uploading }}…</div>
+      }
+      @if (error) {
+        <div class="library-state error"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>
+      }
+
+      @if (loading) {
+        <div class="library-state"><span class="spinner-border spinner-border-sm"></span> Reading the library…</div>
+      } @else if (tailscale) {
+        <div class="library-empty tailscale">
+          <i class="bi bi-shield-lock"></i>
+          @switch (tailscale) {
+            @case ('waiting') {
+              <p><span class="spinner-border spinner-border-sm"></span> Running <code>tailscale up</code>…</p>
             }
-            <span class="apk-meta ms-auto">{{ row.added | date:'d MMM y' }}</span>
-            <span class="apk-meta size">{{ size(row.apk) }}</span>
-            <button class="wizard-btn primary install-btn" (click)="install(row)">
-              <i class="bi bi-download"></i><span>Install</span>
-            </button>
-          </div>
-        }
-      </div>
+            @case ('missing') {
+              <p>Tailscale is not installed</p>
+              <span class="hint">freetv-server is reached through Tailscale — install it from tailscale.com and sign in.</span>
+            }
+            @case ('needs-login') {
+              <p>Tailscale needs you to sign in</p>
+              <span class="hint">freetv-server is reached through Tailscale.</span>
+              <button class="wizard-btn primary" (click)="tailscaleUp()"><i class="bi bi-power"></i><span>Tailscale up</span></button>
+            }
+            @default {
+              <p>Tailscale is off</p>
+              <span class="hint">freetv-server is reached through Tailscale.</span>
+              <button class="wizard-btn primary" (click)="tailscaleUp()"><i class="bi bi-power"></i><span>Tailscale up</span></button>
+            }
+          }
+        </div>
+      } @else if (unreachable) {
+        <div class="library-empty">
+          <i class="bi bi-cloud-slash"></i>
+          <p>The library is not answering</p>
+          @if (source.startsWith('http')) {
+            <span class="hint">Tailscale is on, so the server itself may be down. Re-run
+              <code>sh scripts/install-apk-library-server.sh</code> to restart it.</span>
+          }
+          <span class="hint">{{ unreachable }}</span>
+          <button class="wizard-btn secondary" (click)="load()"><i class="bi bi-arrow-clockwise"></i><span>Retry</span></button>
+        </div>
+      } @else if (rows.length === 0) {
+        <div class="library-empty">
+          <i class="bi bi-collection"></i>
+          <p>No store build in the library yet.</p>
+          <button class="wizard-btn add-btn" (click)="addVersion()" [disabled]="!!uploading">
+            <i class="bi bi-plus-lg"></i><span>Add version</span>
+          </button>
+        </div>
+      } @else {
+        <div class="apk-list" aria-label="Versions">
+          @for (row of rows; track row.apk.location) {
+            <div class="apk-row" [title]="row.apk.name">
+              <span class="apk-version">{{ row.version }}</span>
+              @if (row.onPlayNow) {
+                <span class="play-tag"><i class="bi bi-google-play"></i>On Google Play</span>
+              }
+              <span class="apk-meta ms-auto">{{ row.added | date:'d MMM y' }}</span>
+              <span class="apk-meta size">{{ size(row.apk) }}</span>
+              <button class="wizard-btn primary install-btn" (click)="install(row)">
+                <i class="bi bi-download"></i><span>Install</span>
+              </button>
+            </div>
+          }
+        </div>
+      }
     }
   </div>
 
   <div class="wizard-footer">
-    <span class="footer-note">
-      <i class="bi bi-hdd-stack"></i> {{ source }}
-      @if (!editingSource) { <button class="link-btn" (click)="editingSource = true">Change</button> }
-    </span>
+    @if (tab === 'store') {
+      <span class="footer-note">
+        <i class="bi bi-hdd-stack"></i> {{ source }}
+        @if (!editingSource) { <button class="link-btn" (click)="editingSource = true">Change</button> }
+      </span>
+    }
     <span class="footer-note ms-auto">Installs with <code>adb install -r -d</code> — downgrades allowed</span>
   </div>
 </div>
