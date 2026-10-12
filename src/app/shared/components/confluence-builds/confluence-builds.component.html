@@ -24,10 +24,9 @@
     <div class="build-list">
       @for (row of rows; track row.file.url) {
         <div class="build-row" [title]="row.file.name">
-          <span class="build-label">{{ row.kind.label }}</span>
-          @if (row.kind.debug) { <span class="debug-tag">Debug</span> }
           <span class="build-version">{{ row.release.version }}</span>
-          <span class="build-meta ms-auto">{{ row.release.date }}</span>
+          @if (row.kind.debug) { <span class="debug-tag">Debug</span> }
+          <span class="build-meta ms-auto">{{ day(row.release) }}</span>
           <button class="build-btn primary" (click)="install(row)" [disabled]="!!downloading">
             @if (downloading === row) { <span class="spinner-border spinner-border-sm"></span><span>Downloading…</span> }
             @else { <i class="bi bi-download"></i><span>Install</span> }
@@ -36,9 +35,7 @@
       }
       @for (kind of missing; track kind.label) {
         <div class="build-row missing">
-          <span class="build-label">{{ kind.label }}</span>
-          @if (kind.debug) { <span class="debug-tag">Debug</span> }
-          <span class="build-meta ms-auto">Not on the page</span>
+          <span class="build-meta">{{ kind.debug ? 'No debug build' : 'No build' }} on the page yet</span>
         </div>
       }
     </div>

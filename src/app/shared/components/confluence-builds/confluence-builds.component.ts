@@ -94,6 +94,14 @@ export class ConfluenceBuildsComponent implements OnChanges {
         this.needsToken = true;
     }
 
+    /** The release day as `9 Oct 2026` when it is an ISO date, else as the page writes it. */
+    day(release: Release): string {
+        const date = /^\d{4}-\d{2}-\d{2}$/.test(release.date) ? new Date(`${release.date}T12:00:00`) : null;
+        return date && !isNaN(date.getTime())
+            ? date.toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'})
+            : release.date;
+    }
+
     async install(row: BuildRow): Promise<void> {
         this.downloading = row;
         this.error = null;

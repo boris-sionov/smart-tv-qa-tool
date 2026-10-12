@@ -420,15 +420,16 @@ Auth is the user's **Personal Access Token**, Bearer. It is checked against
 `com.smarttv.qa-tool`, account `confluence-token`) — never in a file or `localStorage`, and the
 frontend has no command that reads it back. A refused token brings the token form back.
 
-The UI is one shared panel, `ConfluenceBuildsComponent`: it takes a page and a list of build
+Rows show only the version and its release day (and a Debug tag) — the tab says what the build
+is. The UI is one shared panel, `ConfluenceBuildsComponent`: it takes a page and a list of build
 kinds, each a file-name pattern, and shows the newest row that carries each kind. Newest *per
 kind*, not the top row — 1.28.2 on Releases Smart TV has Samsung but no LG builds.
 
 | Where | Kinds (file name) |
 |---|---|
 | Android TV → library → UAT / PROD Debug | `nodebugTesting-FreeTVUat`, `debug(Testing\|Developer)-FreeTVUat`; `debug(Testing\|Developer)-FreeTVProd`. PROD itself is the store library. `.aab` skipped |
-| Samsung → From Confluence | `samsung-tizen-uat-*.wgt`, `samsung-tizen-preprod-*.wgt` → the signed install |
-| LG → From Confluence | `lg-webos-{uhd,hd}-{uat,preprod}-*.ipk` → `installByPath` |
+| Samsung → From Confluence, tabs PREPROD / UAT | `samsung-tizen-preprod-*.wgt`, `samsung-tizen-uat-*.wgt` → the signed install |
+| LG → From Confluence, tabs PREPROD / UAT | `lg-webos-uhd-preprod-*.ipk`, `lg-webos-uhd-uat-*.ipk` (UHD only; HD builds are ignored) → `installByPath` |
 
 VIDAA is not here: its install links never change (`vidaa-presets.ts`). **There is no Samsung store
 build**: Samsung re-signs a published app and offers no download of it, and a retail TV refuses
