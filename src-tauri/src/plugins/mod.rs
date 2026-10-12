@@ -5,6 +5,7 @@ pub mod devmode;
 pub mod file;
 pub mod lg_remote;
 pub mod local_file;
+pub mod play_console;
 pub mod samsung_tizen;
 pub mod shell;
 pub mod vidaa;

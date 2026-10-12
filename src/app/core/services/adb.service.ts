@@ -9,6 +9,14 @@ export interface AdbDevice {
     state: 'device' | 'offline' | 'unauthorized' | string;
 }
 
+/** A Google-signed store build downloaded from Play Console. */
+export interface StoreApk {
+    path: string;
+    versionCode: number;
+    releaseName: string;
+    track: string;
+}
+
 export interface AdbPackageInfo {
     id: string;
     name: string;
@@ -200,6 +208,24 @@ export class AdbService implements DeviceProvider {
 
     async install(serial: string, apkPath: string): Promise<void> {
         return invoke<void>('plugin:adb-manager|adb_install', {serial, apkPath});
+    }
+
+    /** The version the public Play listing shows, or `null` when it states none. */
+    async storeVersion(packageId: string): Promise<string | null> {
+        return invoke<string | null>('plugin:adb-manager|play_store_version', {packageId});
+    }
+
+    /** Downloads the Google-signed universal APK of the live production release from Play Console. */
+    async downloadStoreApk(keyPath: string, packageId: string): Promise<StoreApk> {
+        return invoke<StoreApk>('plugin:adb-manager|play_download_store_apk', {keyPath, packageId});
+    }
+
+    async openServiceAccountChooser(): Promise<string | null> {
+        return showOpenDialog({
+            title: 'Play Console service-account key',
+            filters: [{name: 'Service-account JSON key', extensions: ['json']}],
+            multiple: false,
+        });
     }
 
     // DeviceProvider bridge methods

@@ -361,6 +361,28 @@ DUID comparison is containment-based (`0 duid` can echo more than the bare id) a
   placeholder. Nothing is written to the device — an installed APK's launcher banner is baked into
   the APK and cannot be changed over ADB, so this is our list only, not the TV's home screen.
 
+#### Store Build (`tv.freetv.androidtv`)
+
+`plugins/play_console.rs`, two commands on `adb-manager`:
+
+- `play_store_version` reads the version off the public Play listing. There is no markup for it;
+  it sits in the page's embedded data as `[[["1.10.3"]]`. The apps page shows it as a `Store v…`
+  pill on the FreeTV row, green when the installed version matches, amber otherwise.
+- `play_download_store_apk` downloads the **Google-signed universal APK** of the newest
+  `completed`/`inProgress` release on `production` (then `tv:production`) through the Play
+  Developer API. Cached per version code under the app cache dir, `store-apks/`.
+
+It comes from Play Console and not the store because the store build is signed with Google's
+app-signing key and CI builds with our upload key: a CI build of the same version is a different
+package to Android, and pm refuses to replace one with the other
+(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`). The UI then offers uninstall-and-install, which clears the
+app's data, so it asks first.
+
+Auth is a Google Cloud **service account** JSON key, picked once (`freetv-android-tv-play-console-key`
+in `localStorage`, path only) and signed into an OAuth token in Rust (`rsa`, RS256 JWT). The
+account must be invited in Play Console → Users and permissions with access to the app; Google's
+own error message is passed through when it is not.
+
 ### LG WebOS (Luna API)
 - **Connection:** SSH port 22 / 9922, Ed25519 key auth
 - **App format:** IPK

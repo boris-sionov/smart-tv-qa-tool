@@ -220,6 +220,16 @@ $panel-strong: rgba(18, 30, 55, 0.88);
   }
 }
 
+.install-btn-container {
+  gap: 10px;
+}
+
+.store-btn-version {
+  margin-left: 8px;
+  opacity: 0.7;
+  font-weight: 400;
+}
+
 .device-selector {
   position: relative;
   z-index: 101;
@@ -371,6 +381,27 @@ $panel-strong: rgba(18, 30, 55, 0.88);
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.store-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 8px;
+  color: #4ADE80;
+  background: rgba(74, 222, 128, 0.1);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+
+  &.behind {
+    border-color: rgba(251, 191, 36, 0.35);
+    color: #FBBF24;
+    background: rgba(251, 191, 36, 0.1);
+  }
 }
 
 .version-pill {

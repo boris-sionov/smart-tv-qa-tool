@@ -10,6 +10,8 @@ permissions = [
   "allow-adb-force-stop",
   "allow-adb-uninstall",
   "allow-adb-install",
+  "allow-play-store-version",
+  "allow-play-download-store-apk",
   "allow-tizen-connect",
   "allow-tizen-get-prop",
   "allow-tizen-install",

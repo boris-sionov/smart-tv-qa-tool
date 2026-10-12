@@ -22,8 +22,24 @@
       </div>
     </div>
 
-    <!-- Install APK Button -->
+    <!-- Install Buttons -->
     <div class="install-btn-container">
+      <div class="btn-group store-btn-group" ngbDropdown placement="bottom-end">
+        <button class="btn btn-outline-light text-nowrap install-btn" (click)="installStoreBuild()" [disabled]="!serial"
+                title="Install the Google-signed build Google Play serves, downloaded from Play Console">
+          <i class="bi bi-google-play me-2"></i>Install store build
+          @if (storeVersion) {
+            <span class="store-btn-version">v{{ storeVersion }}</span>
+          }
+        </button>
+        <button class="btn btn-outline-light dropdown-toggle-split install-btn" ngbDropdownToggle
+                aria-label="Store build options"></button>
+        <div ngbDropdownMenu>
+          <button ngbDropdownItem (click)="choosePlayConsoleKey()">
+            <i class="bi bi-key me-2"></i>Choose Play Console key…
+          </button>
+        </div>
+      </div>
       <button class="btn btn-primary text-nowrap install-btn" (click)="installApk()" [disabled]="!serial">
         <i class="bi bi-folder-fill me-2"></i>Install APK
       </button>
@@ -76,6 +92,12 @@
                   <div class="app-title">{{ pkg.name }}</div>
                   <div class="app-meta">
                     <span class="version-pill">v{{ pkg.versionName || 'unknown' }}</span>
+                    @if (pkg.id === storePackage && storeVersion) {
+                      <span class="store-pill" [class.behind]="pkg.versionName !== storeVersion"
+                            [title]="pkg.versionName === storeVersion ? 'Same version as Google Play' : 'Google Play serves a different version'">
+                        <i class="bi bi-google-play"></i>Store v{{ storeVersion }}
+                      </span>
+                    }
                     <span class="package-id">{{ pkg.id }}</span>
                   </div>
                 </div>

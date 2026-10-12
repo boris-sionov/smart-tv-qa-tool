@@ -1532,6 +1532,8 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             super::adb::adb_force_stop,
             super::adb::adb_uninstall,
             super::adb::adb_install,
+            super::play_console::play_store_version,
+            super::play_console::play_download_store_apk,
         ])
         .build()
 }

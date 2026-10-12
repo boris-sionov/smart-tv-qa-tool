@@ -14,6 +14,7 @@ export function deviceSerial(d: SavedDevice): string {
 
 const STORAGE_KEY = 'freetv-android-tv-devices';
 const SELECTED_STORAGE_KEY = 'freetv-android-tv-selected-device';
+const PLAY_KEY_STORAGE_KEY = 'freetv-android-tv-play-console-key';
 
 @Injectable({providedIn: 'root'})
 export class AdbStateService {
@@ -41,6 +42,16 @@ export class AdbStateService {
             localStorage.setItem('adb-state-initialized', 'true');
             this.selected$.next(null);
         }
+    }
+
+    /** Path of the Play Console service-account JSON key used to download store builds. */
+    get playConsoleKey(): string | null {
+        return localStorage.getItem(PLAY_KEY_STORAGE_KEY);
+    }
+
+    set playConsoleKey(path: string | null) {
+        if (path) localStorage.setItem(PLAY_KEY_STORAGE_KEY, path);
+        else localStorage.removeItem(PLAY_KEY_STORAGE_KEY);
     }
 
     getSavedDevices(): SavedDevice[] {

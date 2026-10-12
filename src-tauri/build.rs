@@ -71,6 +71,8 @@ fn main() {
                     "adb_force_stop",
                     "adb_uninstall",
                     "adb_install",
+                    "play_store_version",
+                    "play_download_store_apk",
                     "tizen_connect",
                     "tizen_get_prop",
                     "tizen_install",
