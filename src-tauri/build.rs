@@ -77,7 +77,7 @@ fn main() {
                     "apk_library_upload",
                     "play_store_listing",
                     "tailscale_state",
-                    "tailscale_open",
+                    "tailscale_up",
                     "tizen_connect",
                     "tizen_get_prop",
                     "tizen_install",

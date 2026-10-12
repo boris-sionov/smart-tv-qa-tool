@@ -1538,7 +1538,7 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             super::apk_library::apk_library_upload,
             super::apk_library::play_store_listing,
             super::apk_library::tailscale_state,
-            super::apk_library::tailscale_open,
+            super::apk_library::tailscale_up,
         ])
         .build()
 }

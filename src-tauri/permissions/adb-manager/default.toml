@@ -16,7 +16,7 @@ permissions = [
   "allow-apk-library-upload",
   "allow-play-store-listing",
   "allow-tailscale-state",
-  "allow-tailscale-open",
+  "allow-tailscale-up",
   "allow-tizen-connect",
   "allow-tizen-get-prop",
   "allow-tizen-install",

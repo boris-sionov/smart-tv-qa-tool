@@ -133,18 +133,17 @@ export class ApkLibraryComponent implements OnInit {
         }
     }
 
-    /** Opens Tailscale and reloads by itself once it is connected — up to a minute. */
-    async openTailscale(): Promise<void> {
-        await this.adb.openTailscale().catch(e => this.error = extractMessage(e, 'Could not open Tailscale'));
+    /** Runs `tailscale up`, then loads the list. */
+    async tailscaleUp(): Promise<void> {
         this.tailscale = 'waiting';
-        for (let i = 0; i < 30 && this.tailscale === 'waiting'; i++) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            if (await this.adb.tailscaleState().catch(() => null) === 'running') {
-                await this.load();
-                return;
-            }
+        this.error = null;
+        try {
+            await this.adb.tailscaleUp();
+            await this.load();
+        } catch (e) {
+            this.tailscale = 'stopped';
+            this.error = extractMessage(e, 'tailscale up failed');
         }
-        if (this.tailscale === 'waiting') this.tailscale = 'stopped';
     }
 
     /** A folder library gives ms since the epoch; a server gives an HTTP date. */

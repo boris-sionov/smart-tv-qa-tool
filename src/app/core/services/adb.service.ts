@@ -247,8 +247,9 @@ export class AdbService implements DeviceProvider {
         return invoke('plugin:adb-manager|tailscale_state');
     }
 
-    async openTailscale(): Promise<void> {
-        return invoke<void>('plugin:adb-manager|tailscale_open');
+    /** Runs `tailscale up`. */
+    async tailscaleUp(): Promise<void> {
+        return invoke<void>('plugin:adb-manager|tailscale_up');
     }
 
     async openLibraryFolderChooser(): Promise<string | null> {

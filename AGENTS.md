@@ -386,6 +386,12 @@ and an Install button. The date is the file's mtime on the server — an upload 
 for back-filled builds set it to the Play Console date with `touch -d`, as was done for the
 1.1.x–1.10.3 store builds.
 
+**Tailscale.** A server library that does not answer is checked against `tailscale status
+--json`; when Tailscale is not `Running` the dialog says so and its button runs plain
+`tailscale up` (`tailscale_up`). Plain, because `up` with any flag — even `--timeout` — refuses
+unless every non-default setting is repeated (this Mac has `--accept-routes`). It waits up to
+25 s, which is when `up` is stuck on a browser sign-in.
+
 **Uploads are named from the manifest**, `<package>-<versionName>.apk`, so CI artifacts called
 `app-release.apk` do not collide and the list sorts by version. A store build and a CI build of
 the same version get the same name; replacing one asks first.

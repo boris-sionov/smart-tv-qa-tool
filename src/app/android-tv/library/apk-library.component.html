@@ -58,8 +58,7 @@
         <i class="bi bi-shield-lock"></i>
         @switch (tailscale) {
           @case ('waiting') {
-            <p><span class="spinner-border spinner-border-sm"></span> Waiting for Tailscale to connect…</p>
-            <span class="hint">Switch it on from the Tailscale icon in the menu bar.</span>
+            <p><span class="spinner-border spinner-border-sm"></span> Running <code>tailscale up</code>…</p>
           }
           @case ('missing') {
             <p>Tailscale is not installed</p>
@@ -68,12 +67,12 @@
           @case ('needs-login') {
             <p>Tailscale needs you to sign in</p>
             <span class="hint">freetv-server is reached through Tailscale.</span>
-            <button class="wizard-btn primary" (click)="openTailscale()"><span>Open Tailscale</span></button>
+            <button class="wizard-btn primary" (click)="tailscaleUp()"><i class="bi bi-power"></i><span>Tailscale up</span></button>
           }
           @default {
             <p>Tailscale is off</p>
-            <span class="hint">freetv-server is reached through Tailscale. Turn it on and the list loads by itself.</span>
-            <button class="wizard-btn primary" (click)="openTailscale()"><span>Open Tailscale</span></button>
+            <span class="hint">freetv-server is reached through Tailscale.</span>
+            <button class="wizard-btn primary" (click)="tailscaleUp()"><i class="bi bi-power"></i><span>Tailscale up</span></button>
           }
         }
       </div>
