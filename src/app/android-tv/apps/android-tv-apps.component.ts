@@ -2,7 +2,7 @@ import {Component, OnDestroy, OnInit} from '@angular/core';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {noop, Subscription} from 'rxjs';
 import {AdbService, AdbPackageInfo} from '../../core/services/adb.service';
-import {AdbStateService, deviceSerial, SavedDevice} from '../adb-state.service';
+import {AdbConnection, AdbStateService, deviceSerial, SavedDevice} from '../adb-state.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {ProgressDialogComponent} from '../../shared/components/progress-dialog/progress-dialog.component';
 import {extractMessage} from '../../core/utils/error.utils';
@@ -26,6 +26,8 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
     packagesError?: Error;
     loading = false;
     selected: SavedDevice | null = null;
+    connection: AdbConnection = {device: null, status: 'none'};
+    connectionError?: Error;
     devices: SavedDevice[] = [];
     private sub?: Subscription;
     private iconPaths = new Map<string, string>();
@@ -59,11 +61,16 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
     ngOnInit(): void {
         this.sub = new Subscription();
 
-        this.sub.add(this.state.selected$.subscribe(dev => {
-            this.selected = dev;
+        this.sub.add(this.state.selected$.subscribe(dev => this.selected = dev));
+        this.sub.add(this.state.connection$.subscribe(conn => {
+            this.connection = conn;
+            this.connectionError = conn.status === 'failed' ? new Error(conn.error)
+                : conn.status === 'unauthorized'
+                    ? new Error('Accept the "Allow USB debugging?" prompt on the TV, tick "Always allow from this computer", then Retry.')
+                    : undefined;
             this.setPackages(null);
             this.packagesError = undefined;
-            if (dev) this.loadPackages();
+            if (conn.status === 'connected') this.loadPackages();
         }));
 
         this.devices = this.state.getSavedDevices();
@@ -90,6 +97,12 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         if (device) {
             this.state.select(device);
         }
+    }
+
+    /** Retry from the error card: a failed connection is checked again, a failed list reloaded. */
+    retry(): void {
+        if (this.connection.status === 'connected') this.loadPackages(true);
+        else this.state.checkConnection();
     }
 
     async loadPackages(force = false): Promise<void> {
