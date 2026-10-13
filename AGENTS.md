@@ -70,6 +70,11 @@ supports `--bump` (conditional on HEAD moving or a dirty tree) and `--bump --for
 No push loop: a push made with `GITHUB_TOKEN` does not trigger workflows, and the commit is
 additionally tagged `[skip ci]`.
 
+Because only a merge moves the counter, a build from a branch or with uncommitted changes carries
+the number of the last merge. `APP_VERSION` says so instead of passing for that build:
+`1.0.0 (build 15+ · feat/foo a1b2c3d, modified)` (`versionLabel`, from the `branch` and `dirty`
+fields `build-info.js` records). `HEAD` — a detached checkout, as CI's tag builds are — counts as main.
+
 `APP_VERSION` is displayed in the platform-selector footer, the LG sidebar, and LG → More → Version.
 
 ## Logs
