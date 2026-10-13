@@ -22,19 +22,18 @@ export class AndroidTvInfoComponent implements OnInit, OnDestroy {
     info: DeviceInfo[] = [];
     loading = false;
     error?: Error;
+    unauthorized = false;
     copySuccess = false;
     private sub?: Subscription;
 
-    constructor(private adb: AdbService, private state: AdbStateService) {}
+    constructor(private adb: AdbService, public state: AdbStateService) {}
 
     ngOnInit(): void {
         this.sub = this.state.connection$.subscribe(conn => {
             this.device = conn.device;
             this.info = [];
-            this.error = conn.status === 'failed' ? new Error(conn.error)
-                : conn.status === 'unauthorized'
-                    ? new Error('The TV has not allowed this computer. Accept the "Allow USB debugging?" prompt on the TV, then Retry.')
-                    : undefined;
+            this.unauthorized = conn.status === 'unauthorized';
+            this.error = conn.status === 'failed' ? new Error(conn.error) : undefined;
             this.loading = conn.status === 'checking';
             if (conn.status === 'connected') this.loadInfo(conn.device);
         });

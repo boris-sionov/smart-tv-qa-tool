@@ -1,7 +1,7 @@
 import {Component, ViewChild, ElementRef, AfterViewInit} from '@angular/core';
 import {NgbActiveModal} from '@ng-bootstrap/ng-bootstrap';
 import {AdbService} from '../../core/services/adb.service';
-import {AdbStateService, SavedDevice} from '../adb-state.service';
+import {AdbStateService, deviceSerial, SavedDevice} from '../adb-state.service';
 import {extractMessage} from '../../core/utils/error.utils';
 
 const DEFAULT_PORT = 5555;
@@ -23,6 +23,8 @@ export class AndroidTvWizardComponent implements AfterViewInit {
     ip = '';
     connecting = false;
     error: string | null = null;
+    /** Set while the TV shows its "Allow USB debugging?" prompt for this computer. */
+    awaitingApproval: SavedDevice | null = null;
 
     ngOnInit(): void {
         if (this.editMode || this.shouldSkipGuide()) {
@@ -78,7 +80,21 @@ export class AndroidTvWizardComponent implements AfterViewInit {
     }
 
     back(): void {
+        if (this.awaitingApproval) {
+            this.awaitingApproval = null;
+            return;
+        }
         this.currentStep = 1;
+    }
+
+    save(device: SavedDevice): void {
+        this.state.saveDevice(device);
+        this.state.select(device);
+        this.modal.close(device);
+    }
+
+    get serial(): string {
+        return this.awaitingApproval ? deviceSerial(this.awaitingApproval) : '';
     }
 
     get canSubmit(): boolean {
@@ -92,11 +108,13 @@ export class AndroidTvWizardComponent implements AfterViewInit {
         this.connecting = true;
         this.error = null;
         try {
-            await this.adb.connect(`${ip}:${DEFAULT_PORT}`);
             const device: SavedDevice = {name, ip, port: DEFAULT_PORT};
-            this.state.saveDevice(device);
-            this.state.select(device);
-            this.modal.close(device);
+            if (await this.adb.ensureConnected(deviceSerial(device)) === 'unauthorized') {
+                // The TV is asking whether to trust this computer; wait for that, then save.
+                this.awaitingApproval = device;
+                return;
+            }
+            this.save(device);
         } catch (e: unknown) {
             this.error = extractMessage(e, 'Failed to connect');
         } finally {

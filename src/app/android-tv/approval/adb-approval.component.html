@@ -1,0 +1,28 @@
+<div class="approval">
+  <div class="approval-icon">
+    <i class="bi bi-tv"></i>
+    <span class="approval-badge"><i class="bi bi-shield-check"></i></span>
+  </div>
+  <h4 class="approval-title">Allow this computer on {{ deviceName || 'the TV' }}</h4>
+  <p class="approval-text">
+    The TV is showing <strong>"Allow USB debugging?"</strong>. With the TV remote,
+    tick <strong>Always allow from this computer</strong> and choose <strong>Allow</strong> (or <strong>OK</strong>).
+  </p>
+
+  <div class="approval-status">
+    <span class="spinner-mini"></span>
+    <span>Waiting for the TV…</span>
+  </div>
+
+  @if (showHint) {
+    <p class="approval-hint">
+      <i class="bi bi-info-circle"></i>
+      Don't see the prompt? It closes after a while, or if someone pressed <strong>Deny</strong>.
+      Show it again:
+    </p>
+  }
+  <button class="approval-btn" type="button" (click)="showPromptAgain()" [disabled]="reprompting">
+    @if (reprompting) { <span class="spinner-mini"></span> } @else { <i class="bi bi-arrow-repeat"></i> }
+    <span>Show the prompt again</span>
+  </button>
+</div>

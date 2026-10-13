@@ -32,7 +32,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
     private sub?: Subscription;
     private iconPaths = new Map<string, string>();
 
-    constructor(private adb: AdbService, private state: AdbStateService, private modalService: NgbModal) {}
+    constructor(private adb: AdbService, public state: AdbStateService, private modalService: NgbModal) {}
 
     /** The icon to draw for an app, or `null` for the ATV placeholder. */
     iconPath(packageId: string): string | null {
@@ -64,10 +64,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         this.sub.add(this.state.selected$.subscribe(dev => this.selected = dev));
         this.sub.add(this.state.connection$.subscribe(conn => {
             this.connection = conn;
-            this.connectionError = conn.status === 'failed' ? new Error(conn.error)
-                : conn.status === 'unauthorized'
-                    ? new Error('Accept the "Allow USB debugging?" prompt on the TV, tick "Always allow from this computer", then Retry.')
-                    : undefined;
+            this.connectionError = conn.status === 'failed' ? new Error(conn.error) : undefined;
             this.setPackages(null);
             this.packagesError = undefined;
             if (conn.status === 'connected') this.loadPackages();

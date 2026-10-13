@@ -87,6 +87,9 @@
           </label>
         </div>
       </div>
+    } @else if (awaitingApproval) {
+      <app-adb-approval [serial]="serial" [deviceName]="awaitingApproval.name"
+                        (approved)="save(awaitingApproval)"></app-adb-approval>
     } @else {
       <div class="form-content">
         <div class="form-header">
@@ -144,6 +147,7 @@
         <i class="bi bi-arrow-left"></i>
         <span>Back</span>
       </button>
+      @if (!awaitingApproval) {
       <button class="wizard-btn primary ms-auto" (click)="submit()" [disabled]="!canSubmit">
         @if (connecting) {
           <span class="spinner-mini"></span>
@@ -153,6 +157,7 @@
           <span>Connect &amp; Save</span>
         }
       </button>
+      }
     }
   </div>
 </div>

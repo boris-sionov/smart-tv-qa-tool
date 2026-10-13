@@ -223,6 +223,14 @@ selected TV whenever the selection changes, the one restored at startup included
 75 s TCP timeout). Apps and Info load only once it says `connected`; `unauthorized` means the TV is
 showing its "Allow USB debugging?" prompt.
 
+`unauthorized` gets `AdbApprovalComponent` (`android-tv/approval/`) — in the add-device dialog, Apps
+and Info — instead of an error: it asks QA to press Allow on the TV, polls `adb devices` every 2 s
+and carries on by itself once the TV lists as `device`. A first `adb connect` from a computer the TV
+has not approved prints `failed to authenticate to <ip>:5555` and leaves it `unauthorized`; the TV
+only prompts while that connection is open, so "Show the prompt again" is disconnect + connect. To
+reproduce without revoking anything on the TV, run a second adb server with a throwaway key:
+`HOME=$(mktemp -d) ADB_SERVER_SOCKET=tcp:localhost:5099 adb connect <ip>:5555`.
+
 `AdbStateService` wipes device state on first launch per app installation (guarded by
 `adb-state-initialized` flag). This is the "Persistent device state" open work item — the intent is
 to keep state across reinstalls.
