@@ -368,6 +368,13 @@ DUID comparison is containment-based (`0 duid` can echo more than the bare id) a
   service calls over SSH; PTY shells via `shell_manager/`
 - **Status:** Fully functional; planned migration to `DeviceProvider` interface
 
+#### Remote Pairing On webOS 26 (`403 … blacklisted certificate`)
+The remote control (`lg-remote`, SSAP on :3001) registers with the signed `com.lge.test` manifest
+every open-source LG remote uses. webOS 26 / firmware 43.x blacklists that certificate and answers
+`403 Pairing rejected: blacklisted certificate detected`. `connect_and_register` then pairs again
+with the unsigned manifest. Keys and launch work, but the TV withholds the `signed.permissions`, so
+SSAP `listApps` returns 401 and the apps page falls back to the developer list over SSH.
+
 #### Environment Icons After Install
 `AppManagerService.applyEnvironmentIcons()` runs as the last install step and overwrites the
 `icon` / `largeIcon` files of every sideloaded FreeTV build over SFTP with the badged icon for its

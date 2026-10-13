@@ -54,9 +54,50 @@ struct PressButtonResult {
 
 /// Opens the SSAP socket on :3001 and registers. Without a stored client key the TV shows a
 /// pairing prompt on screen, so this waits up to a minute for the user to accept it.
+///
+/// webOS 26 (firmware 43.x) blacklists the `com.lge.test` certificate behind the signature above
+/// and answers `403 Pairing rejected: blacklisted certificate detected`. On that answer this pairs
+/// again with the unsigned manifest — keys and launch still work, but the TV no longer grants the
+/// `signed.permissions` (`READ_INSTALLED_APPS` among them), so SSAP `listApps` returns 401 there.
 async fn connect_and_register(
     host: &str,
     client_key: Option<&str>,
+) -> Result<(Ws, Option<String>), Error> {
+    match register(host, client_key, true).await {
+        Err(e) if e.to_string().contains("blacklisted certificate") => {
+            log::warn!("[lg-remote] {host}: signed manifest rejected ({e}), pairing unsigned");
+            register(host, client_key, false).await
+        }
+        r => r,
+    }
+}
+
+/// The register payload without the blacklisted signature: `signed.permissions` merged into
+/// `manifest.permissions`, `signed` and `signatures` dropped.
+fn unsigned_manifest(payload: &mut Value) {
+    let manifest = &mut payload["manifest"];
+    let signed: Vec<Value> = manifest
+        .pointer("/signed/permissions")
+        .and_then(|p| p.as_array())
+        .cloned()
+        .unwrap_or_default();
+    if let Some(perms) = manifest["permissions"].as_array_mut() {
+        for p in signed {
+            if !perms.contains(&p) {
+                perms.push(p);
+            }
+        }
+    }
+    if let Some(m) = manifest.as_object_mut() {
+        m.remove("signed");
+        m.remove("signatures");
+    }
+}
+
+async fn register(
+    host: &str,
+    client_key: Option<&str>,
+    signed: bool,
 ) -> Result<(Ws, Option<String>), Error> {
     let tls = native_tls::TlsConnector::builder()
         .danger_accept_invalid_certs(true)
@@ -80,6 +121,9 @@ async fn connect_and_register(
 
     // Build register payload
     let mut payload: Value = serde_json::from_str(REGISTER_MANIFEST).unwrap();
+    if !signed {
+        unsigned_manifest(&mut payload);
+    }
     if let Some(key) = client_key {
         payload["client-key"] = Value::String(key.to_string());
     }
@@ -270,4 +314,21 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
     Builder::new(name)
         .invoke_handler(tauri::generate_handler![press_button, list_apps])
         .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unsigned_manifest_drops_signature_and_keeps_permissions() {
+        let mut p: Value = serde_json::from_str(REGISTER_MANIFEST).unwrap();
+        unsigned_manifest(&mut p);
+        let m = &p["manifest"];
+        assert!(m.get("signed").is_none() && m.get("signatures").is_none());
+        let perms = m["permissions"].as_array().unwrap();
+        assert!(perms.contains(&json!("READ_INSTALLED_APPS")));
+        assert!(perms.contains(&json!("LAUNCH")));
+        assert_eq!(perms.iter().filter(|x| *x == &json!("CONTROL_POWER")).count(), 1);
+    }
 }
