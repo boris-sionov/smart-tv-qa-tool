@@ -61,6 +61,8 @@ const info = {
   build,
   commit,
   branch: git('rev-parse --abbrev-ref HEAD'),
+  // Built with uncommitted changes, so the commit above does not fully describe it.
+  dirty,
   builtAt: new Date().toISOString().replace(/\.\d+Z$/, 'Z'),
 };
 
