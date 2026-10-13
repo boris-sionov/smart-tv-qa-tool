@@ -39,10 +39,8 @@
       <app-error-card [title]="'Cannot connect to ' + connection.device.name" [error]="connectionError!" (retry)="retry()">
       </app-error-card>
     } @else if (connection.status === 'unauthorized') {
-      <app-error-card [title]="connection.device.name + ' has not allowed this computer'"
-                      [error]="connectionError!"
-                      (retry)="retry()">
-      </app-error-card>
+      <app-adb-approval [serial]="serial!" [deviceName]="connection.device.name"
+                        (approved)="state.checkConnection()"></app-adb-approval>
     } @else if (packagesError) {
       <app-error-card title="Unable to get installed apps" [error]="packagesError" (retry)="retry()">
       </app-error-card>

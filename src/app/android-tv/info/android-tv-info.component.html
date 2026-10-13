@@ -7,6 +7,9 @@
       <h4>No device detected</h4>
       <p>Go to <strong>Manage</strong> and add an Android TV device to get started.</p>
     </div>
+  } @else if (unauthorized) {
+    <app-adb-approval [serial]="device.ip + ':' + device.port" [deviceName]="device.name"
+                      (approved)="state.checkConnection()"></app-adb-approval>
   } @else if (loading) {
     <div class="loading-state">
       <div class="spinner-modern"></div>
