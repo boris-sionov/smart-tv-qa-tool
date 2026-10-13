@@ -370,6 +370,25 @@ $border-color: rgba(91, 159, 245, 0.2);
     color: $accent-green;
     border: 1px solid rgba(76, 175, 80, 0.3);
   }
+
+  &.checking {
+    background: rgba(91, 159, 245, 0.15);
+    color: #5B9FF5;
+    border: 1px solid rgba(91, 159, 245, 0.3);
+
+    .spinner-border-sm {
+      width: 10px;
+      height: 10px;
+      border-width: 2px;
+    }
+  }
+
+  &.failed {
+    background: rgba(255, 107, 107, 0.15);
+    color: #FF6B6B;
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    cursor: pointer;
+  }
 }
 
 .device-card-body {

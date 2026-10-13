@@ -210,6 +210,14 @@ Android TV and Tizen device lists are stored in `localStorage` (not a Tauri stor
 - `TizenStateService` — keys `smart-tv-qa-tizen-devices`, `smart-tv-qa-tizen-selected-device`, `smart-tv-qa-tizen-studio-path`, `smart-tv-qa-tizen-cert-profile`
 - `AdbStateService` — keys `freetv-android-tv-devices`, `freetv-android-tv-selected-device`
 
+A saved selection is not a connection: the adb server outlives the app and keeps listing a TV
+that has since slept or left the network as `device`. `AdbStateService.connection$` checks the
+selected TV whenever the selection changes, the one restored at startup included
+(`AdbService.ensureConnected`: listed *and* answering a `getprop` within 5 s, otherwise
+`disconnect` + `connect`, capped at 10 s because `adb connect` to a dead address waits out the
+75 s TCP timeout). Apps and Info load only once it says `connected`; `unauthorized` means the TV is
+showing its "Allow USB debugging?" prompt.
+
 `AdbStateService` wipes device state on first launch per app installation (guarded by
 `adb-state-initialized` flag). This is the "Persistent device state" open work item — the intent is
 to keep state across reinstalls.

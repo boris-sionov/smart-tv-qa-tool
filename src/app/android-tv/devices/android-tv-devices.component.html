@@ -42,10 +42,34 @@
                 <i class="bi bi-android2"></i>
               </div>
               @if (isSelected(dev)) {
-                <span class="status-badge active">
-                  <i class="bi bi-check-circle-fill"></i>
-                  Connected
-                </span>
+                @switch (state.connection$.value.status) {
+                  @case ('connected') {
+                    <span class="status-badge active">
+                      <i class="bi bi-check-circle-fill"></i>
+                      Connected
+                    </span>
+                  }
+                  @case ('checking') {
+                    <span class="status-badge checking">
+                      <span class="spinner-border spinner-border-sm"></span>
+                      Connecting
+                    </span>
+                  }
+                  @case ('unauthorized') {
+                    <span class="status-badge failed" role="button" title="Accept the prompt on the TV, then click to check again"
+                          (click)="state.checkConnection()">
+                      <i class="bi bi-shield-exclamation"></i>
+                      Allow on TV
+                    </span>
+                  }
+                  @case ('failed') {
+                    <span class="status-badge failed" role="button" title="Click to reconnect"
+                          (click)="state.checkConnection()">
+                      <i class="bi bi-x-circle-fill"></i>
+                      Not connected
+                    </span>
+                  }
+                }
               }
             </div>
             <div class="device-card-body">

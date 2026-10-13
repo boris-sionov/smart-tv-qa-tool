@@ -28,11 +28,15 @@ export class AndroidTvInfoComponent implements OnInit, OnDestroy {
     constructor(private adb: AdbService, private state: AdbStateService) {}
 
     ngOnInit(): void {
-        this.sub = this.state.selected$.subscribe(dev => {
-            this.device = dev;
+        this.sub = this.state.connection$.subscribe(conn => {
+            this.device = conn.device;
             this.info = [];
-            this.error = undefined;
-            if (dev) this.loadInfo(dev);
+            this.error = conn.status === 'failed' ? new Error(conn.error)
+                : conn.status === 'unauthorized'
+                    ? new Error('The TV has not allowed this computer. Accept the "Allow USB debugging?" prompt on the TV, then Retry.')
+                    : undefined;
+            this.loading = conn.status === 'checking';
+            if (conn.status === 'connected') this.loadInfo(conn.device);
         });
     }
 
@@ -53,6 +57,11 @@ export class AndroidTvInfoComponent implements OnInit, OnDestroy {
         } catch (err) {
             console.error('Failed to copy:', err);
         }
+    }
+
+    retry(): void {
+        if (this.state.connection$.value.status === 'connected') this.loadInfo(this.device!);
+        else this.state.checkConnection();
     }
 
     async loadInfo(dev: SavedDevice): Promise<void> {

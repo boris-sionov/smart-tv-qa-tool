@@ -139,6 +139,48 @@ export class AdbService implements DeviceProvider {
         return invoke<void>('plugin:adb-manager|adb_disconnect', {serial});
     }
 
+    /**
+     * Makes sure ADB holds a working connection to `serial`, reconnecting when it does not.
+     *
+     * `adb devices` alone is not enough: the adb server outlives the app, and after the TV sleeps
+     * or changes network it keeps listing the old transport as `device` until a command on it
+     * fails. So a listed device must also answer a `getprop` within a few seconds; otherwise the
+     * transport is dropped and connected afresh.
+     *
+     * Resolves `unauthorized` when the TV is reachable but has not allowed this computer yet —
+     * it is showing the "Allow USB debugging?" prompt. Throws when the TV cannot be reached.
+     */
+    async ensureConnected(serial: string): Promise<'device' | 'unauthorized'> {
+        const state = async () => (await this.listConnectedDevices())
+            .find(d => d.serial === serial)?.state;
+        if (await state() === 'device' && await this.responds(serial)) return 'device';
+
+        await this.disconnect(serial).catch(() => undefined);
+        // `adb connect` to an address nothing answers on waits out the OS TCP timeout — 75 s on
+        // macOS. Give up well before that; a TV that answers at all connects in about a second.
+        let connectError: unknown;
+        await Promise.race([
+            this.connect(serial),
+            new Promise((_, reject) => setTimeout(
+                () => reject(new Error(`No answer from ${serial} — is the TV on, and on this network?`)), 10000)),
+        ]).catch(e => connectError = e);
+        let s = await state();
+        if (s === 'offline') {
+            // The transport is still coming up; give it a moment before calling it failed.
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            s = await state();
+        }
+        if (s === 'device' || s === 'unauthorized') return s;
+        throw connectError ?? new Error(`${serial} is ${s ?? 'not connected'}`);
+    }
+
+    private responds(serial: string): Promise<boolean> {
+        return Promise.race([
+            this.getProp(serial, 'ro.serialno').then(() => true, () => false),
+            new Promise<boolean>(resolve => setTimeout(() => resolve(false), 5000)),
+        ]);
+    }
+
     async listPackages(serial: string): Promise<AdbPackageInfo[]> {
         return invoke<AdbPackageInfo[]>('plugin:adb-manager|adb_list_packages', {serial});
     }
