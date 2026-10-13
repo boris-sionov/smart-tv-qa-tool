@@ -8,4 +8,7 @@ permissions = [
   "allow-vidaa-launch",
   "allow-vidaa-close",
   "allow-vidaa-uninstall",
+  "allow-vidaa-devtools-start",
+  "allow-vidaa-devtools-targets",
+  "allow-vidaa-devtools-stop",
 ]

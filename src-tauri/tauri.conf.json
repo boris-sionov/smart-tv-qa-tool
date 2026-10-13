@@ -87,7 +87,11 @@
       "providerShortName": null,
       "signingIdentity": null
     },
-    "resources": [],
+    "resources": {
+      "../node_modules/chii/public/front_end/": "chii/front_end/",
+      "../node_modules/chii/public/target.js": "chii/target.js",
+      "../node_modules/chii/LICENSE": "chii/LICENSE"
+    },
     "shortDescription": "QA Tool for Smart TV Testing",
     "targets": "all",
     "windows": {

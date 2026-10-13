@@ -57,6 +57,9 @@ fn main() {
                     "vidaa_launch",
                     "vidaa_close",
                     "vidaa_uninstall",
+                    "vidaa_devtools_start",
+                    "vidaa_devtools_targets",
+                    "vidaa_devtools_stop",
                 ]),
             )
             .plugin(
