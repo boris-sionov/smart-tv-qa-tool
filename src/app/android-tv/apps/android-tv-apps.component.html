@@ -65,9 +65,15 @@
             <div class="apps-kicker">Android TV</div>
             <h2>Installed Apps</h2>
           </div>
-          <div class="apps-count">
-            <i class="bi bi-grid-3x3-gap-fill"></i>
-            <span>{{ packages.length }}</span>
+          <div class="apps-tools">
+            <div class="apps-count">
+              <i class="bi bi-grid-3x3-gap-fill"></i>
+              <span>{{ packages.length }}</span>
+            </div>
+            <button class="app-action secondary" type="button" aria-label="Reload apps" title="Reload apps"
+                    (click)="loadPackages(true)">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
           </div>
         </div>
 
