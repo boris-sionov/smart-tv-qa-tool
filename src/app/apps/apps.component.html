@@ -24,6 +24,10 @@
 
     <!-- Install Button -->
     <div class="install-btn-container">
+      <button class="btn btn-outline-light text-nowrap install-btn me-2" (click)="installFromConfluence()"
+              title="Install the newest UAT or PREPROD build from Confluence">
+        <i class="bi bi-journal-arrow-down me-2"></i>From Confluence
+      </button>
       <button class="btn btn-primary text-nowrap install-btn" (click)="openInstallChooser()">
         <i class="bi bi-folder-fill me-2"></i>Install
       </button>

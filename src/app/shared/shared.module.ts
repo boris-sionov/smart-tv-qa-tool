@@ -12,6 +12,8 @@ import {ExternalLinkDirective} from "./directives";
 import {LoadingCardComponent} from './components/loading-card/loading-card.component';
 import {StatStorageInfoComponent} from './components/stat-storage-info/stat-storage-info.component';
 import {FilesizePipe} from "./pipes/filesize.pipe";
+import {ConfluenceBuildsComponent} from './components/confluence-builds/confluence-builds.component';
+import {ConfluenceBuildsDialogComponent} from './components/confluence-builds/confluence-builds-dialog.component';
 
 @NgModule({
     declarations: [
@@ -24,6 +26,8 @@ import {FilesizePipe} from "./pipes/filesize.pipe";
         ErrorCardComponent,
         LoadingCardComponent,
         StatStorageInfoComponent,
+        ConfluenceBuildsComponent,
+        ConfluenceBuildsDialogComponent,
     ],
     imports: [CommonModule, FormsModule, NgbModule,
         ExternalLinkDirective],
@@ -36,7 +40,9 @@ import {FilesizePipe} from "./pipes/filesize.pipe";
         MessageTraceComponent,
         ErrorCardComponent,
         LoadingCardComponent,
-        StatStorageInfoComponent
+        StatStorageInfoComponent,
+        ConfluenceBuildsComponent,
+        ConfluenceBuildsDialogComponent,
     ]
 })
 export class SharedModule {

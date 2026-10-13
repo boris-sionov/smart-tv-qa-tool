@@ -13,6 +13,14 @@ import {open as showOpenDialog} from '@tauri-apps/plugin-dialog';
 import {open as openUrl} from '@tauri-apps/plugin-shell';
 import {basename, downloadDir} from "@tauri-apps/api/path";
 import {APP_ID_HBCHANNEL} from "../shared/constants";
+import {RELEASE_PAGES} from '../core/services/confluence.service';
+import {BuildTab, ConfluenceBuildsDialogComponent} from '../shared/components/confluence-builds/confluence-builds-dialog.component';
+
+/** The LG builds on "Releases Smart TV", told apart by file name. UHD only — QA's sets are UHD. */
+const LG_TABS: BuildTab[] = [
+    {label: 'PREPROD', kinds: [{label: 'PREPROD', match: /lg-webos-uhd-preprod-.*\.ipk$/i}]},
+    {label: 'UAT', kinds: [{label: 'UAT', match: /lg-webos-uhd-uat-.*\.ipk$/i}]},
+];
 import {HbchannelRemoveComponent} from "./hbchannel-remove/hbchannel-remove.component";
 import {StatStorageInfoComponent} from "../shared/components/stat-storage-info/stat-storage-info.component";
 import {DetailsComponent} from "./details/details.component";
@@ -106,6 +114,19 @@ export class AppsComponent implements OnInit, OnDestroy {
         if (!path) {
             return;
         }
+        await this.installIpk(path);
+    }
+
+    /** The newest UAT / PREPROD build from Confluence, through the same install. */
+    async installFromConfluence(): Promise<void> {
+        if (!this.device) return;
+        const build = await ConfluenceBuildsDialogComponent.pick(
+            this.modalService, 'Install from Confluence — LG', RELEASE_PAGES.smartTv, LG_TABS);
+        if (build) await this.installIpk(build.path);
+    }
+
+    private async installIpk(path: string): Promise<void> {
+        if (!this.device) return;
         const progress = ProgressDialogComponent.open(this.modalService);
         const component = progress.componentInstance as ProgressDialogComponent;
         let icons: IconStampResult | undefined;

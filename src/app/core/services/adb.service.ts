@@ -9,6 +9,21 @@ export interface AdbDevice {
     state: 'device' | 'offline' | 'unauthorized' | string;
 }
 
+/** An APK in the shared library — a folder on this Mac or a web server's file list. */
+export interface LibraryApk {
+    name: string;
+    /** A path for a folder library, a URL for a server one. */
+    location: string;
+    size: number | null;
+    /** A ms timestamp for a folder; the listing's own date text for a server. */
+    modified: string | null;
+}
+
+export interface PlayListing {
+    version: string | null;
+    updated: number | null;
+}
+
 export interface AdbPackageInfo {
     id: string;
     name: string;
@@ -198,8 +213,47 @@ export class AdbService implements DeviceProvider {
         return invoke<void>('plugin:adb-manager|adb_uninstall', {serial, packageId});
     }
 
-    async install(serial: string, apkPath: string): Promise<void> {
-        return invoke<void>('plugin:adb-manager|adb_install', {serial, apkPath});
+    /** `downgrade` adds `-d`, letting an older version replace a newer one where Android allows it. */
+    async install(serial: string, apkPath: string, downgrade = false): Promise<void> {
+        return invoke<void>('plugin:adb-manager|adb_install', {serial, apkPath, downgrade});
+    }
+
+    async listLibrary(source: string): Promise<LibraryApk[]> {
+        return invoke<LibraryApk[]>('plugin:adb-manager|apk_library_list', {source});
+    }
+
+    /** Adds an APK on this Mac to the library as `name`; refused when the name exists, unless `overwrite`. */
+    async uploadToLibrary(source: string, path: string, name: string, overwrite: boolean): Promise<void> {
+        return invoke<void>('plugin:adb-manager|apk_library_upload', {source, path, name, overwrite});
+    }
+
+    /** What the public Play listing shows now: the version and its "Updated on" date. */
+    async playListing(packageId: string): Promise<PlayListing> {
+        return invoke<PlayListing>('plugin:adb-manager|play_store_listing', {packageId});
+    }
+
+    /** The local path of a library APK, downloaded first when it lives on a server. */
+    async fetchFromLibrary(location: string): Promise<string> {
+        return invoke<string>('plugin:adb-manager|apk_library_fetch', {location});
+    }
+
+    /** The package id and version name an APK on this Mac declares. */
+    async apkManifest(path: string): Promise<{packageId: string; versionName: string | null}> {
+        return invoke('plugin:adb-manager|apk_manifest', {path});
+    }
+
+    /** Whether Tailscale is up on this Mac: `running`, `stopped`, `needs-login` or `missing`. */
+    async tailscaleState(): Promise<'running' | 'stopped' | 'needs-login' | 'missing'> {
+        return invoke('plugin:adb-manager|tailscale_state');
+    }
+
+    /** Runs `tailscale up`. */
+    async tailscaleUp(): Promise<void> {
+        return invoke<void>('plugin:adb-manager|tailscale_up');
+    }
+
+    async openLibraryFolderChooser(): Promise<string | null> {
+        return showOpenDialog({title: 'APK library folder', directory: true, multiple: false});
     }
 
     // DeviceProvider bridge methods

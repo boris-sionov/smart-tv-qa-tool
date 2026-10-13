@@ -1,0 +1,48 @@
+@if (needsToken) {
+  <form class="token-card" (ngSubmit)="saveToken()">
+    <div class="token-title"><i class="bi bi-key"></i> Connect to Confluence</div>
+    <p class="token-hint">
+      Builds come from <strong>{{ page }}</strong> on confluence.redge.com. Paste a Confluence Personal Access
+      Token — <a appExternalLink href="https://confluence.redge.com/plugins/personalaccesstokens/usertokens.action">create one here</a>
+      (a Jira token does not work). It is kept in the macOS Keychain, not in a file.
+    </p>
+    <div class="token-row">
+      <input class="token-input" type="password" name="token" [(ngModel)]="token" autocomplete="off"
+             placeholder="Personal Access Token" aria-label="Confluence Personal Access Token">
+      <button class="build-btn primary" type="submit" [disabled]="!token.trim() || savingToken">
+        @if (savingToken) { <span class="spinner-border spinner-border-sm"></span> }
+        <span>Save</span>
+      </button>
+    </div>
+    @if (error) { <div class="build-error"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div> }
+  </form>
+} @else if (loading) {
+  <div class="build-state"><span class="spinner-border spinner-border-sm"></span> Reading {{ page }}…</div>
+} @else {
+  @if (error) { <div class="build-error"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div> }
+  @if (rows) {
+    <div class="build-list">
+      @for (row of rows; track row.file.url) {
+        <div class="build-row" [title]="row.file.name">
+          <span class="build-version">{{ row.release.version }}</span>
+          @if (row.kind.debug) { <span class="debug-tag">Debug</span> }
+          <span class="build-meta ms-auto">{{ day(row.release) }}</span>
+          <button class="build-btn primary" (click)="install(row)" [disabled]="!!downloading">
+            @if (downloading === row) { <span class="spinner-border spinner-border-sm"></span><span>Downloading…</span> }
+            @else { <i class="bi bi-download"></i><span>Install</span> }
+          </button>
+        </div>
+      }
+      @for (kind of missing; track kind.label) {
+        <div class="build-row missing">
+          <span class="build-meta">{{ kind.debug ? 'No debug build' : 'No build' }} on the page yet</span>
+        </div>
+      }
+    </div>
+  }
+  <div class="build-footer">
+    <span><i class="bi bi-journal-text"></i> {{ page }}</span>
+    <button class="link-btn" (click)="load(true)">Refresh</button>
+    <button class="link-btn" (click)="forgetToken()">Forget token</button>
+  </div>
+}

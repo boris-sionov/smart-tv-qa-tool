@@ -361,6 +361,80 @@ DUID comparison is containment-based (`0 duid` can echo more than the bare id) a
   placeholder. Nothing is written to the device — an installed APK's launcher banner is baked into
   the APK and cannot be changed over ADB, so this is our list only, not the TV's home screen.
 
+#### APK Library (Install from library)
+
+A shared set of APKs — store builds per version, older releases to go back to — that the apps
+page installs from. By default it is the team's server, `http://freetv-server:8090/` (Tailscale);
+"Change" in the dialog points it at another server or a folder (a Google Drive folder synced by
+Drive for Desktop works). Kept in `localStorage` (`freetv-android-tv-apk-library`).
+
+**Server.** `scripts/apk-library-server.py`, standard-library Python, no sudo. `GET /` lists the
+APKs as nginx-autoindex JSON, `PUT /<name>.apk` uploads (409 unless `?overwrite=1`). Install or update it from a Mac with
+`sh scripts/install-apk-library-server.sh` — it copies the script to `~/apk-library/`, starts it on
+the server's Tailscale address only, and adds an `@reboot` line to the user's crontab (the user
+has no sudo and no lingering, so a systemd user unit would stop at logout). The client also reads
+plain nginx/Apache/`python3 -m http.server` listings, which cannot take uploads.
+
+**Commands** (`plugins/apk_library.rs`, on `adb-manager`): `apk_library_list`,
+`apk_library_fetch` (downloads to the app cache, `apk-library/`), `apk_library_upload`,
+`apk_manifest` (package id and versionName out of the binary manifest), `play_store_listing`.
+
+**Three tabs.** Store / PROD is the freetv-server library — every Google-signed store build of
+`tv.freetv.androidtv`, the live one marked; Add version refuses any other package. UAT (and its
+debug build) and PROD Debug come from Confluence (see [Confluence Release Pages](#confluence-release-pages)). Each store row is the version's leading number (`1.1.50-(26010150)` reads `1.1.50`), its date
+and an Install button. The date is the file's mtime on the server — an upload stamps today, so
+for back-filled builds set it to the Play Console date with `touch -d`, as was done for the
+1.1.x–1.10.3 store builds.
+
+**Tailscale.** A server library that does not answer is checked against `tailscale status
+--json`; when Tailscale is not `Running` the dialog says so and its button runs plain
+`tailscale up` (`tailscale_up`). Plain, because `up` with any flag — even `--timeout` — refuses
+unless every non-default setting is repeated (this Mac has `--accept-routes`). It waits up to
+25 s, which is when `up` is stuck on a browser sign-in.
+
+**Uploads are named from the manifest**, `<package>-<versionName>.apk`, so CI artifacts called
+`app-release.apk` do not collide and the list sorts by version. A store build and a CI build of
+the same version get the same name; replacing one asks first.
+
+**Live on Google Play.** The dialog reads the public listing (version as `[[["1.10.3"]]`, date
+as `[["Jul 27, 2026",[1785141668,…` in its embedded data) and marks the library row with that
+version "On Google Play". Only the live version matters to QA, so no history of inactive
+releases is kept; Play Console (Test and release → Latest releases and bundles) has that.
+
+**Install.** `adb install -r -d` (`adb_install`'s `downgrade` flag). A retail TV
+(`ro.debuggable=0`) honours `-d` only for a debuggable app, so downgrading a release build still
+answers `INSTALL_FAILED_VERSION_DOWNGRADE`; a different signing key (store build over a CI one)
+answers `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Both make the dialog offer uninstall-and-install,
+which clears the app's data, so it asks first.
+
+#### Confluence Release Pages
+
+UAT, PROD/PREPROD and debug builds are published on `confluence.redge.com` (Data Center, space
+`KRS`): **Releases Android TV** and **Releases Smart TV** (Samsung, LG, VIDAA), one table row per
+version — Version, Release day, then cells of attached files. `plugins/confluence.rs` reads them
+over the REST API (`/rest/api/content?spaceKey=KRS&title=…&expand=body.storage`) and downloads
+attachments from `/download/attachments/<pageId>/<file>` into the app cache.
+
+Auth is the user's **Personal Access Token**, Bearer. It is checked against
+`/rest/api/user/current` before it is kept, and kept only in the OS keychain (`keyring`, service
+`com.smarttv.qa-tool`, account `confluence-token`) — never in a file or `localStorage`, and the
+frontend has no command that reads it back. A refused token brings the token form back.
+
+Rows show only the version and its release day (and a Debug tag) — the tab says what the build
+is. The UI is one shared panel, `ConfluenceBuildsComponent`: it takes a page and a list of build
+kinds, each a file-name pattern, and shows the newest row that carries each kind. Newest *per
+kind*, not the top row — 1.28.2 on Releases Smart TV has Samsung but no LG builds.
+
+| Where | Kinds (file name) |
+|---|---|
+| Android TV → library → UAT / PROD Debug | `nodebugTesting-FreeTVUat`, `debug(Testing\|Developer)-FreeTVUat`; `debug(Testing\|Developer)-FreeTVProd`. PROD itself is the store library. `.aab` skipped |
+| Samsung → From Confluence, tabs PREPROD / UAT | `samsung-tizen-preprod-*.wgt`, `samsung-tizen-uat-*.wgt` → the signed install |
+| LG → From Confluence, tabs PREPROD / UAT | `lg-webos-uhd-preprod-*.ipk`, `lg-webos-uhd-uat-*.ipk` (UHD only; HD builds are ignored) → `installByPath` |
+
+VIDAA is not here: its install links never change (`vidaa-presets.ts`). **There is no Samsung store
+build**: Samsung re-signs a published app and offers no download of it, and a retail TV refuses
+to hand an installed app back over `sdb`.
+
 ### LG WebOS (Luna API)
 - **Connection:** SSH port 22 / 9922, Ed25519 key auth
 - **App format:** IPK

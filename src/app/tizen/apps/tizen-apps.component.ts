@@ -11,6 +11,18 @@ import {TizenRemoteDialogComponent} from '../remote-dialog/tizen-remote-dialog.c
 import {isKnownApp, isPriorityApp} from '../../shared/known-apps';
 import {tizenEnvironmentIcon} from '../../shared/app-environment-icons';
 import {brandIcon} from '../../shared/app-brand-icons';
+import {RELEASE_PAGES} from '../../core/services/confluence.service';
+import {BuildTab, ConfluenceBuildsDialogComponent} from '../../shared/components/confluence-builds/confluence-builds-dialog.component';
+
+/**
+ * The Samsung builds on "Releases Smart TV", told apart by file name. No store build: Samsung
+ * re-signs a published app and offers no download of that package, and a retail TV will not
+ * hand an installed one back over sdb.
+ */
+const TIZEN_TABS: BuildTab[] = [
+    {label: 'PREPROD', kinds: [{label: 'PREPROD', match: /samsung-tizen-preprod-.*\.wgt$/i}]},
+    {label: 'UAT', kinds: [{label: 'UAT', match: /samsung-tizen-uat-.*\.wgt$/i}]},
+];
 import {info as logInfo, warn as logWarn} from '@tauri-apps/plugin-log';
 import {renderEnvironmentBadge, renderEnvironmentBadgeUrl, readIcon} from '../../shared/environment-badge';
 
@@ -218,9 +230,20 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
 
     async installWgt(): Promise<void> {
         if (!this.serial || this.installing) return;
-
         const path = await this.sdb.openWgtChooser().catch(() => null);
-        if (!path) return;
+        if (path) await this.installWgtFile(path);
+    }
+
+    /** The newest UAT / PREPROD build from Confluence, through the same signed install. */
+    async installFromConfluence(): Promise<void> {
+        if (!this.serial || this.installing) return;
+        const build = await ConfluenceBuildsDialogComponent.pick(
+            this.modalService, 'Install from Confluence — Samsung', RELEASE_PAGES.smartTv, TIZEN_TABS);
+        if (build) await this.installWgtFile(build.path);
+    }
+
+    private async installWgtFile(path: string): Promise<void> {
+        if (!this.serial || this.installing) return;
 
         // Ensure cert profile is configured
         let certProfile = this.state.getCertProfile();

@@ -1532,6 +1532,18 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             super::adb::adb_force_stop,
             super::adb::adb_uninstall,
             super::adb::adb_install,
+            super::apk_library::apk_library_list,
+            super::apk_library::apk_library_fetch,
+            super::apk_library::apk_manifest,
+            super::apk_library::apk_library_upload,
+            super::apk_library::play_store_listing,
+            super::apk_library::tailscale_state,
+            super::apk_library::tailscale_up,
+            super::confluence::confluence_token_saved,
+            super::confluence::confluence_save_token,
+            super::confluence::confluence_forget_token,
+            super::confluence::confluence_releases,
+            super::confluence::confluence_fetch,
         ])
         .build()
 }

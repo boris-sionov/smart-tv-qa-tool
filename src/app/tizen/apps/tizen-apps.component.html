@@ -26,6 +26,10 @@
               title="Open remote control" style="height:42px;">
         <i class="bi bi-controller me-2"></i>Remote
       </button>
+      <button class="btn btn-outline-light text-nowrap install-btn me-2" (click)="installFromConfluence()"
+              [disabled]="!serial || installing" title="Install the newest UAT or PREPROD build from Confluence">
+        <i class="bi bi-journal-arrow-down me-2"></i>From Confluence
+      </button>
       <button class="btn btn-primary text-nowrap install-btn" (click)="installWgt()"
               [disabled]="!serial || installing">
         @if (installing) {

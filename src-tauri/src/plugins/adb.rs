@@ -192,8 +192,20 @@ pub(crate) async fn adb_uninstall<R: Runtime>(app: AppHandle<R>, serial: String,
 }
 
 #[tauri::command]
-pub(crate) async fn adb_install<R: Runtime>(app: AppHandle<R>, serial: String, apk_path: String) -> Result<(), Error> {
-    run_adb(&app, &["-s", &serial, "install", "-r", &apk_path]).await?;
+pub(crate) async fn adb_install<R: Runtime>(
+    app: AppHandle<R>,
+    serial: String,
+    apk_path: String,
+    downgrade: Option<bool>,
+) -> Result<(), Error> {
+    // `-d` lets an older version replace a newer one. A retail TV honours it only for a
+    // debuggable app; for a release build pm still answers INSTALL_FAILED_VERSION_DOWNGRADE.
+    let mut args = vec!["-s", serial.as_str(), "install", "-r"];
+    if downgrade.unwrap_or(false) {
+        args.push("-d");
+    }
+    args.push(&apk_path);
+    run_adb(&app, &args).await?;
     Ok(())
 }
 

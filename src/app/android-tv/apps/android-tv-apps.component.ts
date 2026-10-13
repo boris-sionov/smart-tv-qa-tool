@@ -7,6 +7,10 @@ import {MessageDialogComponent} from '../../shared/components/message-dialog/mes
 import {ProgressDialogComponent} from '../../shared/components/progress-dialog/progress-dialog.component';
 import {extractMessage} from '../../core/utils/error.utils';
 import {environmentIcon} from '../../shared/app-environment-icons';
+import {ApkLibraryComponent, LibraryPick} from '../library/apk-library.component';
+
+/** pm's answers when an APK cannot replace the installed app without an uninstall first. */
+const REPLACE_REFUSED = /INSTALL_FAILED_UPDATE_INCOMPATIBLE|INSTALL_FAILED_VERSION_DOWNGRADE/;
 
 // OTT apps whose icon was extracted from the APK and bundled under assets/app-icons.
 const EXTRACTED_ICONS = ['tv.freetv.androidtv', 'tv.freetv.androidtv.uat', 'il.co.stingtv.staging', 'il.co.partnertv.atv', 'com.stingtv.androidtv', 'com.stingtv.androidtv.staging', 'il.co.partnertv.atv.staging', 'tv.partner.androidtv', 'tv.partner.androidtv.staging', 'tv.yes.androidtv', 'com.yes.yestv', 'com.cellcom.cellcom_tv', 'tv.cellcom.androidtv', 'tv.cellcom.androidtv.stg', 'com.netflix.ninja', 'com.hbo.hbomax', 'com.disneyplus', 'com.hotstar.androidtv'];
@@ -126,6 +130,67 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
             await this.loadPackages();
             window.location.reload(); // Reload to pick up new icons
         } catch (e) {
+            MessageDialogComponent.open(this.modalService, {
+                title: 'Failed to install', message: extractMessage(e, 'Failed to install'), positive: 'Close',
+            });
+        } finally {
+            progress.close(true);
+        }
+    }
+
+    /**
+     * Installs an APK picked from the shared library with `adb install -r -d`.
+     *
+     * `-d` is not enough on a retail TV: Android honours it only for a debuggable app, so a
+     * release build answers INSTALL_FAILED_VERSION_DOWNGRADE anyway — and an APK signed with a
+     * different key (store build over a CI one) answers INSTALL_FAILED_UPDATE_INCOMPATIBLE. Both
+     * need an uninstall first, which clears the app's data and login, so that is asked.
+     */
+    async installFromLibrary(): Promise<void> {
+        const serial = this.serial;
+        if (!serial) return;
+        const picker = this.modalService.open(ApkLibraryComponent, {size: 'lg', centered: true, scrollable: true});
+        const pick: LibraryPick | null = await picker.result.catch(() => null);
+        if (!pick) return;
+        const label = pick.kind === 'store'
+            ? `Store ${pick.version}`
+            : `${pick.build.label} ${pick.build.version}${/debug/i.test(pick.build.file) ? ' (debug)' : ''}`;
+
+        const progress = ProgressDialogComponent.open(this.modalService);
+        const dialog = progress.componentInstance as ProgressDialogComponent;
+        dialog.setSteps([
+            {key: 'fetch', label: 'Getting the APK from the library'},
+            {key: 'install', label: 'Installing on TV'},
+        ]);
+        try {
+            dialog.update(`Getting ${label}…`, 20, 'fetch');
+            const path = pick.kind === 'store' ? await this.adb.fetchFromLibrary(pick.apk.location) : pick.build.path;
+            dialog.update(`Installing ${label}…`, 60, 'install');
+            try {
+                await this.adb.install(serial, path, true);
+            } catch (e) {
+                const message = extractMessage(e, '');
+                if (!REPLACE_REFUSED.test(message)) throw e;
+                const {packageId} = await this.adb.apkManifest(path);
+                const confirm = MessageDialogComponent.open(this.modalService, {
+                    title: 'Uninstall first?',
+                    message: (message.includes('VERSION_DOWNGRADE')
+                        ? `The TV refused to downgrade ${packageId} to ${label} — Android allows that only for debug builds.`
+                        : `${label} is signed with a different key than the ${packageId} on the TV.`)
+                        + ' It installs after an uninstall, which also clears the app\'s data and login.',
+                    positive: 'Uninstall and install', positiveStyle: 'danger', negative: 'Cancel', autofocus: 'negative',
+                });
+                if (!await confirm.result.catch(() => false)) return;
+                dialog.update(`Uninstalling ${packageId}…`, 75, 'install');
+                await this.adb.uninstall(serial, packageId);
+                dialog.update(`Installing ${label}…`, 85, 'install');
+                await this.adb.install(serial, path, true);
+            }
+            dialog.update('Done', 100, 'done');
+            this.state.invalidatePackages(serial);
+            await this.loadPackages(true);
+        } catch (e) {
+            dialog.fail();
             MessageDialogComponent.open(this.modalService, {
                 title: 'Failed to install', message: extractMessage(e, 'Failed to install'), positive: 'Close',
             });
