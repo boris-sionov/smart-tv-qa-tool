@@ -1,7 +1,8 @@
 {
   "version": "1.0.0",
-  "build": 17,
-  "commit": "25a453c",
+  "build": 18,
+  "commit": "486bd19",
   "branch": "main",
-  "builtAt": "2026-10-13T09:58:20Z"
+  "dirty": false,
+  "builtAt": "2026-10-13T13:03:38Z"
 }
