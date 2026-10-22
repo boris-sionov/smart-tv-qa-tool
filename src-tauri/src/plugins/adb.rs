@@ -58,7 +58,43 @@ fn app_name(package_id: &str) -> Option<&'static str> {
         "com.netflix.mediaclient" => Some("Netflix"),
         "com.amazon.venezia" => Some("Amazon"),
         "com.apple.appletv" => Some("Apple TV+"),
+        // Ids seen on our test sets whose brand the derived name would miss.
+        "com.netflix.ninja" => Some("Netflix"),
+        "com.disneyplus.mea" => Some("Disney+ MEA"),
+        "com.wbd.stream" => Some("HBO Max"),
+        "com.amazon.amazonvideo.livingroom" => Some("Prime Video"),
+        "il.net.hot.nexttv" => Some("NextTV"),
+        "com.google.android.youtube.tv" => Some("YouTube"),
+        "com.google.android.youtube.tvmusic" => Some("YouTube Music"),
+        "com.google.android.play.games" => Some("Play Games"),
+        "com.android.vending" => Some("Play Store"),
+        "com.plexapp.android" => Some("Plex"),
+        "com.spotify.tv.android" => Some("Spotify"),
+        "com.esaba.downloader" => Some("Downloader"),
+        "com.nousguide.android.rbtv" => Some("Red Bull TV"),
+        "com.applicaster.il.ch1" => Some("Kan 11"),
         _ => None,
+    }
+}
+
+/// Name for a package the whitelist above does not know: the longest segment of its id
+/// that is not a prefix every id carries, title-cased — the brand, more often than not
+/// (`com.netflix.ninja` ⇒ Netflix, `com.google.android.youtube.tv` ⇒ Youtube). A guess:
+/// the row shows the full id next to it, and a name worth getting right belongs in
+/// `app_name()` above.
+fn derived_name(package_id: &str) -> String {
+    const GENERIC: [&str; 12] = [
+        "com", "org", "net", "il", "co", "tv", "android", "atv", "app", "apps", "mobile", "client",
+    ];
+    let segment = package_id
+        .split('.')
+        .filter(|s| !s.is_empty() && !GENERIC.contains(&s.to_lowercase().as_str()))
+        .max_by_key(|s| s.len())
+        .unwrap_or(package_id);
+    let mut chars = segment.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => package_id.to_owned(),
     }
 }
 
@@ -148,12 +184,62 @@ pub(crate) async fn adb_disconnect<R: Runtime>(app: AppHandle<R>, serial: String
     Ok(())
 }
 
+/// Package ids the TV itself shows on a home screen — every app with a MAIN launcher
+/// activity, leanback or phone-style. Empty when `cmd package` is unavailable (older
+/// firmware), which makes the caller fall back to the full package list.
+async fn launchable_package_ids<R: Runtime>(app: &AppHandle<R>, serial: &str) -> Vec<String> {
+    let mut ids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for category in [
+        "android.intent.category.LEANBACK_LAUNCHER",
+        "android.intent.category.LAUNCHER",
+    ] {
+        let Ok(out) = run_adb(
+            app,
+            &[
+                "-s", serial, "shell", "cmd", "package", "query-activities", "--brief",
+                "-a", "android.intent.action.MAIN", "-c", category,
+            ],
+        )
+        .await
+        else {
+            continue;
+        };
+        for line in out.lines() {
+            // `--brief` prints one `<package>/<activity>` per match, plus plain header lines.
+            let Some((pkg, _)) = line.trim().split_once('/') else { continue };
+            let looks_like_id = pkg.contains('.')
+                && pkg
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_');
+            if looks_like_id {
+                ids.insert(pkg.to_owned());
+            }
+        }
+    }
+    ids.into_iter().collect()
+}
+
 #[tauri::command]
 pub(crate) async fn adb_list_packages<R: Runtime>(app: AppHandle<R>, serial: String) -> Result<Vec<AdbPackageInfo>, Error> {
-    let list_out = run_adb(&app, &["-s", &serial, "shell", "pm", "list", "packages"]).await?;
-    let ids: Vec<String> = list_out.lines().filter_map(|l| l.strip_prefix("package:")).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-    let whitelisted: Vec<(String, &'static str)> = ids.iter().filter_map(|id| app_name(id).map(|name| (id.clone(), name))).collect();
-    let version_futures: Vec<_> = whitelisted.iter().map(|(id, _)| {
+    let mut ids = launchable_package_ids(&app, &serial).await;
+    if ids.is_empty() {
+        let list_out = run_adb(&app, &["-s", &serial, "shell", "pm", "list", "packages"]).await?;
+        ids = list_out.lines().filter_map(|l| l.strip_prefix("package:")).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    }
+    // Known brands in their usual order first; everything else alphabetically after them.
+    // `sort_key` only speaks for whitelisted names — it matches brands as substrings, and
+    // a derived name like "Photos" would otherwise sort with "Hot".
+    let mut named: Vec<(String, String)> = ids.iter().map(|id| {
+        match app_name(id) {
+            Some(name) => (id.clone(), name.to_owned()),
+            None => (id.clone(), derived_name(id)),
+        }
+    }).collect();
+    named.sort_by_key(|(id, name)| {
+        let key = if app_name(id).is_some() { sort_key(name) } else { u32::MAX };
+        (key, name.to_lowercase())
+    });
+    let version_futures: Vec<_> = named.iter().map(|(id, _)| {
         let app = app.clone(); let serial = serial.clone(); let id = id.clone();
         async move {
             run_adb(&app, &["-s", &serial, "shell", "pm", "dump", &id]).await.ok()
@@ -162,8 +248,7 @@ pub(crate) async fn adb_list_packages<R: Runtime>(app: AppHandle<R>, serial: Str
         }
     }).collect();
     let versions: Vec<String> = join_all(version_futures).await;
-    let mut results: Vec<AdbPackageInfo> = whitelisted.iter().zip(versions.iter()).map(|((id, name), version)| AdbPackageInfo { id: id.clone(), name: name.to_string(), version_name: version.clone() }).collect();
-    results.sort_by_key(|r| sort_key(&r.name));
+    let results: Vec<AdbPackageInfo> = named.iter().zip(versions.iter()).map(|((id, name), version)| AdbPackageInfo { id: id.clone(), name: name.clone(), version_name: version.clone() }).collect();
     Ok(results)
 }
 
@@ -209,3 +294,18 @@ pub(crate) async fn adb_install<R: Runtime>(
     Ok(())
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::derived_name;
+
+    #[test]
+    fn derived_name_picks_the_brand() {
+        assert_eq!(derived_name("com.netflix.ninja"), "Netflix");
+        assert_eq!(derived_name("com.google.android.youtube.tv"), "Youtube");
+        assert_eq!(derived_name("com.nordvpn.android"), "Nordvpn");
+        assert_eq!(derived_name("il.co.stingtv.atv"), "Stingtv");
+        // Nothing but generic segments: the id itself, rather than an empty row.
+        assert_eq!(derived_name("tv.android"), "Tv.android");
+    }
+}

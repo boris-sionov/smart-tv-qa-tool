@@ -8,7 +8,7 @@ import {ProgressDialogComponent, ProgressStep} from '../../shared/components/pro
 import {tizenSerial, TizenDevice, TizenStateService} from '../tizen-state.service';
 import {TizenWizardComponent} from '../wizard/tizen-wizard.component';
 import {TizenRemoteDialogComponent} from '../remote-dialog/tizen-remote-dialog.component';
-import {isKnownApp, isPriorityApp} from '../../shared/known-apps';
+import {isPriorityApp} from '../../shared/known-apps';
 import {tizenEnvironmentIcon} from '../../shared/app-environment-icons';
 import {brandIcon} from '../../shared/app-brand-icons';
 import {RELEASE_PAGES} from '../../core/services/confluence.service';
@@ -73,19 +73,21 @@ export class TizenAppsComponent implements OnInit, OnDestroy {
         return this.selected ? tizenSerial(this.selected) : null;
     }
 
-    isAllowed(app: SdbAppInfo): boolean {
-        return isKnownApp(app.name, app.id, app.runtimeId, app.tizenId);
-    }
-
     // Sort order: FreeTV first, then the rest alphabetically
     isPriority(app: SdbAppInfo): boolean {
         return isPriorityApp(app.name, app.id, app.runtimeId, app.tizenId);
     }
 
+    /**
+     * Every app the TV reports, FreeTV first and the rest alphabetically.
+     *
+     * The list used to keep only a fixed set of brands, which hid whatever QA had just
+     * sideloaded — `13+` among them — behind a pattern nobody thought to extend. A Samsung TV
+     * lists under two dozen apps, so showing all of them costs a few rows and no guessing.
+     */
     get filteredApps(): SdbAppInfo[] | null {
         if (!this.apps) return null;
         return [...this.apps]
-            .filter(app => this.isAllowed(app))
             .sort((a, b) => {
                 const aPriority = this.isPriority(a);
                 const bPriority = this.isPriority(b);
