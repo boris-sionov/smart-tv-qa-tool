@@ -375,6 +375,13 @@ DUID comparison is containment-based (`0 duid` can echo more than the bare id) a
 - **Connection:** TCP port 5555, no auth after developer mode
 - **App format:** APK
 - **Commands:** bundled ADB sidecar binary, orchestrated from Rust via `adb-manager` plugin
+- **The app list is what the TV's launcher shows**: `adb_list_packages` asks
+  `cmd package query-activities` for every package with a MAIN activity under
+  `LEANBACK_LAUNCHER` or `LAUNCHER`, so system and preinstalled apps appear too, not only the
+  dozen-odd brands `app_name()` knows. That whitelist now only supplies display names and the
+  brand ordering; anything else is named from its package id (`derived_name()`) and sorted
+  alphabetically after the known brands. Firmware without `cmd package` falls back to
+  `pm list packages`.
 - **`getAppIcon`** is still in TypeScript (APK icon extraction) — planned migration to Rust + zip crate
 - **Icons in the app list** are bundled assets, resolved in `AndroidTvAppsComponent.setPackages()`:
   the badged environment icon for a FreeTV build (see [Environment Icons](#environment-icons)),
@@ -530,6 +537,13 @@ artwork it shipped rather than being labelled on a guess.
 Where the icon is applied differs per platform, because what each one lets us write differs:
 
 #### App List Icons (our list, not the TV)
+
+Every app list shows **every app the TV reports** — Samsung from `0 vd_applist` (under two dozen
+on a retail set), LG's Apps scope from `allPackages$`, Android TV from the launcher query. They
+used to keep only the brands `isKnownApp` matched, which silently hid whatever QA had just
+installed — `13+` among them. That whitelist is gone from `src/app/shared/known-apps.ts`, which
+now only supplies the FreeTV-first sort (`isPriorityApp`) and `appEnvironment`. LG's Developer
+scope is unchanged: it still lists sideloaded apps only.
 
 The Tizen list draws bundled artwork per app — Disney, Netflix, yes+, HOT and the rest — because
 webOS's approach does not port: a retail Samsung TV refuses `sdb pull` from

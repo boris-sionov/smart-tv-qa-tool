@@ -6,7 +6,7 @@ import {AppManagerService, AppsRepoService, RepositoryItem} from "../../core/ser
 import {RemoteFileService} from "../../core/services/remote-file.service";
 import {IconCacheService} from "../../core/services/icon-cache.service";
 import {LgHostedAppVersionService} from "../../core/services/lg-hosted-app-version.service";
-import {appEnvironment, isKnownApp, isPriorityApp} from "../../shared/known-apps";
+import {appEnvironment, isPriorityApp} from "../../shared/known-apps";
 import {Buffer} from "buffer";
 
 @Component({
@@ -84,11 +84,12 @@ export class InstalledComponent implements OnDestroy {
             this.scoped = null;
             return;
         }
+        // The 'apps' scope shows everything the TV reports, sideloaded builds first. It used to
+        // keep only a fixed set of brands, which hid whatever QA had just installed
+        // from the store — `13+` among them — behind a pattern nobody thought to extend.
         this.scoped = this.scope !== 'apps' ? packages
-            // Sideloaded builds are the ones under test, so they stay in whatever they are named.
-            : packages.filter(pkg => this.isDeveloperApp(pkg) || isKnownApp(pkg.id, pkg.title))
-                .sort((a, b) => this.appsScopeRank(b) - this.appsScopeRank(a)
-                    || (a.title || a.id).localeCompare(b.title || b.id));
+            : [...packages].sort((a, b) => this.appsScopeRank(b) - this.appsScopeRank(a)
+                || (a.title || a.id).localeCompare(b.title || b.id));
     }
 
     /** Apps left after the scope filter and the search box. */

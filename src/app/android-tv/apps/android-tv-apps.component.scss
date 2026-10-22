@@ -269,6 +269,12 @@ $panel-strong: rgba(18, 30, 55, 0.88);
   text-transform: uppercase;
 }
 
+.apps-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .apps-count {
   display: inline-flex;
   align-items: center;
@@ -436,6 +442,17 @@ $panel-strong: rgba(18, 30, 55, 0.88);
     box-shadow: 0 10px 24px rgba(91, 159, 245, 0.18);
   }
 
+  &.secondary {
+    color: #EAF2FF;
+    background: rgba(91, 159, 245, 0.1);
+    border-color: $border-color;
+
+    &:hover,
+    &:focus-visible {
+      background: rgba(91, 159, 245, 0.2);
+    }
+  }
+
   &.primary {
     color: #FFFFFF;
     background: #0D6EFD;
@@ -528,8 +545,12 @@ $panel-strong: rgba(18, 30, 55, 0.88);
     flex-direction: column;
   }
 
-  .apps-count {
+  .apps-tools {
     align-self: stretch;
+  }
+
+  .apps-count {
+    flex: 1;
     justify-content: center;
   }
 
@@ -543,5 +564,12 @@ $panel-strong: rgba(18, 30, 55, 0.88);
 
   .package-id {
     display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  // The full-width rule above is for the row actions; the reload button stays square.
+  .apps-tools .app-action {
+    width: auto;
   }
 }

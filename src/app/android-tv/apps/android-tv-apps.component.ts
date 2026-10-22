@@ -7,6 +7,7 @@ import {MessageDialogComponent} from '../../shared/components/message-dialog/mes
 import {ProgressDialogComponent} from '../../shared/components/progress-dialog/progress-dialog.component';
 import {extractMessage} from '../../core/utils/error.utils';
 import {environmentIcon} from '../../shared/app-environment-icons';
+import {brandIcon} from '../../shared/app-brand-icons';
 import {ApkLibraryComponent, LibraryPick} from '../library/apk-library.component';
 
 /** pm's answers when an APK cannot replace the installed app without an uninstall first. */
@@ -44,7 +45,8 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
      *
      * A FreeTV build gets the badged icon for its environment — PREPROD, UAT, PROD TEST — because
      * every FreeTV APK ships the same green icon and the list would otherwise be a row of
-     * identical tiles. Everything else keeps the icon extracted from its APK.
+     * identical tiles. Other brands get the bundled artwork the Samsung list uses
+     * (`assets/brand-icons/`), then the few icons extracted from APKs, then the placeholder.
      *
      * Resolved here rather than in `iconPath`, which the template calls on every row on every
      * change-detection pass.
@@ -53,6 +55,7 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         this.packages = packages;
         this.iconPaths = new Map((packages ?? []).flatMap(pkg => {
             const asset = environmentIcon('android-tv', pkg.id, pkg.name)?.asset
+                ?? brandIcon(pkg.id, pkg.name)
                 ?? (EXTRACTED_ICONS.includes(pkg.id) ? `assets/app-icons/${pkg.id}.png` : null);
             return asset ? [[pkg.id, asset] as const] : [];
         }));
