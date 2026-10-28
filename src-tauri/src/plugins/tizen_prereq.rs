@@ -57,6 +57,10 @@ pub struct TizenPrerequisites {
     /// The Tizen Studio the checks ran against — the saved one, or the one detected.
     pub studio_path: Option<String>,
     pub checks: Vec<PrereqCheck>,
+    /// `macos`, `windows` or `linux` — which install steps the UI shows for a failed check.
+    pub os: &'static str,
+    /// `aarch64` or `x86_64`. Tizen Studio ships Intel-only binaries, so Apple Silicon needs Rosetta.
+    pub arch: &'static str,
 }
 
 const INSTALL_STUDIO_HINT: &str =
@@ -104,7 +108,12 @@ pub(crate) async fn tizen_check_prerequisites<R: Runtime>(
     let profiles_xml = cert_profiles_path(studio.as_deref().unwrap_or(&format!("{home}/tizen-studio")));
     checks.extend(cert_checks(Path::new(&profiles_xml), cert_profile.as_deref()));
 
-    Ok(TizenPrerequisites { studio_path: studio, checks })
+    Ok(TizenPrerequisites {
+        studio_path: studio,
+        checks,
+        os: std::env::consts::OS,
+        arch: std::env::consts::ARCH,
+    })
 }
 
 // ── Tizen Studio ─────────────────────────────────────────────────────────────

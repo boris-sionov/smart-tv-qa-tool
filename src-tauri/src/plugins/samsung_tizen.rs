@@ -1299,6 +1299,8 @@ pub(super) fn studio_candidates(home: &str) -> Vec<String> {
         format!("{home}/tizen-studio"),
         format!("{home}/.local/share/tizen-studio"),
         "/opt/tizen-studio".to_owned(),
+        // The Windows installer's default.
+        r"C:\tizen-studio".to_owned(),
     ]
 }
 

@@ -85,6 +85,10 @@ export interface TizenPrerequisites {
     /** The Tizen Studio the checks ran against — the saved one, or the one detected. */
     studioPath: string | null;
     checks: TizenPrereqCheck[];
+    /** `macos`, `windows` or `linux` (Rust's `std::env::consts::OS`). */
+    os: string;
+    /** `aarch64` or `x86_64`. */
+    arch: string;
 }
 
 interface RawTizenAppInfo {

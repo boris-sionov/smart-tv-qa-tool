@@ -52,6 +52,32 @@
     </ul>
   }
 
+  @if (guides.length && !running) {
+    <section class="fix-section">
+      <h6 class="fix-heading">How to fix it on {{ os }}</h6>
+      @for (guide of guides; track guide.key) {
+        <div class="fix-card">
+          <div class="fix-title">{{ guide.title }}</div>
+          @if (guide.download) {
+            <div class="fix-download"><span>Download</span> {{ guide.download }}</div>
+          }
+          <ol class="fix-steps">
+            @for (step of guide.steps; track $index) {
+              <li>{{ step }}</li>
+            }
+          </ol>
+          @if (guide.links.length) {
+            <div class="fix-links">
+              @for (link of guide.links; track link.url) {
+                <a [href]="link.url" appExternalLink><i class="bi bi-box-arrow-up-right"></i> {{ link.label }}</a>
+              }
+            </div>
+          }
+        </div>
+      }
+    </section>
+  }
+
   <div class="prereq-footer">
     @if (studioPath && certificatesFailing) {
       <button class="btn-ghost" type="button" (click)="openCertificateManager()">

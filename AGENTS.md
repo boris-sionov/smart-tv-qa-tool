@@ -342,6 +342,23 @@ TCP themselves — so the checks are what that flow calls:
 | Selected certificate | no profile saved, the saved name is not a profile — the wizard takes it from the `.p12`'s folder name, which need not match — or its author / distributor key file is gone |
 | TVs covered by certificates | *warning* only: no distributor profile lists `<TestDevice>` DUIDs, so per-TV matching cannot work |
 
+Below the list the dialog shows how to fix each miss **for the OS the check ran on** (the command
+returns `std::env::consts::OS` / `ARCH`): what to download, numbered install steps and links that
+open in the system browser (`appExternalLink`). The text lives in `tizen-fix-guides.ts`. The links
+are pages, not files — installer names carry the SDK version:
+
+| Link | For |
+|---|---|
+| `samsungtizenos.com/tools-download/` | current Tizen SDK "with CLI installer" — *Select OS* gives `web-cli_Tizen_SDK_<ver>_<mirror>_{macos-64.bin,windows-64.exe}` |
+| `download.tizen.org/sdk/Installer/` | older full Tizen Studio installers |
+| developer.samsung.com *Installing TV SDK* / *Creating certificates* | TV Extensions + Samsung Certificate Extension (≥ 2.0.73; older ones can no longer create certificates), certificate profiles |
+| `adoptium.net/temurin/releases/` | Java, only when Studio's bundled `jdk/` is gone |
+
+`developer.tizen.org` / `docs.tizen.org` now redirect to samsungtizenos.com, and that site's
+"Installation guide" link is a GitHub 404 — do not link either. Tizen Studio's binaries (`sdb`,
+the bundled JDK) are x86_64 only, so on Apple Silicon the guide starts with installing Rosetta.
+Windows installs to `C:\tizen-studio`, which is now one of the `studio_candidates()`.
+
 `tizen version` starts a JVM (~4 s), so the dialog shows a spinner; each tool call is capped at
 30 s. To see the result for this machine without the UI:
 `cargo test -p devman tizen_prereq -- --ignored --nocapture` (set `TIZEN_CERT_PROFILE` to check a

@@ -4,6 +4,8 @@ import {NgbActiveModal, NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {SdbService, TizenPrereqCheck} from '../../../core/services/sdb.service';
 import {TizenStateService} from '../../../tizen/tizen-state.service';
 import {extractMessage} from '../../../core/utils/error.utils';
+import {ExternalLinkDirective} from '../../directives';
+import {FixGuide, fixGuidesFor, osLabel} from './tizen-fix-guides';
 
 /**
  * Lists what the Samsung flows need on this machine — sdb, Tizen Studio, its CLI and Java, the
@@ -13,7 +15,7 @@ import {extractMessage} from '../../../core/utils/error.utils';
 @Component({
     selector: 'app-tizen-prerequisites',
     standalone: true,
-    imports: [CommonModule],
+    imports: [CommonModule, ExternalLinkDirective],
     templateUrl: './tizen-prerequisites.component.html',
     styleUrls: ['./tizen-prerequisites.component.scss'],
 })
@@ -23,6 +25,9 @@ export class TizenPrerequisitesComponent implements OnInit {
 
     checks: TizenPrereqCheck[] = [];
     studioPath: string | null = null;
+    /** How to fix what failed, for this computer's OS. */
+    guides: FixGuide[] = [];
+    os = '';
     running = false;
     error: string | null = null;
 
@@ -57,6 +62,8 @@ export class TizenPrerequisitesComponent implements OnInit {
             const result = await this.sdb.checkPrerequisites(this.state.getStudioPath(), this.state.getCertProfile());
             this.checks = result.checks;
             this.studioPath = result.studioPath;
+            this.guides = fixGuidesFor(result);
+            this.os = osLabel(result.os, result.arch);
         } catch (e) {
             this.error = extractMessage(e, 'Could not run the checks');
         } finally {
