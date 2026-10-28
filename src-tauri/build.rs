@@ -102,6 +102,7 @@ fn main() {
                     "tizen_press_key",
                     "tizen_open_certificate_manager",
                     "tizen_open_device_manager",
+                    "tizen_check_prerequisites",
                 ]),
             ),
     )

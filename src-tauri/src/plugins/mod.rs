@@ -9,4 +9,5 @@ pub mod lg_remote;
 pub mod local_file;
 pub mod samsung_tizen;
 pub mod shell;
+pub mod tizen_prereq;
 pub mod vidaa;

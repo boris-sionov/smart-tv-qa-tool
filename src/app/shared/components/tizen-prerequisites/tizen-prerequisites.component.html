@@ -1,0 +1,72 @@
+<div class="prereq-dialog">
+  <div class="prereq-header">
+    <div class="header-icon"
+         [class.ok]="!running && !error && failed === 0"
+         [class.fail]="!running && (error || failed > 0)">
+      @if (running) {
+        <span class="spinner"></span>
+      } @else if (error || failed > 0) {
+        <i class="bi bi-exclamation-triangle-fill"></i>
+      } @else {
+        <i class="bi bi-check2-circle"></i>
+      }
+    </div>
+    <div>
+      <h5 class="prereq-title">Samsung requirements</h5>
+      <div class="prereq-summary">
+        @if (running) {
+          Checking this computer…
+        } @else if (error) {
+          {{ error }}
+        } @else if (failed > 0) {
+          {{ failed }} of {{ checks.length }} missing — installing on a Samsung TV will fail until they are fixed.
+        } @else if (warned > 0) {
+          Ready, with {{ warned }} {{ warned === 1 ? 'warning' : 'warnings' }}.
+        } @else {
+          Everything the Samsung flows need is installed.
+        }
+      </div>
+    </div>
+  </div>
+
+  @if (checks.length) {
+    <ul class="check-list" [class.stale]="running">
+      @for (check of checks; track check.id) {
+        <li class="check-item" [attr.data-status]="check.status">
+          <span class="check-icon">
+            @switch (check.status) {
+              @case ('ok')   { ✓ }
+              @case ('warn') { ! }
+              @default       { ✕ }
+            }
+          </span>
+          <div class="check-body">
+            <div class="check-label">{{ check.label }}</div>
+            <div class="check-detail">{{ check.detail }}</div>
+            @if (check.hint) {
+              <div class="check-hint">{{ check.hint }}</div>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
+  <div class="prereq-footer">
+    @if (studioPath && certificatesFailing) {
+      <button class="btn-ghost" type="button" (click)="openCertificateManager()">
+        <i class="bi bi-shield-lock"></i> Certificate Manager
+      </button>
+    }
+    <span class="spacer"></span>
+    <button class="btn-ghost" type="button" [disabled]="running" (click)="run()">
+      <i class="bi bi-arrow-clockwise"></i> Check again
+    </button>
+    <button class="btn-ghost" type="button" (click)="modal.close(false)">Close</button>
+    @if (continueLabel) {
+      <button class="btn-primary-modern" type="button" [disabled]="running" (click)="modal.close(true)">
+        {{ continueLabel }}
+      </button>
+    }
+  </div>
+</div>

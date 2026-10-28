@@ -323,6 +323,30 @@ The 2.0 rewrite is the exception: `freetv-tizen-2.0-icon.png` already carries a 
 the same place ours would go, so a 2.0 build installs that artwork unchanged and gets no version
 badge. Giving it one needs an unbadged 2.0 base.
 
+#### Prerequisites Check
+
+"Check requirements" — under the Samsung card on the platform selector (which then offers to open
+the section) and the clipboard button in the Tizen navbar — runs `tizen_check_prerequisites`
+(`plugins/tizen_prereq.rs`) and lists each check with ✓ / ! / ✕, what it found and how to fix it.
+Only the signed install needs anything on the machine — list, launch, kill and debug speak SDB over
+TCP themselves — so the checks are what that flow calls:
+
+| Check | Fails when |
+|---|---|
+| Bundled sdb | the `sdb` sidecar is missing or `sdb version` does not answer |
+| Tizen Studio | neither the saved path (`smart-tv-qa-tizen-studio-path`) nor a default location holds `tools/ide/bin/tizen`; a saved path that has gone missing fails even if another install is found, since the install uses the saved one |
+| Tizen CLI | `tizen version` does not print `Tizen CLI x.y.z` |
+| Tizen Studio sdb | `<studio>/tools/sdb version` fails — `tizen install` connects through it |
+| Java for the Tizen CLI | the Java `tizen.sh` would pick (`sdk.info` `JDK_PATH`, then `<studio>/jdk`, then `java` on the PATH) does not answer `-version` |
+| Certificate profiles | `profiles.xml` (via `cert_profiles_path`, the file the install reads) is missing or empty |
+| Selected certificate | no profile saved, the saved name is not a profile — the wizard takes it from the `.p12`'s folder name, which need not match — or its author / distributor key file is gone |
+| TVs covered by certificates | *warning* only: no distributor profile lists `<TestDevice>` DUIDs, so per-TV matching cannot work |
+
+`tizen version` starts a JVM (~4 s), so the dialog shows a spinner; each tool call is capped at
+30 s. To see the result for this machine without the UI:
+`cargo test -p devman tizen_prereq -- --ignored --nocapture` (set `TIZEN_CERT_PROFILE` to check a
+saved profile).
+
 #### Certificate ↔ TV Matching (the other cause of `[118, -12]`)
 
 A Samsung *distributor* certificate is issued for a fixed list of TV DUIDs. Signing with a profile

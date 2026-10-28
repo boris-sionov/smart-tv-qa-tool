@@ -21,13 +21,18 @@
       <div class="platform-desc">Manage apps on Android TV</div>
     </button>
 
-    <button class="platform-card" (click)="openTizen()">
-      <div class="platform-icon tizen-icon">
-        <img src="assets/platform-logos/tizen-logo-png.png" alt="Samsung Tizen">
-      </div>
-      <div class="platform-name">Samsung Tizen</div>
-      <div class="platform-desc">Manage apps on Samsung TV</div>
-    </button>
+    <div class="platform-slot">
+      <button class="platform-card" (click)="openTizen()">
+        <div class="platform-icon tizen-icon">
+          <img src="assets/platform-logos/tizen-logo-png.png" alt="Samsung Tizen">
+        </div>
+        <div class="platform-name">Samsung Tizen</div>
+        <div class="platform-desc">Manage apps on Samsung TV</div>
+      </button>
+      <button class="platform-check" type="button" (click)="checkTizen()">
+        <i class="bi bi-clipboard-check"></i> Check requirements
+      </button>
+    </div>
 
     <button class="platform-card" (click)="openVidaa()">
       <div class="platform-icon vidaa-icon">

@@ -1,5 +1,7 @@
 import {Component, OnInit} from '@angular/core';
 import {Router} from '@angular/router';
+import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
+import {TizenPrerequisitesComponent} from '../shared/components/tizen-prerequisites/tizen-prerequisites.component';
 import {SdbService} from '../core/services/sdb.service';
 import {tizenSerial, TizenDevice, TizenStateService} from './tizen-state.service';
 
@@ -16,6 +18,7 @@ export class TizenComponent implements OnInit {
         public state: TizenStateService,
         private sdb: SdbService,
         private router: Router,
+        private modalService: NgbModal,
     ) {}
 
     ngOnInit(): void {
@@ -30,6 +33,10 @@ export class TizenComponent implements OnInit {
             this.selected = this.devices[0] ?? null;
             this.state.select(this.selected);
         }
+    }
+
+    checkRequirements(): void {
+        void TizenPrerequisitesComponent.open(this.modalService);
     }
 
     goBack(): void {
