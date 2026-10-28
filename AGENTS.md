@@ -344,13 +344,16 @@ TCP themselves — so the checks are what that flow calls:
 
 Below the list the dialog shows how to fix each miss **for the OS the check ran on** (the command
 returns `std::env::consts::OS` / `ARCH`): what to download, numbered install steps and links that
-open in the system browser (`appExternalLink`). The text lives in `tizen-fix-guides.ts`. The links
-are pages, not files — installer names carry the SDK version:
+open in the system browser (`appExternalLink`). The text lives in `tizen-fix-guides.ts`.
+
+Tizen Studio is deprecated; its last release, **6.1** (14 April 2025), is what the guide links to
+directly — `download.tizen.org/sdk/Installer/tizen-studio_6.1/web-{ide,cli}_Tizen_Studio_6.1_<os>`
+(`macos-64.dmg` / `.bin`, `windows-64.exe`, `ubuntu-64.bin`; IDE ≈ 650 MB recommended, CLI-only
+≈ 280 MB). Bump `STUDIO_VERSION` if a newer one ever appears. Everything else is a page:
 
 | Link | For |
 |---|---|
-| `samsungtizenos.com/tools-download/` | current Tizen SDK "with CLI installer" — *Select OS* gives `web-cli_Tizen_SDK_<ver>_<mirror>_{macos-64.bin,windows-64.exe}` |
-| `download.tizen.org/sdk/Installer/` | older full Tizen Studio installers |
+| `download.tizen.org/sdk/Installer/` | folder listing — fallback if the 6.1 files move |
 | developer.samsung.com *Installing TV SDK* / *Creating certificates* | TV Extensions + Samsung Certificate Extension (≥ 2.0.73; older ones can no longer create certificates), certificate profiles |
 | `adoptium.net/temurin/releases/` | Java, only when Studio's bundled `jdk/` is gone |
 

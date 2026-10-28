@@ -19,16 +19,21 @@ describe('fixGuidesFor', () => {
         expect(guides.map(g => g.key)).toEqual(['sdk']);
     });
 
-    it('asks Apple Silicon Macs for Rosetta and names the macOS installer', () => {
+    it('asks Apple Silicon Macs for Rosetta and links the macOS installers directly', () => {
         const [sdk] = fixGuidesFor(result([check('studio')]));
         expect(sdk.steps[0]).toContain('softwareupdate --install-rosetta');
-        expect(sdk.download).toContain('macos-64.bin');
-        expect(sdk.links[0].url).toBe('https://samsungtizenos.com/tools-download/');
+        expect(sdk.links.map(l => l.url)).toEqual([
+            'https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-ide_Tizen_Studio_6.1_macos-64.dmg',
+            'https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_macos-64.bin',
+            'https://download.tizen.org/sdk/Installer/',
+            'https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html',
+        ]);
     });
 
     it('gives Windows its own installer and paths, without Rosetta', () => {
         const [sdk] = fixGuidesFor(result([check('studio')], {os: 'windows', arch: 'x86_64'}));
-        expect(sdk.download).toContain('windows-64.exe');
+        expect(sdk.links[0].url).toContain('web-ide_Tizen_Studio_6.1_windows-64.exe');
+        expect(sdk.links[1].url).toContain('web-cli_Tizen_Studio_6.1_windows-64.exe');
         expect(sdk.steps.join(' ')).toContain('C:\\tizen-studio');
         expect(sdk.steps.join(' ')).not.toContain('Rosetta');
     });

@@ -4,10 +4,11 @@ import {TizenPrerequisites} from '../../../core/services/sdb.service';
  * Install steps shown under the Samsung requirements list for whatever failed, written for the
  * computer the check ran on.
  *
- * Links go to pages, not files: the installer file name carries the SDK version and changes with
- * every release. All of them were opened and checked on 2026-10-28. tizen.org's download pages
- * now redirect to samsungtizenos.com, and the "Installation guide" link on its tools page is a
- * GitHub 404, so neither is used.
+ * The SDK guide links straight to the Tizen Studio 6.1 installers (14 April 2025, the last
+ * release — Tizen Studio is deprecated, so the files should stay put), with the folder listing
+ * beside them in case they move. Every other link is a page. All were checked on 2026-10-28.
+ * tizen.org's download pages now redirect to samsungtizenos.com, and the "Installation guide"
+ * link on its tools page is a GitHub 404, so neither is used.
  */
 
 export interface FixLink {
@@ -27,8 +28,7 @@ export interface FixGuide {
 export type HostOs = 'macos' | 'windows' | 'linux';
 
 const LINKS = {
-    tizenTools: {label: 'Tizen SDK download (samsungtizenos.com)', url: 'https://samsungtizenos.com/tools-download/'},
-    tizenArchive: {label: 'Older Tizen Studio installers (download.tizen.org)', url: 'https://download.tizen.org/sdk/Installer/'},
+    tizenArchive: {label: 'All Tizen Studio installers (download.tizen.org)', url: 'https://download.tizen.org/sdk/Installer/'},
     tvSdk: {
         label: 'Samsung: Installing TV SDK',
         url: 'https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html',
@@ -58,18 +58,31 @@ export function osLabel(os: string, arch: string): string {
     }
 }
 
+const STUDIO_VERSION = '6.1';
+const STUDIO_BASE = `https://download.tizen.org/sdk/Installer/tizen-studio_${STUDIO_VERSION}/`;
+
+/** The Tizen Studio installers for an OS: the IDE (recommended) and the smaller CLI-only one. */
+function studioInstallers(os: HostOs): {ide: FixLink; cli: FixLink} {
+    const [suffix, ideExt, ideSize, cliExt, cliSize] = {
+        macos: ['macos-64', 'dmg', '650 MB', 'bin', '280 MB'],
+        windows: ['windows-64', 'exe', '660 MB', 'exe', '295 MB'],
+        linux: ['ubuntu-64', 'bin', '670 MB', 'bin', '280 MB'],
+    }[os];
+    const file = (kind: string, ext: string) => `web-${kind}_Tizen_Studio_${STUDIO_VERSION}_${suffix}.${ext}`;
+    return {
+        ide: {label: `${file('ide', ideExt)} (IDE, ${ideSize})`, url: STUDIO_BASE + file('ide', ideExt)},
+        cli: {label: `${file('cli', cliExt)} (CLI only, ${cliSize})`, url: STUDIO_BASE + file('cli', cliExt)},
+    };
+}
+
 function sdkGuide(os: HostOs, arch: string): FixGuide {
     const dir = studioDir(os);
-    const pickOs = {macos: 'Mac OS X', windows: 'Windows', linux: 'Ubuntu'}[os];
-    const file = {
-        macos: 'web-cli_Tizen_SDK_<version>_<mirror>_macos-64.bin',
-        windows: 'web-cli_Tizen_SDK_<version>_<mirror>_windows-64.exe',
-        linux: 'web-cli_Tizen_SDK_<version>_<mirror>_ubuntu-64.bin',
-    }[os];
+    const {ide, cli} = studioInstallers(os);
     const run = {
-        macos: `In Terminal: chmod +x ~/Downloads/web-cli_Tizen_SDK_*_macos-64.bin, then run that file.`,
-        windows: `Double-click the .exe. If SmartScreen warns about it, choose More info → Run anyway.`,
-        linux: `In a terminal: chmod +x ~/Downloads/web-cli_Tizen_SDK_*_ubuntu-64.bin, then run that file.`,
+        macos: 'Open the .dmg and run the installer inside it. (The CLI-only .bin instead: in Terminal, ' +
+            'chmod +x ~/Downloads/web-cli_Tizen_Studio_*_macos-64.bin, then run that file.)',
+        windows: 'Run the downloaded .exe. If SmartScreen warns about it, choose More info → Run anyway.',
+        linux: 'In a terminal: chmod +x ~/Downloads/web-*_Tizen_Studio_*_ubuntu-64.bin, then run that file.',
     }[os];
     const packageManager = {
         macos: `${dir}/package-manager/package-manager.app`,
@@ -82,21 +95,21 @@ function sdkGuide(os: HostOs, arch: string): FixGuide {
             ? ['Tizen Studio is built for Intel Macs. Install Rosetta first — in Terminal: ' +
                'softwareupdate --install-rosetta --agree-to-license']
             : []),
-        `Open the Tizen SDK download page, under "Tizen SDK" choose Select OS → ${pickOs} and the ` +
-        'mirror nearest you, and download the "Tizen SDK with CLI installer".',
+        `Download the Tizen Studio ${STUDIO_VERSION} installer below — the IDE one is recommended; the ` +
+        'CLI-only one is smaller and enough for the QA tool. It is the last Tizen Studio release.',
         run,
-        `Accept the license and keep the install location ${dir} — the QA tool looks there.`,
+        `Accept the license and keep the install location ${dir} — the QA tool looks there. ` +
+        'Tizen Studio brings its own Java; nothing else to install.',
         `When it finishes, open the Package Manager (${packageManager}).`,
         'In its "Extension SDK" tab install "TV Extensions" and "Samsung Certificate Extension" ' +
         '(2.0.73 or later — older versions can no longer create certificates).',
-        'This also installs the Tizen CLI, its sdb and the Java it runs on. Come back here and press ' +
-        '"Check again".',
+        'This also installs the Tizen CLI and its sdb. Come back here and press "Check again".',
     ];
     return {
         key: 'sdk',
-        title: 'Install the Tizen SDK and the TV extensions',
-        download: `${file} (≈330 MB)`,
-        links: [LINKS.tizenTools, LINKS.tvSdk, LINKS.tizenArchive],
+        title: `Install Tizen Studio ${STUDIO_VERSION} and the TV extensions`,
+        download: ide.label,
+        links: [ide, cli, LINKS.tizenArchive, LINKS.tvSdk],
         steps,
     };
 }
