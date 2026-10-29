@@ -5,6 +5,12 @@ import {TizenPrerequisitesComponent} from '../shared/components/tizen-prerequisi
 import {SdbService} from '../core/services/sdb.service';
 import {tizenSerial, TizenDevice, TizenStateService} from './tizen-state.service';
 
+/**
+ * The Samsung requirements check, kept for the life of the app: a warning (TVs not covered by a
+ * certificate) does not count as missing.
+ */
+const requirements = {checked: false, missing: false, shown: false};
+
 @Component({
     selector: 'app-tizen',
     templateUrl: './tizen.component.html',
@@ -25,6 +31,7 @@ export class TizenComponent implements OnInit {
         this.devices = this.state.getSavedDevices();
         this.selected = this.state.selected$.value ?? this.devices[0] ?? null;
         if (this.selected) this.state.select(this.selected);
+        void this.autoCheck();
     }
 
     onDevicesChanged(): void {
@@ -35,8 +42,39 @@ export class TizenComponent implements OnInit {
         }
     }
 
-    checkRequirements(): void {
-        void TizenPrerequisitesComponent.open(this.modalService);
+    /** Whether the last check found something missing; the navbar button shows only then. */
+    get requirementsMissing(): boolean {
+        return requirements.missing;
+    }
+
+    /** Opens the requirements list, then checks again in case something was fixed meanwhile. */
+    async checkRequirements(): Promise<void> {
+        await TizenPrerequisitesComponent.open(this.modalService);
+        await this.runCheck();
+    }
+
+    /**
+     * Checks the requirements quietly on entering Samsung — once per app start when everything
+     * is there, on every entry while something is missing — and opens the list the first time
+     * something is missing.
+     */
+    private async autoCheck(): Promise<void> {
+        if (requirements.checked && !requirements.missing) return;
+        await this.runCheck();
+        if (requirements.missing && !requirements.shown) {
+            requirements.shown = true;
+            await this.checkRequirements();
+        }
+    }
+
+    private async runCheck(): Promise<void> {
+        try {
+            const result = await this.sdb.checkPrerequisites(this.state.getStudioPath(), this.state.getCertProfile());
+            requirements.missing = result.checks.some(c => c.status === 'fail');
+            requirements.checked = true;
+        } catch {
+            // The check itself failing says nothing about the tools; leave the last answer.
+        }
     }
 
     goBack(): void {

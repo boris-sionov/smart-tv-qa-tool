@@ -89,10 +89,5 @@
       <i class="bi bi-arrow-clockwise"></i> Check again
     </button>
     <button class="btn-ghost" type="button" (click)="modal.close(false)">Close</button>
-    @if (continueLabel) {
-      <button class="btn-primary-modern" type="button" [disabled]="running" (click)="modal.close(true)">
-        {{ continueLabel }}
-      </button>
-    }
   </div>
 </div>

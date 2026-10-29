@@ -325,9 +325,11 @@ badge. Giving it one needs an unbadged 2.0 base.
 
 #### Prerequisites Check
 
-"Check requirements" — under the Samsung card on the platform selector (which then offers to open
-the section) and the clipboard button in the Tizen navbar — runs `tizen_check_prerequisites`
-(`plugins/tizen_prereq.rs`) and lists each check with ✓ / ! / ✕, what it found and how to fix it.
+Entering Samsung runs `tizen_check_prerequisites` quietly (`TizenComponent.autoCheck`): once per
+app start when everything is there, on every entry while something is missing. The first time it
+finds something missing it opens the list; after that a warning button in the Tizen navbar — shown
+only while something is missing — opens it again. A warning (no DUIDs) does not count as missing.
+The dialog (`plugins/tizen_prereq.rs` behind it) lists each check with ✓ / ! / ✕, what it found and how to fix it.
 Only the signed install needs anything on the machine — list, launch, kill and debug speak SDB over
 TCP themselves — so the checks are what that flow calls:
 
