@@ -325,10 +325,10 @@ badge. Giving it one needs an unbadged 2.0 base.
 
 #### Prerequisites Check
 
-Entering Samsung runs `tizen_check_prerequisites` quietly (`TizenComponent.autoCheck`): once per
-app start when everything is there, on every entry while something is missing. The first time it
-finds something missing it opens the list. The clipboard button in the Tizen navbar runs it any
-time, and turns into an amber warning while something is missing. A warning (no DUIDs) does not
+Entering Samsung runs `tizen_check_prerequisites` quietly (`TizenRequirementsService.autoCheck`):
+once per app start when everything is there, on every entry while something is missing. The first
+time it finds something missing it opens the list. **Requirements**, next to Add New Device on the
+Samsung Manage page, opens it any time, and turns amber while something is missing. A warning (no DUIDs) does not
 count as missing. The dialog also opens Tizen Studio's **Device Manager** and **Certificate
 Manager** (on macOS through `open` on their `.app` bundles — the bare binaries the code used to
 start are not there, or not executable).

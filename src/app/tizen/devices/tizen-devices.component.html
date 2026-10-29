@@ -8,6 +8,12 @@
         <h1 class="hero-title">Samsung Tizen Devices</h1>
         <p class="hero-subtitle">{{ devices.length }} {{ devices.length === 1 ? 'device' : 'devices' }} saved</p>
       </div>
+      <button class="requirements-btn" type="button" (click)="requirements.open()"
+              [class.missing]="requirements.missing"
+              [title]="requirements.missing ? 'Something Samsung needs is missing on this computer — show what' : 'Check that this computer has what Samsung needs'">
+        <i class="bi" [class.bi-clipboard-check]="!requirements.missing" [class.bi-exclamation-triangle-fill]="requirements.missing"></i>
+        <span>Requirements</span>
+      </button>
       <button class="add-device-btn" (click)="openAddWizard()">
         <i class="bi bi-plus-lg"></i>
         <span>Add New Device</span>

@@ -43,11 +43,6 @@
       </div>
 
       <div class="navbar-end">
-        <button class="nav-btn" type="button" (click)="checkRequirements()"
-                [class.requirements-missing]="requirementsMissing"
-                [title]="requirementsMissing ? 'Something Samsung needs is missing on this computer — show what' : 'Check requirements'">
-          <i class="bi" [class.bi-clipboard-check]="!requirementsMissing" [class.bi-exclamation-triangle-fill]="requirementsMissing"></i>
-        </button>
       </div>
     </div>
   </nav>
