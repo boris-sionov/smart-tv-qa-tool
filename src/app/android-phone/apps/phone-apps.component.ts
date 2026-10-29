@@ -1,8 +1,9 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnDestroy, OnInit} from '@angular/core';
+import {Subscription} from 'rxjs';
 import {ActivatedRoute, Router} from '@angular/router';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {AdbPackageInfo, AdbService} from '../../core/services/adb.service';
-import {PHONE_APPS, phoneAppIcon, PhoneService} from '../phone.service';
+import {PHONE_APPS, phoneAppIcon, PhoneService, UsbPhone} from '../phone.service';
 import {mirrorPhone} from '../scrcpy-help/scrcpy-help.component';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {ProgressDialogComponent} from '../../shared/components/progress-dialog/progress-dialog.component';
@@ -29,30 +30,46 @@ function fileName(path: string): string {
     templateUrl: './phone-apps.component.html',
     styleUrls: ['../../android-tv/apps/android-tv-apps.component.scss', './phone-apps.component.scss'],
 })
-export class PhoneAppsComponent implements OnInit {
+export class PhoneAppsComponent implements OnInit, OnDestroy {
 
     serial = '';
     phoneName = 'Android phone';
     packages: AdbPackageInfo[] | null = null;
+    /** The phones the picker offers, read when it opens. */
+    phoneList: UsbPhone[] = [];
+    private sub?: Subscription;
     error?: Error;
     readonly appNames = PHONE_APPS.map(a => a.name).join(' and ');
     readonly icon = phoneAppIcon;
 
     constructor(
-        route: ActivatedRoute,
+        private route: ActivatedRoute,
         private router: Router,
         private phones: PhoneService,
         private adb: AdbService,
         private modalService: NgbModal,
-    ) {
-        this.serial = route.snapshot.paramMap.get('serial') ?? '';
-    }
+    ) {}
 
     ngOnInit(): void {
-        this.phones.listPhones()
-            .then(list => this.phoneName = list.find(p => p.serial === this.serial)?.model ?? this.phoneName)
-            .catch(() => undefined);
-        void this.load();
+        // The picker switches phones on the same route, so follow the parameter, not a snapshot.
+        this.sub = this.route.paramMap.subscribe(params => {
+            this.serial = params.get('serial') ?? '';
+            void this.refreshPhones();
+            void this.load();
+        });
+    }
+
+    ngOnDestroy(): void {
+        this.sub?.unsubscribe();
+    }
+
+    async refreshPhones(): Promise<void> {
+        this.phoneList = await this.phones.listPhones().catch(() => this.phoneList);
+        this.phoneName = this.phoneList.find(p => p.serial === this.serial)?.model ?? 'Android phone';
+    }
+
+    switchTo(serial: string): void {
+        if (serial !== this.serial) void this.router.navigate(['/android-phone', serial]);
     }
 
     back(): void {

@@ -1,6 +1,7 @@
 import {NgModule} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {RouterModule, Routes} from '@angular/router';
+import {NgbDropdownModule} from '@ng-bootstrap/ng-bootstrap';
 
 import {SharedModule} from '../shared/shared.module';
 import {AndroidPhoneComponent} from './android-phone.component';
@@ -20,6 +21,6 @@ const routes: Routes = [
 
 @NgModule({
     declarations: [AndroidPhoneComponent, PhonesComponent, PhoneAppsComponent],
-    imports: [CommonModule, SharedModule, RouterModule.forChild(routes)],
+    imports: [CommonModule, SharedModule, NgbDropdownModule, RouterModule.forChild(routes)],
 })
 export class AndroidPhoneModule {}
