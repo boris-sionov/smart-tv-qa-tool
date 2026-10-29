@@ -492,7 +492,8 @@ account app (`com.MizrahiTefahot.nh`). Everything else on the phone is hidden.
 
 **scrcpy is not bundled.** It is found on PATH and in the places a GUI app's PATH misses
 (`/opt/homebrew/bin`, `/usr/local/bin`, WinGet's `%LOCALAPPDATA%\Microsoft\WinGet\Links`), and
-started with `ADB=<our sidecar adb>`: Homebrew's or scrcpy's own adb is usually another version, and
+started with `--always-on-top` (a child of the tool opens behind its window otherwise) and
+`ADB=<our sidecar adb>`: Homebrew's or scrcpy's own adb is usually another version, and
 two adb versions keep killing each other's server, which drops every connected TV. A scrcpy that
 exits within 1.5 s is reported with its `ERROR` lines (its log goes to
 `$TMPDIR/scrcpy-<serial>.log`). Install: `brew install scrcpy`, `winget install --exact

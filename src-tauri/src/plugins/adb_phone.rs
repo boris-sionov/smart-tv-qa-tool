@@ -271,7 +271,9 @@ pub(crate) async fn scrcpy_open(serial: String, title: Option<String>) -> Result
     let log_path = std::env::temp_dir().join(format!("scrcpy-{}.log", serial.replace(['/', '\\', ':'], "_")));
     let log = std::fs::File::create(&log_path).map_err(|e| Error::new(format!("Cannot write {}: {e}", log_path.display())))?;
     let mut cmd = std::process::Command::new(&scrcpy);
-    cmd.args(["-s", &serial]).stdin(Stdio::null()).stdout(log.try_clone()?).stderr(log);
+    // Started from the tool, the window would open behind it — macOS does not bring a child
+    // process to the front. QA works the phone from the tool while watching it, so keep it on top.
+    cmd.args(["-s", &serial, "--always-on-top"]).stdin(Stdio::null()).stdout(log.try_clone()?).stderr(log);
     if let Some(title) = title.filter(|t| !t.is_empty()) {
         cmd.args(["--window-title", &title]);
     }
