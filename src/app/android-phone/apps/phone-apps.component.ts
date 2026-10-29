@@ -72,10 +72,6 @@ export class PhoneAppsComponent implements OnInit, OnDestroy {
         if (serial !== this.serial) void this.router.navigate(['/android-phone', serial]);
     }
 
-    back(): void {
-        void this.router.navigate(['/android-phone']);
-    }
-
     async load(): Promise<void> {
         this.packages = null;
         this.error = undefined;
