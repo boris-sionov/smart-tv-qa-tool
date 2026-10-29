@@ -1,0 +1,48 @@
+<div class="help-dialog">
+  <div class="help-header">
+    <div class="header-icon"><i class="bi bi-phone"></i></div>
+    <div>
+      <h5 class="help-title">Install scrcpy to mirror the phone</h5>
+      <div class="help-summary">
+        scrcpy (screen copy) shows the phone's screen in a window on this computer, and lets you
+        control it with the mouse and keyboard. It is free and open source.
+      </div>
+    </div>
+  </div>
+
+  <section class="fix-card">
+    <div class="fix-title">On {{ guide.os }} — in {{ guide.shell }}</div>
+    @for (cmd of guide.commands; track cmd.command) {
+      <div class="command-label">{{ cmd.label }}</div>
+      <div class="command-row">
+        <code>{{ cmd.command }}</code>
+        <button class="btn-ghost small" type="button" (click)="copy(cmd.command)">
+          <i class="bi" [class.bi-clipboard]="copied !== cmd.command" [class.bi-check2]="copied === cmd.command"></i>
+          {{ copied === cmd.command ? 'Copied' : 'Copy' }}
+        </button>
+      </div>
+    }
+    <ol class="fix-steps">
+      @for (step of guide.steps; track $index) {
+        <li>{{ step }}</li>
+      }
+      <li>Nothing else to install — the QA tool gives scrcpy its own adb. Then press "Try again".</li>
+    </ol>
+    <div class="fix-links">
+      @if (!hasBrew) {
+        <a href="https://brew.sh/" appExternalLink><i class="bi bi-box-arrow-up-right"></i> brew.sh</a>
+      }
+      <a href="https://scrcpy.org/" appExternalLink><i class="bi bi-box-arrow-up-right"></i> scrcpy.org</a>
+      <a [href]="guide.docs" appExternalLink><i class="bi bi-box-arrow-up-right"></i> Install guide for {{ guide.os }}</a>
+      <a [href]="releases" appExternalLink><i class="bi bi-box-arrow-up-right"></i> Latest release</a>
+    </div>
+  </section>
+
+  <div class="help-footer">
+    <span class="spacer"></span>
+    <button class="btn-ghost" type="button" (click)="modal.close(false)">Close</button>
+    <button class="btn-primary-modern" type="button" (click)="modal.close(true)">
+      <i class="bi bi-arrow-clockwise"></i> Try again
+    </button>
+  </div>
+</div>

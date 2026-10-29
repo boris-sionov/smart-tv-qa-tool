@@ -162,6 +162,8 @@ product name `Smart TV QA Tool` comes from `tauri.conf.json`.
     apps / files / terminal / debug / info / devices
 /android-tv         → AndroidTvModule  (lazy)
 /tizen              → TizenModule      (lazy)
+/vidaa              → VidaaModule      (lazy)
+/android-phone      → AndroidPhoneModule (lazy) — phone list, then /android-phone/<serial> for its apps
 ```
 
 Each platform module owns its own `devices/`, `apps/`, and `info/` sub-routes.
@@ -456,6 +458,55 @@ VIDAA is not here: its install links never change (`vidaa-presets.ts`). **There 
 build**: Samsung re-signs a published app and offers no download of it, and a retail TV refuses
 to hand an installed app back over `sdb`.
 
+### Android Phone (ADB over USB)
+
+`/android-phone` (`src/app/android-phone/`) has the same Apps / Info / Manage pages as the other
+platforms. `PhoneStateService` polls the USB phones every 2 s while the section is open and picks
+the **current** phone: the last one picked (`smart-tv-qa-phone-selected`) while it is connected,
+otherwise the first ready one. Apps and Info open straight on it and follow it; with none ready
+they show `PhoneStatusComponent` — adb broken (it is the bundled sidecar, so that means a broken
+install: reinstall, or `npm run setup`), no phone (numbered setup steps, keeps waiting), waiting for
+Allow, or connecting. Manage lists every phone. The shell owns the "Allow USB debugging?" popup.
+
+It shows the few apps QA tests on phones. It shares the bundled adb and the install / uninstall / force-stop
+commands with Android TV; what differs lives in `plugins/adb_phone.rs` (on `adb-manager`):
+
+| Command | Does |
+|---|---|
+| `adb_list_usb_devices` | `adb devices -l`, only entries with a `usb:` field (TVs over TCP have none); `model:` with `_` → space. The page polls it every 2 s, so a phone appears when it is plugged in |
+| `adb_list_packages_matching` | installed packages matching patterns (exact id, or a prefix ending in `*`) with `versionName` from `dumpsys package` |
+| `adb_launch_launcher` | `monkey -p <id> -c android.intent.category.LAUNCHER 1`. Android TV's `am start -a MAIN -p <id>` does not resolve on a phone without the LAUNCHER category |
+| `adb_install_multiple` | one app's APKs together: `install-multiple -r -d` (one path: `install -r -d`). A `Failure [` line on stdout counts as an error even with exit code 0 |
+| `adb_install_xapk` | unzips an XAPK (APKPure-style: base + split APKs, `manifest.json`, optional `Android/obb/…`) to a temp dir, installs the APKs together, pushes OBB files to the same path under `/sdcard`; returns `package_name` |
+| `adb_save_logcat` | `logcat -d -v threadtime` written to the path the save dialog returned (Downloads by default, `<model>_logcat_<time>.txt`) |
+| `brew_installed` | whether Homebrew is there (PATH, `/opt/homebrew/bin`, `/usr/local/bin`); without it the scrcpy popup starts with brew.sh's install command |
+| `scrcpy_open` | mirrors the screen in a scrcpy window; `false` when scrcpy is not installed, and the page then shows `ScrcpyHelpComponent` with the install command for the OS |
+
+**Plugging a phone in** goes through adb states: `authorizing` / `connecting` / `offline` for a
+moment (the card shows a spinner, "Connecting"), then `unauthorized` until someone taps Allow, then
+`device`. While a phone is `unauthorized`, `PhoneApprovalComponent` pops up — the same message as
+Android TV's `AdbApprovalComponent` — and the phone list closes it once the phone lists as
+`device` (or is unplugged). Closed by hand, it does not reopen until the phone is re-plugged; the
+card's "Allow on phone" badge reopens it.
+
+**Install APK / XAPK** takes several files at once. APKs are grouped by the package their manifest
+declares (`apk_manifest`), so the split APKs of one app go in together; each XAPK is its own
+install. Apps install one after another; a refused replace (other key, release downgrade) asks to
+uninstall first, per app, and one failure does not stop the rest — a summary lists each.
+
+**The app list is a fixed filter**, `PHONE_APPS` in `phone.service.ts`: FreeTV
+(`tv.freetv.mobile.android*`, so `.uat` and any other environment suffix too) and Mizrahi Tefahot's
+account app (`com.MizrahiTefahot.nh`). Everything else on the phone is hidden.
+
+**scrcpy is not bundled.** It is found on PATH and in the places a GUI app's PATH misses
+(`/opt/homebrew/bin`, `/usr/local/bin`, WinGet's `%LOCALAPPDATA%\Microsoft\WinGet\Links`), and
+started with `--always-on-top` (a child of the tool opens behind its window otherwise) and
+`ADB=<our sidecar adb>`: Homebrew's or scrcpy's own adb is usually another version, and
+two adb versions keep killing each other's server, which drops every connected TV. A scrcpy that
+exits within 1.5 s is reported with its `ERROR` lines (its log goes to
+`$TMPDIR/scrcpy-<serial>.log`). Install: `brew install scrcpy`, `winget install --exact
+Genymobile.scrcpy`, `sudo apt install scrcpy` — <https://scrcpy.org/>.
+
 ### LG WebOS (Luna API)
 - **Connection:** SSH port 22 / 9922, Ed25519 key auth
 - **App format:** IPK
@@ -643,6 +694,7 @@ smooth transitions.
 | Android TV | ✅ Full — install, launch, kill, device info | ADB (Rust sidecar) |
 | LG WebOS | ✅ Working — install, launch, kill, inspect, stress test | SSH + Luna API |
 | VIDAA (Hisense) | ✅ Working — install, launch, close, remove (no logs / inspect yet) | VIDAA DevKit relay (WebSocket) |
+| Android Phone | ✅ USB phones: FreeTV + Mizrahi apps — install, launch, kill, remove, logcat, scrcpy mirror | ADB over USB |
 
 ---
 

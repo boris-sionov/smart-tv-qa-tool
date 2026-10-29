@@ -1,0 +1,50 @@
+<div class="status-page">
+  @if (state.adbError) {
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bi bi-exclamation-triangle"></i></div>
+      <h4>adb did not run</h4>
+      <p>
+        The tool talks to phones with the adb that ships inside it, so there is nothing to install —
+        this means that copy is missing or broken.
+      </p>
+      <ol class="status-steps">
+        <li>Reinstall the Smart TV QA Tool from the latest release.</li>
+        <li>Running from source? Run <code>npm run setup</code> (<code>npm run setup:win</code> on Windows), which downloads adb into <code>src-tauri/binaries/</code>.</li>
+      </ol>
+      <p class="status-detail">{{ state.adbError }}</p>
+      <button class="device-btn primary status-btn" type="button" (click)="state.refresh()">
+        <i class="bi bi-arrow-clockwise"></i> Check again
+      </button>
+    </div>
+  } @else if (state.phones === null) {
+    <app-loading-card></app-loading-card>
+  } @else if (!state.current) {
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bi bi-usb-plug"></i></div>
+      <h4>No devices connected</h4>
+      <ol class="status-steps">
+        <li>On the phone, turn on Developer options: Settings → About phone → tap <strong>Build number</strong> 7 times.</li>
+        <li>In Settings → System → Developer options, turn on <strong>USB debugging</strong>.</li>
+        <li>Connect the phone with a USB cable and tap <strong>Allow</strong> on "Allow USB debugging?".</li>
+        <li>Still not here? Try another cable — some only charge — or another USB port.</li>
+      </ol>
+      <p class="status-waiting"><span class="spinner-border spinner-border-sm"></span> Waiting for a phone…</p>
+    </div>
+  } @else if (state.current.state === 'unauthorized') {
+    <div class="empty-state">
+      <div class="empty-icon"><i class="bi bi-shield-exclamation"></i></div>
+      <h4>Allow this computer on {{ name(state.current) }}</h4>
+      <p>
+        Unlock the phone, tick <strong>Always allow from this computer</strong> and tap
+        <strong>Allow</strong> on "Allow USB debugging?". Don't see it? Unplug the cable and plug it back in.
+      </p>
+      <p class="status-waiting"><span class="spinner-border spinner-border-sm"></span> Waiting for the phone…</p>
+    </div>
+  } @else {
+    <div class="empty-state">
+      <div class="empty-icon"><span class="spinner-border"></span></div>
+      <h4>Connecting to {{ name(state.current) }}…</h4>
+      <p>The phone is plugged in and coming up ({{ state.current.state }}).</p>
+    </div>
+  }
+</div>

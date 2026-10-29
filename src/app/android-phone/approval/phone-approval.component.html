@@ -1,0 +1,27 @@
+<div class="approval">
+  <div class="approval-icon">
+    <i class="bi bi-phone"></i>
+    <span class="approval-badge"><i class="bi bi-shield-check"></i></span>
+  </div>
+  <h4 class="approval-title">Allow this computer on {{ phoneName }}</h4>
+  <p class="approval-text">
+    The phone is showing <strong>"Allow USB debugging?"</strong>. Unlock it, tick
+    <strong>Always allow from this computer</strong> and tap <strong>Allow</strong>.
+  </p>
+
+  <div class="approval-status">
+    <span class="spinner-mini"></span>
+    <span>Waiting for the phone…</span>
+  </div>
+
+  @if (showHint) {
+    <p class="approval-hint">
+      <i class="bi bi-info-circle"></i>
+      Don't see the prompt? It closes after a while, or if someone tapped <strong>Deny</strong>.
+      Unplug the cable and plug it back in to show it again.
+    </p>
+  }
+  <button class="approval-btn" type="button" (click)="modal.dismiss()">
+    <span>Close</span>
+  </button>
+</div>

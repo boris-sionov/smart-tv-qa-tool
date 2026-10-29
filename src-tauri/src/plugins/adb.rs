@@ -82,7 +82,7 @@ fn sort_key(name: &str) -> u32 {
 // Android TV helpers (ADB sidecar)
 // ---------------------------------------------------------------------------
 
-async fn run_adb<R: Runtime>(app: &AppHandle<R>, args: &[&str]) -> Result<String, Error> {
+pub(super) async fn run_adb<R: Runtime>(app: &AppHandle<R>, args: &[&str]) -> Result<String, Error> {
     let output = app
         .shell()
         .sidecar("adb")
