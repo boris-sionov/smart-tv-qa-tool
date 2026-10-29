@@ -164,7 +164,9 @@ export class AndroidTvAppsComponent implements OnInit, OnDestroy {
         if (!pick) return;
         const label = pick.kind === 'store'
             ? `Store ${pick.version}`
-            : `${pick.build.label} ${pick.build.version}${/debug/i.test(pick.build.file) ? ' (debug)' : ''}`;
+            : pick.kind === 'firebase'
+                ? `Firebase ${pick.build.release.version} (${pick.build.release.build})`
+                : `${pick.build.label} ${pick.build.version}${/debug/i.test(pick.build.file) ? ' (debug)' : ''}`;
 
         const progress = ProgressDialogComponent.open(this.modalService);
         const dialog = progress.componentInstance as ProgressDialogComponent;

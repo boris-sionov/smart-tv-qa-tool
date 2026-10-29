@@ -11,6 +11,9 @@ on:
 
 env:
   NODE_VERSION: '20.x'
+  # Compiled into the app for Firebase App Distribution sign-in; empty leaves it switched off.
+  FIREBASE_OAUTH_CLIENT_ID: ${{ secrets.FIREBASE_OAUTH_CLIENT_ID }}
+  FIREBASE_OAUTH_CLIENT_SECRET: ${{ secrets.FIREBASE_OAUTH_CLIENT_SECRET }}
 
 jobs:
   build:

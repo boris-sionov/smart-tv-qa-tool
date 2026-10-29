@@ -400,9 +400,9 @@ plain nginx/Apache/`python3 -m http.server` listings, which cannot take uploads.
 `apk_library_fetch` (downloads to the app cache, `apk-library/`), `apk_library_upload`,
 `apk_manifest` (package id and versionName out of the binary manifest), `play_store_listing`.
 
-**Three tabs.** Store / PROD is the freetv-server library — every Google-signed store build of
+**Four tabs.** Store / PROD is the freetv-server library — every Google-signed store build of
 `tv.freetv.androidtv`, the live one marked; Add version refuses any other package. UAT (and its
-debug build) and PROD Debug come from Confluence (see [Confluence Release Pages](#confluence-release-pages)). Each store row is the version's leading number (`1.1.50-(26010150)` reads `1.1.50`), its date
+debug build) and PROD Debug come from Confluence (see [Confluence Release Pages](#confluence-release-pages)); Firebase lists Firebase App Distribution releases (see [Firebase App Distribution](#firebase-app-distribution)). Each store row is the version's leading number (`1.1.50-(26010150)` reads `1.1.50`), its date
 and an Install button. The date is the file's mtime on the server — an upload stamps today, so
 for back-filled builds set it to the Play Console date with `touch -d`, as was done for the
 1.1.x–1.10.3 store builds.
@@ -427,6 +427,43 @@ releases is kept; Play Console (Test and release → Latest releases and bundles
 answers `INSTALL_FAILED_VERSION_DOWNGRADE`; a different signing key (store build over a CI one)
 answers `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Both make the dialog offer uninstall-and-install,
 which clears the app's data, so it asks first.
+
+#### Firebase App Distribution
+
+The Firebase tab of the library lists the releases of a FreeTV Android app in Firebase App
+Distribution and installs one through the same `adb install -r -d` path. The panel is
+`FirebaseBuildsComponent` (`android-tv/library/`). The Rust side is `plugins/firebase.rs` on
+`adb-manager`, with the commands `firebase_account`, `firebase_sign_in`, `firebase_sign_out`,
+`firebase_apps`, `firebase_releases` and `firebase_fetch`.
+
+- **Who can use it:** project members as the console shows them. Tester-only accounts have no
+  public API.
+- **Sign-in:** Google's installed-app OAuth flow with PKCE.
+  - The system browser opens the sign-in page, which redirects to a one-shot listener on
+    `127.0.0.1:<random port>`.
+  - A webview popup is not an option: Google refuses sign-in inside embedded webviews.
+  - The scope is `cloud-platform openid email`.
+  - The refresh token and the email live in the keychain (service `com.smarttv.qa-tool`, account
+    `firebase-refresh-token`). The access token lives in memory only.
+  - When Google answers `invalid_grant`, the saved sign-in is dropped and the tab asks again.
+- **APIs:**
+  - Apps: `firebase.googleapis.com/v1beta1/projects/-:searchApps`, Android only, FreeTV first.
+  - Releases: `firebaseappdistribution.googleapis.com/v1/projects/<number>/apps/<appId>/releases`.
+    The project number is the second field of the app id.
+- **Download:** `binaryDownloadUri` is signed and lasts about an hour, so `firebase_fetch` reads
+  the release again right before downloading. The APK goes to the app cache, under `firebase/`.
+- **OAuth client:** a "Desktop app" client in the FreeTV Firebase project, compiled in from
+  `FIREBASE_OAUTH_CLIENT_ID` / `FIREBASE_OAUTH_CLIENT_SECRET` (`option_env!`).
+  - Locally, export both before `npm run start` / `npm run build`.
+  - CI takes them from repo secrets of the same names.
+  - Without them the tab says sign-in is not configured.
+  - Changing them needs a clean Rust rebuild, because `option_env!` is not tracked:
+    `touch src-tauri/src/plugins/firebase.rs`.
+- **One-time setup in Google Cloud for that project:**
+  1. Enable the *Firebase App Distribution API* and the *Firebase Management API*.
+  2. Set the OAuth consent screen to **Internal**. That limits sign-in to freetv.tv accounts and
+     needs no Google verification.
+  3. Create the Desktop OAuth client.
 
 #### Confluence Release Pages
 

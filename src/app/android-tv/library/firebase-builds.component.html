@@ -1,0 +1,55 @@
+@if (!account && !loading) {
+  <div class="token-card">
+    <div class="token-title"><i class="bi bi-google"></i> Connect to Firebase</div>
+    <p class="token-hint">
+      Builds come from <strong>Firebase App Distribution</strong>. Sign in with the Google account you use in the
+      Firebase console — the sign-in opens in your browser. It is kept in the macOS Keychain, not in a file.
+    </p>
+    <div class="token-row">
+      @if (signingIn) {
+        <span class="build-meta"><span class="spinner-border spinner-border-sm"></span> Finish the sign-in in your browser…</span>
+        <button class="build-btn secondary ms-auto" (click)="cancelSignIn()">Cancel</button>
+      } @else {
+        <button class="build-btn primary" (click)="signIn()"><i class="bi bi-box-arrow-in-right"></i><span>Sign in with Google</span></button>
+      }
+    </div>
+    @if (error) { <div class="build-error"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div> }
+  </div>
+} @else {
+  @if (apps.length > 1) {
+    <div class="app-chips" role="tablist">
+      @for (a of apps; track a.appId) {
+        <button role="tab" [class.active]="a.appId === app?.appId" [attr.aria-selected]="a.appId === app?.appId"
+                [title]="a.packageName" (click)="select(a)" [disabled]="loading">{{ a.displayName }}</button>
+      }
+    </div>
+  }
+  @if (error) { <div class="build-error"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div> }
+  @if (loading) {
+    <div class="build-state"><span class="spinner-border spinner-border-sm"></span> Reading Firebase…</div>
+  } @else if (account && !app && !error) {
+    <div class="build-state">This account sees no Android app in Firebase.</div>
+  } @else if (releases) {
+    <div class="build-list">
+      @for (release of releases; track release.name) {
+        <div class="build-row" [title]="release.notes || release.version">
+          <span class="build-version">{{ release.version }}</span>
+          <span class="build-meta">({{ release.build }})</span>
+          <span class="build-notes">{{ summary(release) }}</span>
+          <span class="build-meta ms-auto">{{ release.created | date:'d MMM y, HH:mm' }}</span>
+          <button class="build-btn primary" (click)="install(release)" [disabled]="!!downloading">
+            @if (downloading === release) { <span class="spinner-border spinner-border-sm"></span><span>Downloading…</span> }
+            @else { <i class="bi bi-download"></i><span>Install</span> }
+          </button>
+        </div>
+      } @empty {
+        <div class="build-row missing"><span class="build-meta">No release of {{ app?.displayName }} yet</span></div>
+      }
+    </div>
+  }
+  <div class="build-footer">
+    <span><i class="bi bi-google"></i> {{ account }}</span>
+    <button class="link-btn" (click)="load(true)">Refresh</button>
+    <button class="link-btn" (click)="signOut()">Sign out</button>
+  </div>
+}
