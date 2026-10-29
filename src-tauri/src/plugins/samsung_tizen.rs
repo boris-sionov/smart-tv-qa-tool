@@ -1544,6 +1544,12 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             super::confluence::confluence_forget_token,
             super::confluence::confluence_releases,
             super::confluence::confluence_fetch,
+            super::firebase::firebase_account,
+            super::firebase::firebase_sign_in,
+            super::firebase::firebase_sign_out,
+            super::firebase::firebase_apps,
+            super::firebase::firebase_releases,
+            super::firebase::firebase_fetch,
         ])
         .build()
 }

@@ -1,0 +1,37 @@
+@import "../../shared/components/confluence-builds/confluence-builds.component";
+
+.build-notes {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #A8B8CC;
+  font-size: 13px;
+}
+
+.app-chips {
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  button {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 6px 12px;
+    border-radius: 8px;
+    color: #A8B8CC;
+    font-size: 12px;
+    font-weight: 600;
+
+    &.active { background: rgba(91, 159, 245, 0.18); color: #FFFFFF; }
+  }
+}
+
+.token-row { align-items: center; }
+
+.build-btn.secondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #A8B8CC;
+}

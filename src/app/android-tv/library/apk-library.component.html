@@ -32,6 +32,7 @@
           <button role="tab" [class.active]="tab === 'store'" [attr.aria-selected]="tab === 'store'" (click)="tab = 'store'">Store / PROD</button>
           <button role="tab" [class.active]="tab === 'uat'" [attr.aria-selected]="tab === 'uat'" (click)="tab = 'uat'">UAT</button>
           <button role="tab" [class.active]="tab === 'prodDebug'" [attr.aria-selected]="tab === 'prodDebug'" (click)="tab = 'prodDebug'">PROD Debug</button>
+          <button role="tab" [class.active]="tab === 'firebase'" [attr.aria-selected]="tab === 'firebase'" (click)="tab = 'firebase'">Firebase</button>
         </div>
         @if (tab === 'store') {
           <button class="wizard-btn secondary ms-auto" (click)="load()" [disabled]="loading" title="Refresh">
@@ -45,7 +46,11 @@
       }
     </div>
 
-    @if (tab !== 'store') {
+    @if (tab === 'firebase') {
+      <div class="confluence-tab">
+        <app-firebase-builds (picked)="installRelease($event)"></app-firebase-builds>
+      </div>
+    } @else if (tab !== 'store') {
       <div class="confluence-tab">
         <app-confluence-builds [page]="androidPage" [kinds]="tab === 'uat' ? kinds.uat : kinds.prodDebug"
                                (picked)="installBuild($event)"></app-confluence-builds>

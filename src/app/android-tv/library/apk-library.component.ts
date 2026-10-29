@@ -7,8 +7,9 @@ import {MessageDialogComponent} from '../../shared/components/message-dialog/mes
 import {extractMessage} from '../../core/utils/error.utils';
 import {BuildKind, RELEASE_PAGES} from '../../core/services/confluence.service';
 import {PickedBuild} from '../../shared/components/confluence-builds/confluence-builds.component';
+import {PickedRelease} from './firebase-builds.component';
 
-export type Tab = 'store' | 'uat' | 'prodDebug';
+export type Tab = 'store' | 'uat' | 'prodDebug' | 'firebase';
 
 /** The store app — the only package the freetv-server library holds. */
 const STORE_PACKAGE = 'tv.freetv.androidtv';
@@ -36,8 +37,13 @@ function storeVersion(name: string): string | null {
     return name.slice(STORE_PACKAGE.length + 1).match(/^\d+(?:\.\d+)*/)?.[0] ?? null;
 }
 
-/** What the dialog closes with: a store build still on the server, or a Confluence build already downloaded. */
-export type LibraryPick = {kind: 'store'; apk: LibraryApk; version: string} | {kind: 'confluence'; build: PickedBuild};
+/**
+ * What the dialog closes with: a store build still on the server, or a Confluence or Firebase
+ * build already downloaded.
+ */
+export type LibraryPick = {kind: 'store'; apk: LibraryApk; version: string}
+    | {kind: 'confluence'; build: PickedBuild}
+    | {kind: 'firebase'; build: PickedRelease};
 
 export interface LibraryRow {
     apk: LibraryApk;
@@ -48,9 +54,10 @@ export interface LibraryRow {
 }
 
 /**
- * FreeTV builds to install, in three tabs. Store / PROD is every Google-signed store build in the
+ * FreeTV builds to install, in four tabs. Store / PROD is every Google-signed store build in the
  * team's library on freetv-server, the live one marked. UAT (debug included) and PROD Debug are
- * the newest builds from the "Releases Android TV" Confluence page. Closes with
+ * the newest builds from the "Releases Android TV" Confluence page. Firebase is the releases in
+ * Firebase App Distribution, signed in with Google. Closes with
  * a {@link LibraryPick}; the caller installs it.
  */
 @Component({
@@ -202,5 +209,9 @@ export class ApkLibraryComponent implements OnInit {
 
     installBuild(build: PickedBuild): void {
         this.modal.close({kind: 'confluence', build} satisfies LibraryPick);
+    }
+
+    installRelease(build: PickedRelease): void {
+        this.modal.close({kind: 'firebase', build} satisfies LibraryPick);
     }
 }
