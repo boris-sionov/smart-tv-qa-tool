@@ -14,18 +14,27 @@
     <div>
       <h5 class="prereq-title">Samsung requirements</h5>
       <div class="prereq-summary">
-        @if (running) {
+        @if (running && !checks.length) {
           Checking this computer…
         } @else if (error) {
           {{ error }}
         } @else if (failed > 0) {
           {{ failed }} of {{ checks.length }} missing — installing on a Samsung TV will fail until they are fixed.
-        } @else if (warned > 0) {
-          Ready, with {{ warned }} {{ warned === 1 ? 'warning' : 'warnings' }}.
         } @else {
           Everything the Samsung flows need is installed.
         }
       </div>
+      @if (checkedAt && !error) {
+        <div class="prereq-checked">
+          @if (running) {
+            Checking again — showing the check from {{ checkedAt | date:'d MMM, HH:mm' }}
+          } @else if (changes.size) {
+            Checked {{ checkedAt | date:'d MMM, HH:mm' }} · {{ changes.size }} changed since the last check
+          } @else {
+            Checked {{ checkedAt | date:'d MMM, HH:mm' }} · nothing changed
+          }
+        </div>
+      }
     </div>
   </div>
 
@@ -33,17 +42,24 @@
     @if (checks.length) {
       <ul class="check-list" [class.stale]="running">
         @for (check of checks; track check.id) {
-          <li class="check-item" [attr.data-status]="check.status">
+          <li class="check-item" [attr.data-status]="check.status" [class.changed]="changes.has(check.id)">
             <span class="check-icon">
               @switch (check.status) {
                 @case ('ok')   { ✓ }
-                @case ('warn') { ! }
                 @default       { ✕ }
               }
             </span>
             <div class="check-body">
-              <div class="check-label">{{ check.label }}</div>
+              <div class="check-label">
+                {{ check.label }}
+                @if (changes.has(check.id)) {
+                  <span class="changed-badge">{{ changes.get(check.id) ? 'Changed' : 'New' }}</span>
+                }
+              </div>
               <div class="check-detail">{{ check.detail }}</div>
+              @if (changes.get(check.id); as before) {
+                <div class="check-before">Was: {{ before.status === 'ok' ? '' : '✕ ' }}{{ before.detail }}</div>
+              }
               @if (check.hint) {
                 <div class="check-hint">{{ check.hint }}</div>
               }

@@ -4,8 +4,11 @@
 // What needs what: listing, launching, killing and debugging apps speak the SDB protocol over
 // TCP themselves and need nothing installed. The signed install is the one that leans on the
 // machine — the bundled `sdb` sidecar (disconnect / kill-server / connect), Tizen Studio's
-// `tizen` CLI (package + install), the `sdb` the CLI itself calls, the Java the CLI runs on,
-// and a certificate profile that covers the TV.
+// `tizen` CLI (package + install), the `sdb` the CLI itself calls and the Java the CLI runs on.
+//
+// Only what has to be installed is listed. Certificate profiles and the TVs they cover are set up
+// after that, and the signed install checks them per TV anyway (`tizen_install_signed`). Studio's
+// own sdb shows only when it fails: when it works it is the same tool as the bundled one.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -13,15 +16,13 @@ use std::time::Duration;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_shell::ShellExt;
 
-use super::samsung_tizen::{cert_profiles_path, parse_cert_profiles, studio_candidates};
+use super::samsung_tizen::studio_candidates;
 use crate::error::Error;
 
 #[derive(serde::Serialize, Debug, Clone, Copy, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum CheckStatus {
     Ok,
-    /// Works, but a part of the flow will be weaker (e.g. no per-TV certificate matching).
-    Warn,
     Fail,
 }
 
@@ -40,10 +41,6 @@ pub struct PrereqCheck {
 impl PrereqCheck {
     fn ok(id: &'static str, label: &'static str, detail: impl Into<String>) -> Self {
         Self { id, label, status: CheckStatus::Ok, detail: detail.into(), hint: None }
-    }
-
-    fn warn(id: &'static str, label: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
-        Self { id, label, status: CheckStatus::Warn, detail: detail.into(), hint: Some(hint.into()) }
     }
 
     fn fail(id: &'static str, label: &'static str, detail: impl Into<String>, hint: impl Into<String>) -> Self {
@@ -74,7 +71,6 @@ const RUN_TIMEOUT: Duration = Duration::from_secs(30);
 pub(crate) async fn tizen_check_prerequisites<R: Runtime>(
     app: AppHandle<R>,
     studio_path: Option<String>,
-    cert_profile: Option<String>,
 ) -> Result<TizenPrerequisites, Error> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
@@ -91,7 +87,11 @@ pub(crate) async fn tizen_check_prerequisites<R: Runtime>(
                 studio_sdb_check(path),
                 java_check(path),
             );
-            checks.extend([cli, studio_sdb, java]);
+            checks.push(cli);
+            if studio_sdb.status != CheckStatus::Ok {
+                checks.push(studio_sdb);
+            }
+            checks.push(java);
         }
         None => {
             for (id, label) in [
@@ -103,10 +103,6 @@ pub(crate) async fn tizen_check_prerequisites<R: Runtime>(
             }
         }
     }
-
-    // `cert_profiles_path` is what the signed install reads, so check the same file.
-    let profiles_xml = cert_profiles_path(studio.as_deref().unwrap_or(&format!("{home}/tizen-studio")));
-    checks.extend(cert_checks(Path::new(&profiles_xml), cert_profile.as_deref()));
 
     Ok(TizenPrerequisites {
         studio_path: studio,
@@ -288,124 +284,6 @@ async fn bundled_sdb_check<R: Runtime>(app: &AppHandle<R>) -> PrereqCheck {
     }
 }
 
-// ── Certificates ─────────────────────────────────────────────────────────────
-
-/// Checks `profiles.xml`, the saved profile, and whether the distributor certificates say which
-/// TVs they cover — the three things `tizen_install_signed` relies on to sign for the right TV.
-fn cert_checks(profiles_xml: &Path, saved: Option<&str>) -> Vec<PrereqCheck> {
-    let xml_display = profiles_xml.display().to_string();
-    let Ok(content) = std::fs::read_to_string(profiles_xml) else {
-        let hint = "Open Certificate Manager in Tizen Studio and create a Samsung certificate \
-                    profile (author + distributor) that lists your TVs' DUIDs.";
-        return vec![
-            PrereqCheck::fail("profiles", "Certificate profiles", format!("{xml_display} not found"), hint),
-            PrereqCheck::fail("cert-profile", "Selected certificate", "No certificate profiles", hint),
-        ];
-    };
-    let profiles = parse_cert_profiles(&xml_display);
-    let mut checks = Vec::new();
-
-    if profiles.is_empty() {
-        checks.push(PrereqCheck::fail(
-            "profiles", "Certificate profiles",
-            format!("{xml_display} lists no profiles"),
-            "Create a Samsung certificate profile in Certificate Manager.",
-        ));
-    } else {
-        let names = profiles.iter().map(|p| p.name.as_str()).collect::<Vec<_>>().join(", ");
-        checks.push(PrereqCheck::ok(
-            "profiles", "Certificate profiles",
-            format!("{} in {xml_display}: {names}", profiles.len()),
-        ));
-    }
-
-    const ID: &str = "cert-profile";
-    const LABEL: &str = "Selected certificate";
-    let saved = saved.map(str::trim).filter(|s| !s.is_empty());
-    checks.push(match saved {
-        None => PrereqCheck::fail(
-            ID, LABEL, "No certificate selected in the app",
-            "Samsung → Apps → Configure, and pick the distributor.p12 of the profile to sign with.",
-        ),
-        Some(name) => match profiles.iter().find(|p| p.name == name) {
-            None => PrereqCheck::fail(
-                ID, LABEL,
-                format!("'{name}' is not a profile in profiles.xml"),
-                "Samsung → Apps → Configure, and pick the distributor.p12 inside a folder named \
-                 after one of the profiles above — the app takes the profile name from that folder.",
-            ),
-            Some(_) => {
-                let missing = profile_key_files(&content, name)
-                    .into_iter()
-                    .filter(|(_, path)| !Path::new(path).exists())
-                    .map(|(kind, path)| format!("{kind} key {path}"))
-                    .collect::<Vec<_>>();
-                if missing.is_empty() {
-                    PrereqCheck::ok(ID, LABEL, format!("'{name}' — certificate files present"))
-                } else {
-                    PrereqCheck::fail(
-                        ID, LABEL,
-                        format!("'{name}' points at missing files: {}", missing.join("; ")),
-                        "Put the certificate files back where the profile expects them, or \
-                         recreate the profile in Certificate Manager.",
-                    )
-                }
-            }
-        },
-    });
-
-    if !profiles.is_empty() {
-        let with_duids = profiles.iter().filter(|p| !p.duids.is_empty()).collect::<Vec<_>>();
-        checks.push(if with_duids.is_empty() {
-            PrereqCheck::warn(
-                "duids", "TVs covered by certificates",
-                "No distributor certificate lists TV DUIDs (device-profile.xml missing)",
-                "Installs will sign with the selected profile for every TV, and a TV it does not \
-                 cover rejects the install with [118, -12]. Keep the device-profile.xml that \
-                 Certificate Manager writes next to distributor.p12.",
-            )
-        } else {
-            let summary = with_duids
-                .iter()
-                .map(|p| format!("{} ({})", p.name, p.duids.len()))
-                .collect::<Vec<_>>()
-                .join(", ");
-            PrereqCheck::ok(
-                "duids", "TVs covered by certificates",
-                format!("{} TV DUIDs across {summary}", with_duids.iter().map(|p| p.duids.len()).sum::<usize>()),
-            )
-        });
-    }
-    checks
-}
-
-/// The author and distributor key files a profile in `profiles.xml` signs with.
-fn profile_key_files(profiles_xml: &str, profile: &str) -> Vec<(&'static str, String)> {
-    let block = regex::Regex::new(r#"(?s)<profile\s+name="([^"]+)"(.*?)</profile>"#)
-        .unwrap()
-        .captures_iter(profiles_xml)
-        .find(|c| &c[1] == profile)
-        .map(|c| c[2].to_owned())
-        .unwrap_or_default();
-    let item = regex::Regex::new(r#"<profileitem\b[^>]*>"#).unwrap();
-    let attr = |tag: &str, name: &str| {
-        regex::Regex::new(&format!(r#"\b{name}="([^"]*)""#))
-            .unwrap()
-            .captures(tag)
-            .map(|c| c[1].to_owned())
-    };
-    item.find_iter(&block)
-        .filter_map(|m| {
-            let kind = match attr(m.as_str(), "distributor")?.as_str() {
-                "0" => "author",
-                "1" => "distributor",
-                _ => return None,
-            };
-            attr(m.as_str(), "key").filter(|k| !k.is_empty()).map(|k| (kind, k))
-        })
-        .collect()
-}
-
 // ── Running tools ────────────────────────────────────────────────────────────
 
 /// Runs a tool and returns stdout + stderr. `java -version` prints to stderr, and so do some
@@ -467,30 +345,6 @@ mod tests {
         std::fs::write(path, body).unwrap();
     }
 
-    fn profiles_xml(dir: &Path, profiles: &[(&str, &Path)]) -> PathBuf {
-        let body = profiles
-            .iter()
-            .map(|(name, keys)| {
-                format!(
-                    r#"<profile name="{name}">
-<profileitem ca="" distributor="0" key="{a}" password="x" rootca=""/>
-<profileitem ca="" distributor="1" key="{d}" password="x" rootca=""/>
-<profileitem ca="" distributor="2" key="" password="" rootca=""/>
-</profile>"#,
-                    a = keys.join("author.p12").display(),
-                    d = keys.join("distributor.p12").display(),
-                )
-            })
-            .collect::<String>();
-        let path = dir.join("profile/profiles.xml");
-        write(&path, &format!(r#"<profiles active="x" version="3.1">{body}</profiles>"#));
-        path
-    }
-
-    fn status<'a>(checks: &'a [PrereqCheck], id: &str) -> &'a PrereqCheck {
-        checks.iter().find(|c| c.id == id).unwrap_or_else(|| panic!("no {id} check"))
-    }
-
     /// Runs every check but the bundled sdb against this machine's Tizen Studio and prints them:
     /// `cargo test -p devman tizen_prereq -- --ignored --nocapture`
     #[tokio::test]
@@ -502,8 +356,6 @@ mod tests {
         if let Some(path) = &studio {
             checks.extend([tizen_cli_check(path).await, studio_sdb_check(path).await, java_check(path).await]);
         }
-        let xml = cert_profiles_path(studio.as_deref().unwrap_or_default());
-        checks.extend(cert_checks(Path::new(&xml), std::env::var("TIZEN_CERT_PROFILE").ok().as_deref()));
         for c in &checks {
             println!("{:?} {}: {}{}", c.status, c.label, c.detail, c.hint.as_deref().map(|h| format!("\n    → {h}")).unwrap_or_default());
         }
@@ -533,71 +385,6 @@ mod tests {
         assert_eq!(sdk_value(info, "TIZEN_SDK_VERSION").as_deref(), Some("10.0"));
         assert_eq!(sdk_value("JDK_PATH=\n", "JDK_PATH"), None);
         assert_eq!(sdk_value(info, "TIZEN_SDK"), None);
-    }
-
-    #[test]
-    fn lists_a_profiles_key_files() {
-        let xml = r#"<profiles><profile name="a">
-<profileitem ca="" distributor="0" key="/c/a/author.p12" password="p" rootca=""/>
-<profileitem ca="" distributor="1" key="/c/a/distributor.p12" password="p" rootca=""/>
-<profileitem ca="" distributor="2" key="" password="" rootca=""/>
-</profile><profile name="b">
-<profileitem ca="" distributor="0" key="/c/b/author.p12" password="p" rootca=""/>
-</profile></profiles>"#;
-        assert_eq!(
-            profile_key_files(xml, "a"),
-            vec![("author", "/c/a/author.p12".to_owned()), ("distributor", "/c/a/distributor.p12".to_owned())],
-        );
-        assert_eq!(profile_key_files(xml, "b"), vec![("author", "/c/b/author.p12".to_owned())]);
-        assert!(profile_key_files(xml, "missing").is_empty());
-    }
-
-    #[test]
-    fn missing_profiles_file_fails_both_certificate_checks() {
-        let dir = scratch("none");
-        let checks = cert_checks(&dir.join("profile/profiles.xml"), Some("office"));
-        assert_eq!(status(&checks, "profiles").status, CheckStatus::Fail);
-        assert_eq!(status(&checks, "cert-profile").status, CheckStatus::Fail);
-    }
-
-    #[test]
-    fn passes_with_a_complete_profile_that_lists_duids() {
-        let dir = scratch("ok");
-        let keys = dir.join("SamsungCertificate/office");
-        write(&keys.join("author.p12"), "a");
-        write(&keys.join("distributor.p12"), "d");
-        write(&keys.join("device-profile.xml"), "<TestDevice>DUID-1</TestDevice><TestDevice>DUID-2</TestDevice>");
-        let checks = cert_checks(&profiles_xml(&dir, &[("office", &keys)]), Some("office"));
-        assert!(checks.iter().all(|c| c.status == CheckStatus::Ok), "{checks:?}");
-        assert!(status(&checks, "duids").detail.starts_with("2 TV DUIDs"));
-    }
-
-    #[test]
-    fn flags_a_saved_profile_that_is_not_in_profiles_xml() {
-        let dir = scratch("unknown");
-        let keys = dir.join("certs");
-        let checks = cert_checks(&profiles_xml(&dir, &[("office", &keys)]), Some("home"));
-        let check = status(&checks, "cert-profile");
-        assert_eq!(check.status, CheckStatus::Fail);
-        assert!(check.detail.contains("'home'"));
-    }
-
-    #[test]
-    fn flags_missing_key_files_and_absent_duids() {
-        let dir = scratch("keys");
-        let keys = dir.join("moved");
-        let checks = cert_checks(&profiles_xml(&dir, &[("office", &keys)]), Some("office"));
-        let check = status(&checks, "cert-profile");
-        assert_eq!(check.status, CheckStatus::Fail);
-        assert!(check.detail.contains("distributor.p12"), "{}", check.detail);
-        assert_eq!(status(&checks, "duids").status, CheckStatus::Warn);
-    }
-
-    #[test]
-    fn no_saved_profile_fails() {
-        let dir = scratch("unset");
-        let checks = cert_checks(&profiles_xml(&dir, &[("office", &dir)]), None);
-        assert_eq!(status(&checks, "cert-profile").status, CheckStatus::Fail);
     }
 
     #[test]

@@ -6,8 +6,9 @@ import {TizenStateService} from './tizen-state.service';
 
 /**
  * The Samsung requirements check, kept for the life of the app. Run quietly on entering Samsung;
- * the button next to Add New Device on the Manage page opens the list any time. A warning (TVs not
- * covered by a certificate) does not count as missing.
+ * the button next to Add New Device on the Manage page opens the list any time. Only the list
+ * saves its results: a quiet check that saved them would hide from the list what changed since
+ * QA last looked.
  */
 @Injectable({providedIn: 'root'})
 export class TizenRequirementsService {
@@ -39,7 +40,7 @@ export class TizenRequirementsService {
 
     private async run(): Promise<void> {
         try {
-            const result = await this.sdb.checkPrerequisites(this.state.getStudioPath(), this.state.getCertProfile());
+            const result = await this.sdb.checkPrerequisites(this.state.getStudioPath());
             this.missing = result.checks.some(c => c.status === 'fail');
             this.checked = true;
         } catch {

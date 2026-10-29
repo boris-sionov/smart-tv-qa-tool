@@ -2,7 +2,6 @@ $bg-dark: #0F172B;
 $bg-light: #1a2744;
 $primary-blue: #5B9FF5;
 $success-green: #4ADE80;
-$warning-amber: #FFBE32;
 $danger-red: #FF6B6B;
 $text-primary: #FFFFFF;
 $text-secondary: #A8B8CC;
@@ -87,6 +86,13 @@ $text-secondary: #A8B8CC;
   color: $text-secondary;
 }
 
+.prereq-checked {
+  font-size: 12px;
+  color: $text-secondary;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
 .check-list {
   list-style: none;
   margin: 0;
@@ -112,9 +118,8 @@ $text-secondary: #A8B8CC;
 
   &[data-status='ok'] .check-icon { color: $success-green; }
 
-  &[data-status='warn'] {
-    border-color: rgba(255, 190, 50, 0.25);
-    .check-icon { color: $warning-amber; }
+  &.changed {
+    border-color: rgba(91, 159, 245, 0.45);
   }
 
   &[data-status='fail'] {
@@ -146,6 +151,26 @@ $text-secondary: #A8B8CC;
 .check-detail {
   font-size: 12px;
   color: $text-secondary;
+  word-break: break-word;
+  margin-top: 2px;
+}
+
+.changed-badge {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: $primary-blue;
+  background: rgba(91, 159, 245, 0.15);
+  vertical-align: 1px;
+}
+
+.check-before {
+  font-size: 12px;
+  color: $text-secondary;
+  opacity: 0.7;
+  text-decoration: line-through;
   word-break: break-word;
   margin-top: 2px;
 }

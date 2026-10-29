@@ -46,16 +46,8 @@ describe('fixGuidesFor', () => {
         expect(steps).not.toContain('Rosetta');
     });
 
-    it('imports a team profile with the Tizen CLI', () => {
-        const [cert] = fixGuidesFor(result([check('cert-profile')], {studioPath: '/s'}));
-        expect(cert.steps.join(' ')).toContain(
-            '~/tizen-studio/tools/ide/bin/tizen security-profiles add -A -n <profile> ' +
-            '-a ~/SamsungCertificate/<profile>/author.p12');
-    });
-
     it('does not offer an install when Studio was found but is not the saved one', () => {
-        expect(fixGuidesFor(result([check('studio'), check('cert-profile')], {studioPath: '/s'})).map(g => g.key))
-            .toEqual(['certificate']);
+        expect(fixGuidesFor(result([check('studio')], {studioPath: '/s'}))).toEqual([]);
     });
 
     it('shows the Java guide only when Studio is there', () => {
@@ -63,9 +55,8 @@ describe('fixGuidesFor', () => {
             .toEqual(['java']);
     });
 
-    it('covers a DUID warning and the bundled sdb', () => {
-        expect(fixGuidesFor(result([check('sdb'), check('duids', 'warn')], {studioPath: '/s'})).map(g => g.key))
-            .toEqual(['bundled-sdb', 'duids']);
+    it('covers the bundled sdb', () => {
+        expect(fixGuidesFor(result([check('sdb')], {studioPath: '/s'})).map(g => g.key)).toEqual(['bundled-sdb']);
     });
 });
 

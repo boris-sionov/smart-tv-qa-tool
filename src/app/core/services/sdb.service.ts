@@ -74,7 +74,7 @@ export interface TizenStudioInfo {
 export interface TizenPrereqCheck {
     id: string;
     label: string;
-    status: 'ok' | 'warn' | 'fail';
+    status: 'ok' | 'fail';
     /** What was found: a path, a version, or what is missing. */
     detail: string;
     /** How to fix it; null when the check passed. */
@@ -273,9 +273,9 @@ export class SdbService implements DeviceProvider {
         return invoke<TizenStudioInfo>('plugin:adb-manager|tizen_detect_studio', {homeDir: home});
     }
 
-    /** Checks this machine has what the Samsung flows need: sdb, Tizen Studio, its CLI, Java, certificates. */
-    async checkPrerequisites(studioPath: string | null, certProfile: string | null): Promise<TizenPrerequisites> {
-        return invoke<TizenPrerequisites>('plugin:adb-manager|tizen_check_prerequisites', {studioPath, certProfile});
+    /** Checks this machine has what the Samsung flows need: sdb, Tizen Studio, its CLI, Java. */
+    async checkPrerequisites(studioPath: string | null): Promise<TizenPrerequisites> {
+        return invoke<TizenPrerequisites>('plugin:adb-manager|tizen_check_prerequisites', {studioPath});
     }
 
     async openCertificateManager(studioPath: string): Promise<void> {

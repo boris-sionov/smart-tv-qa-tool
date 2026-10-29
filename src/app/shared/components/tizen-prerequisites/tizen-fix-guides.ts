@@ -17,7 +17,7 @@ export interface FixLink {
 }
 
 export interface FixGuide {
-    key: 'sdk' | 'java' | 'certificate' | 'duids' | 'bundled-sdb';
+    key: 'sdk' | 'java' | 'bundled-sdb';
     title: string;
     /** What to download, when the fix is a download. */
     download?: string;
@@ -32,10 +32,6 @@ const LINKS = {
     tvSdk: {
         label: 'Samsung: Installing TV SDK',
         url: 'https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html',
-    },
-    certificates: {
-        label: 'Samsung: Creating certificates',
-        url: 'https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/creating-certificates.html',
     },
     java: {label: 'Eclipse Temurin (Java) downloads', url: 'https://adoptium.net/temurin/releases/'},
 } satisfies Record<string, FixLink>;
@@ -142,45 +138,6 @@ function javaGuide(os: HostOs, arch: string): FixGuide {
     };
 }
 
-function certificateGuide(os: HostOs): FixGuide {
-    const certs = os === 'windows' ? '%USERPROFILE%\\SamsungCertificate\\<profile>' : '~/SamsungCertificate/<profile>';
-    const tizen = os === 'windows' ? `${studioDir(os)}\\tools\\ide\\bin\\tizen.bat` : `${studioDir(os)}/tools/ide/bin/tizen`;
-    const p12 = (name: string) => `${certs}${os === 'windows' ? '\\' : '/'}${name}.p12`;
-    return {
-        key: 'certificate',
-        title: 'Create or select a Samsung certificate profile',
-        links: [LINKS.certificates],
-        steps: [
-            'A new Samsung certificate needs Certificate Manager: it signs in to the Samsung account in a ' +
-            'browser, and the Tizen CLI has no command for it. Open it with the button below.',
-            'Click "+", choose Samsung → TV, and name the profile. Sign in with the Samsung account when ' +
-            'asked.',
-            'Create the author certificate, then the distributor certificate. On the distributor step add ' +
-            'the DUID of every TV you install on.',
-            `If the team gave you a profile instead, no window is needed: keep its folder as ${certs} ` +
-            'with author.p12, distributor.p12 and device-profile.xml inside, and add it with ' +
-            `${tizen} security-profiles add -A -n <profile> -a ${p12('author')} -p <password> ` +
-            `-d ${p12('distributor')} -dp <password>.`,
-            'In the QA tool: Samsung → Apps → Configure, and pick the distributor.p12 inside the folder ' +
-            'named after the profile — the tool takes the profile name from that folder.',
-            'Press "Check again".',
-        ],
-    };
-}
-
-const DUIDS_GUIDE: FixGuide = {
-    key: 'duids',
-    title: 'Register your TVs on the distributor certificate',
-    links: [LINKS.certificates],
-    steps: [
-        'Find the TV\'s DUID: Samsung → Info in the QA tool, or Device Manager in Tizen Studio.',
-        'In Certificate Manager, create the distributor certificate again for the profile and add ' +
-        'every TV\'s DUID.',
-        'Keep the device-profile.xml it writes next to distributor.p12 — the QA tool reads it to pick ' +
-        'the right certificate per TV.',
-    ],
-};
-
 function bundledSdbGuide(): FixGuide {
     return {
         key: 'bundled-sdb',
@@ -198,8 +155,8 @@ function bundledSdbGuide(): FixGuide {
  * The guides for every check that did not pass, in list order, each once.
  *
  * Without Tizen Studio the CLI, its sdb and Java all fail too; installing the SDK fixes all four,
- * so that is the one guide shown. A Studio that was found but is not the saved one needs the
- * certificate set up again, not an install — the check's own hint says so.
+ * so that is the one guide shown. A Studio that was found but is not the saved one needs no
+ * install — the check's own hint says what to do.
  */
 export function fixGuidesFor({checks, studioPath, os, arch}: TizenPrerequisites): FixGuide[] {
     const host: HostOs = os === 'windows' || os === 'linux' ? os : 'macos';
@@ -222,13 +179,6 @@ export function fixGuidesFor({checks, studioPath, os, arch}: TizenPrerequisites)
                 break;
             case 'java':
                 add(studioPath ? javaGuide(host, arch) : sdkGuide(host, arch));
-                break;
-            case 'profiles':
-            case 'cert-profile':
-                add(certificateGuide(host));
-                break;
-            case 'duids':
-                add(DUIDS_GUIDE);
                 break;
         }
     }
