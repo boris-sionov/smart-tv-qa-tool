@@ -1,6 +1,6 @@
-# Smart TV QA Tool — Rust Backend
+# QA Tool — Rust Backend
 
-This directory contains the Tauri Rust backend for the Smart TV QA Tool.
+This directory contains the Tauri Rust backend for QA Tool.
 
 ## Plugins
 

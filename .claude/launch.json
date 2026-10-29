@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "smart-tv-qa-tool",
+      "name": "qa-tool",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "ng", "--", "serve", "--port", "4281"],
       "port": 4281

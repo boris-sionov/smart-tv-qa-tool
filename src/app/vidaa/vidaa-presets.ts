@@ -11,7 +11,7 @@ export interface VidaaPreset {
     iconUrl: string;
 }
 
-const ICONS = 'https://raw.githubusercontent.com/boris-sionov/smart-tv-qa-tool/main/src/assets/lg-icons';
+const ICONS = 'https://raw.githubusercontent.com/boris-sionov/qa-tool/main/src/assets/lg-icons';
 
 export const VIDAA_PRESETS: readonly VidaaPreset[] = [
     {

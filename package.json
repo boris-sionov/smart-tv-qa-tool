@@ -1,10 +1,10 @@
 {
-  "name": "smart-tv-qa-tool",
+  "name": "qa-tool",
   "version": "1.0.0",
-  "description": "Smart TV QA Tool",
-  "homepage": "https://github.com/borissionov/smart-tv-qa-tool",
+  "description": "QA Tool",
+  "homepage": "https://github.com/boris-sionov/qa-tool",
   "author": {
-    "name": "Smart TV QA Team",
+    "name": "QA Team",
     "email": "qa@smarttv-tool.dev"
   },
   "keywords": [

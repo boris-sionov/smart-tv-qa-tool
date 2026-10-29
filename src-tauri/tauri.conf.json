@@ -7,7 +7,7 @@
     "frontendDist": "../dist"
   },
   "identifier": "com.smarttv.qa-tool",
-  "productName": "Smart TV QA Tool",
+  "productName": "QA Tool",
   "version": "../package.json",
   "app": {
     "security": {
@@ -23,7 +23,7 @@
         "minHeight": 600,
         "minWidth": 420,
         "resizable": true,
-        "title": "Smart TV QA Tool",
+        "title": "QA Tool",
         "visible": true,
         "width": 1024
       }
@@ -37,7 +37,7 @@
   "bundle": {
     "active": true,
     "category": "DeveloperTool",
-    "copyright": "© 2026 Smart TV QA Tool",
+    "copyright": "© 2026 QA Tool",
     "licenseFile": "../LICENSE",
     "linux": {
       "deb": {
@@ -79,7 +79,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "longDescription": "Smart TV QA Tool for testing and managing applications across multiple Smart TV platforms\n\nFeatures\n- Manage apps on LG WebOS devices\n- Install and test apps via ADB on Android TV\n- Support for multiple platforms and environments\n- Device management and app installation capabilities\n- Works on Windows, Linux and macOS (Apple Silicon too!)\n- Modern dark mode interface",
+    "longDescription": "QA Tool for testing and managing applications on smart TVs and phones\n\nFeatures\n- Manage apps on Samsung Tizen, LG webOS, VIDAA and Android TV\n- Install and test apps via ADB on Android TV and Android phones\n- Support for multiple platforms and environments\n- Device management and app installation capabilities\n- Works on Windows, Linux and macOS (Apple Silicon too!)\n- Modern dark mode interface",
     "macOS": {
       "entitlements": null,
       "exceptionDomain": "",
@@ -88,7 +88,7 @@
       "signingIdentity": null
     },
     "resources": [],
-    "shortDescription": "QA Tool for Smart TV Testing",
+    "shortDescription": "QA tool for smart TV and phone apps",
     "targets": "all",
     "windows": {
       "certificateThumbprint": null,

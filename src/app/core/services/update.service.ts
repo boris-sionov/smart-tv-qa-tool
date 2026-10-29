@@ -8,7 +8,7 @@ import {SemVer} from 'semver';
 export class UpdateService {
 
     async getRecentRelease(): Promise<Release> {
-        return fetch('https://api.github.com/repos/borissionov/smart-tv-qa-tool/releases/latest', {
+        return fetch('https://api.github.com/repos/boris-sionov/qa-tool/releases/latest', {
             headers: {'accept': 'application/vnd.github.v3+json'},
 
         }).then(async res => new ReleaseImpl(await res.json()));
