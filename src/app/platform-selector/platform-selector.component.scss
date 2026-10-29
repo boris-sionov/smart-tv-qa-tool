@@ -26,12 +26,20 @@
   margin: 0;
 }
 
+// All five platforms in one row; the cards narrow with the window rather than wrap, down to a
+// width where they no longer fit.
 .platform-grid {
   display: flex;
   flex-direction: row;
-  gap: 1.5rem;
-  flex-wrap: wrap;
+  gap: 1rem;
+  flex-wrap: nowrap;
   justify-content: center;
+  width: 100%;
+  max-width: 1200px;
+
+  @media (max-width: 760px) {
+    flex-wrap: wrap;
+  }
 }
 
 .platform-card {
@@ -39,13 +47,15 @@
   flex-direction: column;
   align-items: center;
   gap: 0.75rem;
-  padding: 2rem 2.5rem;
+  padding: 2rem 1rem;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
-  width: 220px;
+  flex: 1 1 0;
+  min-width: 140px;
+  max-width: 220px;
   color: #E4EBF5;
 
   &:hover:not(.disabled) {
