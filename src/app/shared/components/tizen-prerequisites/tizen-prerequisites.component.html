@@ -29,54 +29,56 @@
     </div>
   </div>
 
-  @if (checks.length) {
-    <ul class="check-list" [class.stale]="running">
-      @for (check of checks; track check.id) {
-        <li class="check-item" [attr.data-status]="check.status">
-          <span class="check-icon">
-            @switch (check.status) {
-              @case ('ok')   { ✓ }
-              @case ('warn') { ! }
-              @default       { ✕ }
-            }
-          </span>
-          <div class="check-body">
-            <div class="check-label">{{ check.label }}</div>
-            <div class="check-detail">{{ check.detail }}</div>
-            @if (check.hint) {
-              <div class="check-hint">{{ check.hint }}</div>
-            }
-          </div>
-        </li>
-      }
-    </ul>
-  }
-
-  @if (guides.length && !running) {
-    <section class="fix-section">
-      <h6 class="fix-heading">How to fix it on {{ os }}</h6>
-      @for (guide of guides; track guide.key) {
-        <div class="fix-card">
-          <div class="fix-title">{{ guide.title }}</div>
-          @if (guide.download) {
-            <div class="fix-download"><span>Download</span> {{ guide.download }}</div>
-          }
-          <ol class="fix-steps">
-            @for (step of guide.steps; track $index) {
-              <li>{{ step }}</li>
-            }
-          </ol>
-          @if (guide.links.length) {
-            <div class="fix-links">
-              @for (link of guide.links; track link.url) {
-                <a [href]="link.url" appExternalLink><i class="bi bi-box-arrow-up-right"></i> {{ link.label }}</a>
+  <div class="prereq-body">
+    @if (checks.length) {
+      <ul class="check-list" [class.stale]="running">
+        @for (check of checks; track check.id) {
+          <li class="check-item" [attr.data-status]="check.status">
+            <span class="check-icon">
+              @switch (check.status) {
+                @case ('ok')   { ✓ }
+                @case ('warn') { ! }
+                @default       { ✕ }
+              }
+            </span>
+            <div class="check-body">
+              <div class="check-label">{{ check.label }}</div>
+              <div class="check-detail">{{ check.detail }}</div>
+              @if (check.hint) {
+                <div class="check-hint">{{ check.hint }}</div>
               }
             </div>
-          }
-        </div>
-      }
-    </section>
-  }
+          </li>
+        }
+      </ul>
+    }
+
+    @if (guides.length && !running) {
+      <section class="fix-section">
+        <h6 class="fix-heading">How to fix it on {{ os }}</h6>
+        @for (guide of guides; track guide.key) {
+          <div class="fix-card">
+            <div class="fix-title">{{ guide.title }}</div>
+            @if (guide.download) {
+              <div class="fix-download"><span>Download</span> {{ guide.download }}</div>
+            }
+            <ol class="fix-steps">
+              @for (step of guide.steps; track $index) {
+                <li>{{ step }}</li>
+              }
+            </ol>
+            @if (guide.links.length) {
+              <div class="fix-links">
+                @for (link of guide.links; track link.url) {
+                  <a [href]="link.url" appExternalLink><i class="bi bi-box-arrow-up-right"></i> {{ link.label }}</a>
+                }
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
+  </div>
 
   <div class="prereq-footer">
     @if (studioPath && !running) {
