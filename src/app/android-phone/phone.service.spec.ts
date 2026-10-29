@@ -1,5 +1,5 @@
 import {phoneAppIcon, phoneAppName} from './phone.service';
-import {scrcpyGuide} from './scrcpy-help/scrcpy-help.component';
+import {BREW_INSTALL, scrcpyGuide} from './scrcpy-help/scrcpy-help.component';
 
 describe('phoneAppName', () => {
     it('names FreeTV builds by their environment suffix', () => {
@@ -16,8 +16,12 @@ describe('phoneAppName', () => {
 
 describe('scrcpyGuide', () => {
     it('gives each OS its own install command', () => {
-        expect(scrcpyGuide('macos').command).toBe('brew install scrcpy');
-        expect(scrcpyGuide('windows').command).toBe('winget install --exact Genymobile.scrcpy');
-        expect(scrcpyGuide('linux').command).toBe('sudo apt install scrcpy');
+        expect(scrcpyGuide('macos').commands.map(c => c.command)).toEqual(['brew install scrcpy']);
+        expect(scrcpyGuide('windows').commands.map(c => c.command)).toEqual(['winget install --exact Genymobile.scrcpy']);
+        expect(scrcpyGuide('linux').commands.map(c => c.command)).toEqual(['sudo apt install scrcpy']);
+    });
+
+    it('installs Homebrew first on a Mac without it', () => {
+        expect(scrcpyGuide('macos', false).commands.map(c => c.command)).toEqual([BREW_INSTALL, 'brew install scrcpy']);
     });
 });

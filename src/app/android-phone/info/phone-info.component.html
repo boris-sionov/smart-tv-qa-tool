@@ -1,0 +1,67 @@
+<div class="info-page">
+  @if (!serial) {
+    <app-phone-status></app-phone-status>
+  } @else if (loading) {
+    <div class="loading-state">
+      <div class="spinner-modern"></div>
+      <p>Loading phone information...</p>
+    </div>
+  } @else if (error) {
+    <div class="error-state">
+      <div class="error-icon">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+      </div>
+      <h4>Failed to Load Phone Info</h4>
+      <p>{{ error.message }}</p>
+      <button class="retry-btn" (click)="load()">
+        <i class="bi bi-arrow-clockwise"></i>
+        Retry
+      </button>
+    </div>
+  } @else {
+    <div class="info-hero">
+      <div class="hero-content">
+        <div class="hero-avatar">
+          <i class="bi bi-phone"></i>
+        </div>
+        <div class="hero-text">
+          <h1 class="hero-title">{{ name }}</h1>
+          <p class="hero-subtitle">
+            <i class="bi bi-circle-fill status-dot"></i>
+            Connected by USB · {{ serial }}
+          </p>
+        </div>
+        <button class="copy-btn-hero" (click)="copyInfo()" [class.copy-success]="copySuccess"
+                title="Copy the model and Android version">
+          <i class="bi" [ngClass]="copySuccess ? 'bi-check-circle-fill' : 'bi-clipboard'"></i>
+          <span>{{ copySuccess ? 'Copied!' : 'Copy Info' }}</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <h5 class="section-title">
+        <i class="bi bi-info-circle-fill"></i>
+        Phone Information
+      </h5>
+      <div class="info-grid">
+        @for (item of info; track item.label) {
+          <div class="info-card" [class.highlight]="item.highlight">
+            <div class="info-card-icon">
+              <i class="bi" [ngClass]="item.icon"></i>
+            </div>
+            <div class="info-card-body">
+              <span class="info-card-label">{{ item.label }}</span>
+              <span class="info-card-value">{{ item.value || '—' }}</span>
+            </div>
+            @if (item.highlight) {
+              <div class="highlight-badge">
+                <i class="bi bi-star-fill"></i>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

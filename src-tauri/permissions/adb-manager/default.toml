@@ -17,6 +17,7 @@ permissions = [
   "allow-adb-save-logcat",
   "allow-adb-install-multiple",
   "allow-adb-install-xapk",
+  "allow-brew-installed",
   "allow-apk-library-list",
   "allow-apk-library-fetch",
   "allow-apk-manifest",

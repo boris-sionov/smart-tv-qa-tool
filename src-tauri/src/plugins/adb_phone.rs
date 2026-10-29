@@ -243,6 +243,17 @@ async fn install_xapk_from<R: Runtime>(
     Ok(package)
 }
 
+/// Whether Homebrew is installed (macOS): the scrcpy install popup starts with installing it when
+/// it is not. Looked up where its installer puts it as well as on PATH, which a GUI app gets bare.
+#[tauri::command]
+pub(crate) async fn brew_installed() -> bool {
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).collect())
+        .unwrap_or_default();
+    dirs.extend(["/opt/homebrew/bin", "/usr/local/bin"].map(PathBuf::from));
+    dirs.into_iter().any(|d| d.join("brew").is_file())
+}
+
 /// Where scrcpy is, if anywhere. A GUI app on macOS starts with a bare PATH that misses Homebrew,
 /// and WinGet's shim folder is on the user PATH only for apps started after the install, so those
 /// are searched as well.

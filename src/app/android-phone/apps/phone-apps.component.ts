@@ -1,9 +1,9 @@
 import {Component, OnDestroy, OnInit} from '@angular/core';
 import {Subscription} from 'rxjs';
-import {ActivatedRoute, Router} from '@angular/router';
 import {NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {AdbPackageInfo, AdbService} from '../../core/services/adb.service';
-import {PHONE_APPS, phoneAppIcon, PhoneService, UsbPhone} from '../phone.service';
+import {PHONE_APPS, phoneAppIcon, PhoneService} from '../phone.service';
+import {phoneName, PhoneStateService} from '../phone-state.service';
 import {mirrorPhone} from '../scrcpy-help/scrcpy-help.component';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {ProgressDialogComponent} from '../../shared/components/progress-dialog/progress-dialog.component';
@@ -24,7 +24,7 @@ function fileName(path: string): string {
     return path.split(/[\\/]/).pop() ?? path;
 }
 
-/** The `PHONE_APPS` installed on one phone, with Launch / Kill / Remove, Install APK and Mirror. */
+/** The `PHONE_APPS` installed on the current phone, with Launch / Kill / Remove, Install APK and Mirror. */
 @Component({
     selector: 'app-phone-apps',
     templateUrl: './phone-apps.component.html',
@@ -32,51 +32,57 @@ function fileName(path: string): string {
 })
 export class PhoneAppsComponent implements OnInit, OnDestroy {
 
+    /** The phone whose apps are listed, or '' while there is none ready. */
     serial = '';
-    phoneName = 'Android phone';
     packages: AdbPackageInfo[] | null = null;
-    /** The phones the picker offers, read when it opens. */
-    phoneList: UsbPhone[] = [];
-    private sub?: Subscription;
     error?: Error;
     readonly appNames = PHONE_APPS.map(a => a.name).join(' and ');
     readonly icon = phoneAppIcon;
+    readonly name = phoneName;
+    private sub?: Subscription;
 
     constructor(
-        private route: ActivatedRoute,
-        private router: Router,
+        public state: PhoneStateService,
         private phones: PhoneService,
         private adb: AdbService,
         private modalService: NgbModal,
     ) {}
 
+    get phoneName(): string {
+        return phoneName(this.state.current);
+    }
+
     ngOnInit(): void {
-        // The picker switches phones on the same route, so follow the parameter, not a snapshot.
-        this.sub = this.route.paramMap.subscribe(params => {
-            this.serial = params.get('serial') ?? '';
-            void this.refreshPhones();
-            void this.load();
-        });
+        // Opens on the connected phone, and follows it: a phone that becomes ready, is picked in
+        // the dropdown or is unplugged reloads the list.
+        this.sub = this.state.changed$.subscribe(() => this.follow());
+        this.follow();
     }
 
     ngOnDestroy(): void {
         this.sub?.unsubscribe();
     }
 
-    async refreshPhones(): Promise<void> {
-        this.phoneList = await this.phones.listPhones().catch(() => this.phoneList);
-        this.phoneName = this.phoneList.find(p => p.serial === this.serial)?.model ?? 'Android phone';
+    switchTo(serial: string): void {
+        this.state.select(serial);
     }
 
-    switchTo(serial: string): void {
-        if (serial !== this.serial) void this.router.navigate(['/android-phone', serial]);
+    private follow(): void {
+        const serial = this.state.ready ? this.state.current!.serial : '';
+        if (serial === this.serial) return;
+        this.serial = serial;
+        this.packages = null;
+        this.error = undefined;
+        if (serial) void this.load();
     }
 
     async load(): Promise<void> {
+        const serial = this.serial;
         this.packages = null;
         this.error = undefined;
         try {
-            this.packages = await this.phones.listApps(this.serial);
+            const packages = await this.phones.listApps(serial);
+            if (serial === this.serial) this.packages = packages;
         } catch (e) {
             this.error = new Error(extractMessage(e, 'Failed to load apps — is the phone still connected?'));
         }

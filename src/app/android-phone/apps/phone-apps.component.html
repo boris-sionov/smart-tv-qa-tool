@@ -1,17 +1,20 @@
+@if (!serial) {
+  <app-phone-status></app-phone-status>
+} @else {
 <div class="w-100 h-100 d-flex flex-column overflow-visible">
   <div class="manager-toolbar bg-panel border-bottom">
-    <div class="device-selector-container" ngbDropdown (openChange)="$event && refreshPhones()">
+    <div class="device-selector-container" ngbDropdown>
       <button class="device-dropdown-btn" type="button" ngbDropdownToggle>
         <i class="bi bi-phone"></i>
         <span class="device-name">{{ phoneName }}</span>
         <i class="bi bi-chevron-down chevron"></i>
       </button>
       <div ngbDropdownMenu class="device-dropdown-menu">
-        @for (phone of phoneList; track phone.serial) {
+        @for (phone of state.phones ?? []; track phone.serial) {
           <button ngbDropdownItem class="device-dropdown-item" [class.active]="phone.serial === serial"
                   [disabled]="phone.state !== 'device'" (click)="switchTo(phone.serial)">
             <i class="bi bi-check2 check-icon" [class.invisible]="phone.serial !== serial"></i>
-            <span>{{ phone.model ?? phone.serial }}</span>
+            <span>{{ name(phone) }}</span>
           </button>
         }
       </div>
@@ -94,3 +97,4 @@
     }
   </div>
 </div>
+}

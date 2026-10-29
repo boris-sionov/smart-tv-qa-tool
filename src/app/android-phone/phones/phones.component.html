@@ -5,7 +5,7 @@
         <i class="bi bi-phone-fill"></i>
       </div>
       <div class="hero-text">
-        <h1 class="hero-title">Android Phones</h1>
+        <h1 class="hero-title">Manage Phones</h1>
         <p class="hero-subtitle">
           @if (phones === null) {
             Looking for phones…
@@ -23,28 +23,15 @@
       Connected with a cable
     </h5>
 
-    @if (error) {
-      <div class="empty-state">
-        <div class="empty-icon"><i class="bi bi-exclamation-triangle"></i></div>
-        <h4>Cannot list phones</h4>
-        <p>{{ error }}</p>
-      </div>
-    } @else if (phones?.length === 0) {
-      <div class="empty-state">
-        <div class="empty-icon"><i class="bi bi-usb-plug"></i></div>
-        <h4>No phone connected</h4>
-        <p class="setup-steps">
-          Connect the phone with a USB cable. On the phone, turn on Developer options
-          (Settings → About phone → tap <strong>Build number</strong> 7 times), then
-          <strong>USB debugging</strong>. It shows up here by itself.
-        </p>
-      </div>
-    } @else if (phones) {
+    @if (state.adbError || !phones?.length) {
+      <app-phone-status></app-phone-status>
+    } @else {
       <div class="devices-grid">
         @for (phone of phones; track phone.serial) {
-          <div class="device-card phone-card" [class.clickable]="phone.state === 'device'" (click)="open(phone)">
+          <div class="device-card phone-card" [class.clickable]="phone.state === 'device'" [class.selected]="isSelected(phone)"
+               (click)="open(phone)">
             <div class="device-card-header">
-              <div class="device-icon" [class.active]="phone.state === 'device'">
+              <div class="device-icon" [class.active]="isSelected(phone)">
                 <i class="bi bi-phone"></i>
               </div>
               @if (phone.state === 'device') {
@@ -91,8 +78,6 @@
           </div>
         }
       </div>
-    } @else {
-      <app-loading-card></app-loading-card>
     }
   </div>
 </div>

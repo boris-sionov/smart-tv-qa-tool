@@ -2,27 +2,39 @@ import {Component, OnInit} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {NgbActiveModal, NgbModal} from '@ng-bootstrap/ng-bootstrap';
 import {platform} from '@tauri-apps/plugin-os';
+import {invoke} from '@tauri-apps/api/core';
 import {ExternalLinkDirective} from '../../shared/directives';
+
+interface Command {
+    label: string;
+    command: string;
+}
 
 interface InstallGuide {
     os: string;
-    command: string;
     shell: string;
+    /** Run in order; each gets its own copy button. */
+    commands: Command[];
     steps: string[];
     docs: string;
 }
 
 const RELEASES = 'https://github.com/Genymobile/scrcpy/releases/latest';
 const DOCS = 'https://github.com/Genymobile/scrcpy/blob/master/doc';
+/** Homebrew's own install command, as brew.sh gives it. */
+export const BREW_INSTALL = '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"';
 
-/** How to install scrcpy on this computer's OS. Every link was checked on 2026-10-29. */
-export function scrcpyGuide(os: string): InstallGuide {
+/**
+ * How to install scrcpy on this computer's OS. On macOS without Homebrew, installing Homebrew
+ * comes first. Every link was checked on 2026-10-29.
+ */
+export function scrcpyGuide(os: string, hasBrew = true): InstallGuide {
     switch (os) {
         case 'windows':
             return {
                 os: 'Windows',
                 shell: 'Command Prompt',
-                command: 'winget install --exact Genymobile.scrcpy',
+                commands: [{label: 'Install scrcpy', command: 'winget install --exact Genymobile.scrcpy'}],
                 steps: [
                     'Open Command Prompt and run the command above.',
                     `No winget? Download scrcpy-win64-v….zip from the latest release, extract it to C:\\scrcpy and add that folder to PATH.`,
@@ -34,7 +46,7 @@ export function scrcpyGuide(os: string): InstallGuide {
             return {
                 os: 'Linux',
                 shell: 'Terminal',
-                command: 'sudo apt install scrcpy',
+                commands: [{label: 'Install scrcpy', command: 'sudo apt install scrcpy'}],
                 steps: [
                     'Run the command above (Debian / Ubuntu). Other distributions: see the install guide.',
                     'Distribution packages can lag behind; the guide also covers the latest release.',
@@ -45,10 +57,15 @@ export function scrcpyGuide(os: string): InstallGuide {
             return {
                 os: 'macOS',
                 shell: 'Terminal',
-                command: 'brew install scrcpy',
+                commands: [
+                    ...(hasBrew ? [] : [{label: 'Homebrew is not installed — install it first', command: BREW_INSTALL}]),
+                    {label: 'Install scrcpy', command: 'brew install scrcpy'},
+                ],
                 steps: [
-                    'Open Terminal and run the command above.',
-                    'No Homebrew yet? Install it first from brew.sh, then run the command.',
+                    hasBrew
+                        ? 'Open Terminal and run the command above.'
+                        : 'Open Terminal and run the commands above, in order. Homebrew asks for your Mac password, ' +
+                          'and ends with "Next steps": run the lines it prints there, then the scrcpy command.',
                 ],
                 docs: `${DOCS}/macos.md`,
             };
@@ -69,7 +86,9 @@ export function scrcpyGuide(os: string): InstallGuide {
 })
 export class ScrcpyHelpComponent implements OnInit {
     guide = scrcpyGuide('macos');
-    copied = false;
+    hasBrew = true;
+    /** The command whose copy button was just pressed. */
+    copied: string | null = null;
     readonly releases = RELEASES;
 
     constructor(public modal: NgbActiveModal) {}
@@ -79,18 +98,21 @@ export class ScrcpyHelpComponent implements OnInit {
             .result.then(r => r === true, () => false);
     }
 
-    ngOnInit(): void {
+    async ngOnInit(): Promise<void> {
+        let os = 'macos';
         try {
-            this.guide = scrcpyGuide(platform());
+            os = platform();
+            if (os === 'macos') this.hasBrew = await invoke<boolean>('plugin:adb-manager|brew_installed');
         } catch {
             // Outside Tauri (unit tests) there is no OS plugin; the macOS guide stays.
         }
+        this.guide = scrcpyGuide(os, this.hasBrew);
     }
 
-    async copy(): Promise<void> {
-        await navigator.clipboard.writeText(this.guide.command);
-        this.copied = true;
-        setTimeout(() => this.copied = false, 1500);
+    async copy(command: string): Promise<void> {
+        await navigator.clipboard.writeText(command);
+        this.copied = command;
+        setTimeout(() => this.copied = this.copied === command ? null : this.copied, 1500);
     }
 }
 

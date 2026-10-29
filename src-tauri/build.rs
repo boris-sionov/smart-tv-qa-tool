@@ -78,6 +78,7 @@ fn main() {
                     "adb_save_logcat",
                     "adb_install_multiple",
                     "adb_install_xapk",
+                    "brew_installed",
                     "apk_library_list",
                     "apk_library_fetch",
                     "apk_manifest",

@@ -460,8 +460,15 @@ to hand an installed app back over `sdb`.
 
 ### Android Phone (ADB over USB)
 
-`/android-phone` (`src/app/android-phone/`) lists the phones plugged in by cable and, for one phone,
-the few apps QA tests on phones. It shares the bundled adb and the install / uninstall / force-stop
+`/android-phone` (`src/app/android-phone/`) has the same Apps / Info / Manage pages as the other
+platforms. `PhoneStateService` polls the USB phones every 2 s while the section is open and picks
+the **current** phone: the last one picked (`smart-tv-qa-phone-selected`) while it is connected,
+otherwise the first ready one. Apps and Info open straight on it and follow it; with none ready
+they show `PhoneStatusComponent` — adb broken (it is the bundled sidecar, so that means a broken
+install: reinstall, or `npm run setup`), no phone (numbered setup steps, keeps waiting), waiting for
+Allow, or connecting. Manage lists every phone. The shell owns the "Allow USB debugging?" popup.
+
+It shows the few apps QA tests on phones. It shares the bundled adb and the install / uninstall / force-stop
 commands with Android TV; what differs lives in `plugins/adb_phone.rs` (on `adb-manager`):
 
 | Command | Does |
@@ -472,6 +479,7 @@ commands with Android TV; what differs lives in `plugins/adb_phone.rs` (on `adb-
 | `adb_install_multiple` | one app's APKs together: `install-multiple -r -d` (one path: `install -r -d`). A `Failure [` line on stdout counts as an error even with exit code 0 |
 | `adb_install_xapk` | unzips an XAPK (APKPure-style: base + split APKs, `manifest.json`, optional `Android/obb/…`) to a temp dir, installs the APKs together, pushes OBB files to the same path under `/sdcard`; returns `package_name` |
 | `adb_save_logcat` | `logcat -d -v threadtime` written to the path the save dialog returned (Downloads by default, `<model>_logcat_<time>.txt`) |
+| `brew_installed` | whether Homebrew is there (PATH, `/opt/homebrew/bin`, `/usr/local/bin`); without it the scrcpy popup starts with brew.sh's install command |
 | `scrcpy_open` | mirrors the screen in a scrcpy window; `false` when scrcpy is not installed, and the page then shows `ScrcpyHelpComponent` with the install command for the OS |
 
 **Plugging a phone in** goes through adb states: `authorizing` / `connecting` / `offline` for a
