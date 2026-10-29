@@ -79,8 +79,11 @@
   }
 
   <div class="prereq-footer">
-    @if (studioPath && certificatesFailing) {
-      <button class="btn-ghost" type="button" (click)="openCertificateManager()">
+    @if (studioPath && !running) {
+      <button class="btn-ghost" type="button" (click)="openTool('device')" title="Tizen Studio Device Manager">
+        <i class="bi bi-tv"></i> Device Manager
+      </button>
+      <button class="btn-ghost" type="button" (click)="openTool('certificate')" title="Tizen Studio Certificate Manager">
         <i class="bi bi-shield-lock"></i> Certificate Manager
       </button>
     }

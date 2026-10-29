@@ -327,8 +327,11 @@ badge. Giving it one needs an unbadged 2.0 base.
 
 Entering Samsung runs `tizen_check_prerequisites` quietly (`TizenComponent.autoCheck`): once per
 app start when everything is there, on every entry while something is missing. The first time it
-finds something missing it opens the list; after that a warning button in the Tizen navbar — shown
-only while something is missing — opens it again. A warning (no DUIDs) does not count as missing.
+finds something missing it opens the list. The clipboard button in the Tizen navbar runs it any
+time, and turns into an amber warning while something is missing. A warning (no DUIDs) does not
+count as missing. The dialog also opens Tizen Studio's **Device Manager** and **Certificate
+Manager** (on macOS through `open` on their `.app` bundles — the bare binaries the code used to
+start are not there, or not executable).
 The dialog (`plugins/tizen_prereq.rs` behind it) lists each check with ✓ / ! / ✕, what it found and how to fix it.
 Only the signed install needs anything on the machine — list, launch, kill and debug speak SDB over
 TCP themselves — so the checks are what that flow calls:

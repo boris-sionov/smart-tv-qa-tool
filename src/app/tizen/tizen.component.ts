@@ -42,7 +42,7 @@ export class TizenComponent implements OnInit {
         }
     }
 
-    /** Whether the last check found something missing; the navbar button shows only then. */
+    /** Whether the last check found something missing; the navbar button turns amber then. */
     get requirementsMissing(): boolean {
         return requirements.missing;
     }

@@ -67,16 +67,15 @@ export class TizenPrerequisitesComponent implements OnInit {
         }
     }
 
-    async openCertificateManager(): Promise<void> {
+    /** Opens Tizen Studio's Device Manager or Certificate Manager from the Studio the check found. */
+    async openTool(tool: 'device' | 'certificate'): Promise<void> {
         if (!this.studioPath) return;
         try {
-            await this.sdb.openCertificateManager(this.studioPath);
+            await (tool === 'device'
+                ? this.sdb.openDeviceManager(this.studioPath)
+                : this.sdb.openCertificateManager(this.studioPath));
         } catch (e) {
-            this.error = extractMessage(e, 'Failed to open Certificate Manager');
+            this.error = extractMessage(e, `Failed to open ${tool === 'device' ? 'Device' : 'Certificate'} Manager`);
         }
-    }
-
-    get certificatesFailing(): boolean {
-        return this.checks.some(c => ['profiles', 'cert-profile', 'duids'].includes(c.id) && c.status !== 'ok');
     }
 }

@@ -1341,28 +1341,52 @@ pub(crate) async fn tizen_detect_studio(home_dir: String) -> Result<TizenStudioI
     ))
 }
 
-#[tauri::command]
-pub(crate) async fn tizen_open_certificate_manager(studio_path: String) -> Result<(), Error> {
-    #[cfg(target_os = "windows")]
-    let bin = format!(r"{studio_path}\tools\certificate-manager\certificate-manager.exe");
-    #[cfg(not(target_os = "windows"))]
-    let bin = format!("{studio_path}/tools/certificate-manager/certificate-manager");
-    std::process::Command::new(&bin)
-        .spawn()
-        .map_err(|e| Error::new(format!("Failed to open Certificate Manager: {e}")))?;
+/// Starts one of Tizen Studio's GUI tools. On macOS each one is an `.app` — the bare
+/// `certificate-manager` binary does not exist there, and `bin/device-manager` is a script without
+/// the execute bit — so it goes through `open`. Linux runs the launcher script with bash.
+fn open_studio_tool(studio_path: &str, name: &str, mac_app: &str, unix_bin: &str, windows_exe: &str) -> Result<(), Error> {
+    let mut cmd = if cfg!(target_os = "macos") {
+        let mut c = std::process::Command::new("open");
+        c.arg(format!("{studio_path}/{mac_app}"));
+        c
+    } else if cfg!(target_os = "windows") {
+        std::process::Command::new(format!(r"{studio_path}\{windows_exe}"))
+    } else {
+        let mut c = std::process::Command::new("bash");
+        c.arg(format!("{studio_path}/{unix_bin}"));
+        c
+    };
+    let status = cmd.spawn().map_err(|e| Error::new(format!("Failed to open {name}: {e}")))?;
+    // `open` answers at once; anything else keeps running as the tool itself.
+    if cfg!(target_os = "macos") {
+        let out = status.wait_with_output()?;
+        if !out.status.success() {
+            return Err(Error::new(format!("Failed to open {name}: is it installed in {studio_path}?")));
+        }
+    }
     Ok(())
 }
 
 #[tauri::command]
+pub(crate) async fn tizen_open_certificate_manager(studio_path: String) -> Result<(), Error> {
+    open_studio_tool(
+        &studio_path,
+        "Certificate Manager",
+        "tools/certificate-manager/certificate-manager.app",
+        "tools/certificate-manager/certificate-manager",
+        r"tools\certificate-manager\certificate-manager.exe",
+    )
+}
+
+#[tauri::command]
 pub(crate) async fn tizen_open_device_manager(studio_path: String) -> Result<(), Error> {
-    #[cfg(target_os = "windows")]
-    let bin = format!(r"{studio_path}\tools\device-manager\bin\device-manager.exe");
-    #[cfg(not(target_os = "windows"))]
-    let bin = format!("{studio_path}/tools/device-manager/bin/device-manager");
-    std::process::Command::new(&bin)
-        .spawn()
-        .map_err(|e| Error::new(format!("Failed to open Device Manager: {e}")))?;
-    Ok(())
+    open_studio_tool(
+        &studio_path,
+        "Device Manager",
+        "tools/device-manager/bin/device-manager.app",
+        "tools/device-manager/bin/device-manager",
+        r"tools\device-manager\bin\device-manager.exe",
+    )
 }
 
 // ── Samsung SmartTV Remote Control (WebSocket, port 8002 wss) ────────────────
