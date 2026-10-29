@@ -1,0 +1,310 @@
+$bg-dark: #0F172B;
+$bg-light: #1a2744;
+$primary-blue: #5B9FF5;
+$success-green: #4ADE80;
+$danger-red: #FF6B6B;
+$text-primary: #FFFFFF;
+$text-secondary: #A8B8CC;
+
+.prereq-dialog {
+  background: linear-gradient(135deg, $bg-light 0%, $bg-dark 100%);
+  border-radius: 20px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  // The modal is opened `scrollable`, which caps .modal-content at the window height and
+  // hides its overflow; without a scrolling child of our own the list is just cut off.
+  // .modal-content is a flex column, so min-height: 0 lets this shrink to fit it.
+  min-height: 0;
+}
+
+.prereq-body {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-right: -12px;
+  padding-right: 12px;
+}
+
+.prereq-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: $primary-blue;
+  background: rgba(91, 159, 245, 0.12);
+  border: 1px solid rgba(91, 159, 245, 0.3);
+
+  &.ok {
+    color: $success-green;
+    background: rgba(74, 222, 128, 0.1);
+    border-color: rgba(74, 222, 128, 0.3);
+  }
+
+  &.fail {
+    color: $danger-red;
+    background: rgba(255, 107, 107, 0.1);
+    border-color: rgba(255, 107, 107, 0.3);
+  }
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(91, 159, 245, 0.2);
+  border-top-color: $primary-blue;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.prereq-title {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: $text-primary;
+}
+
+.prereq-summary {
+  font-size: 13px;
+  color: $text-secondary;
+}
+
+.prereq-checked {
+  font-size: 12px;
+  color: $text-secondary;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+.check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: opacity 0.2s ease;
+
+  &.stale {
+    opacity: 0.5;
+  }
+}
+
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+
+  &[data-status='ok'] .check-icon { color: $success-green; }
+
+  &.changed {
+    border-color: rgba(91, 159, 245, 0.45);
+  }
+
+  &[data-status='fail'] {
+    background: rgba(255, 107, 107, 0.06);
+    border-color: rgba(255, 107, 107, 0.25);
+    .check-icon { color: $danger-red; }
+  }
+}
+
+.check-icon {
+  flex-shrink: 0;
+  width: 20px;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 20px;
+}
+
+.check-body {
+  min-width: 0;
+}
+
+.check-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: $text-primary;
+}
+
+.check-detail {
+  font-size: 12px;
+  color: $text-secondary;
+  word-break: break-word;
+  margin-top: 2px;
+}
+
+.changed-badge {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: $primary-blue;
+  background: rgba(91, 159, 245, 0.15);
+  vertical-align: 1px;
+}
+
+.check-before {
+  font-size: 12px;
+  color: $text-secondary;
+  opacity: 0.7;
+  text-decoration: line-through;
+  word-break: break-word;
+  margin-top: 2px;
+}
+
+.check-hint {
+  font-size: 12px;
+  color: $text-primary;
+  margin-top: 6px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(91, 159, 245, 0.5);
+}
+
+.fix-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fix-heading {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.fix-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(91, 159, 245, 0.06);
+  border: 1px solid rgba(91, 159, 245, 0.2);
+}
+
+.fix-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: $text-primary;
+  margin-bottom: 8px;
+}
+
+.fix-download {
+  font-size: 12px;
+  color: $text-primary;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  word-break: break-all;
+  margin-bottom: 8px;
+
+  span {
+    font-family: inherit;
+    font-weight: 700;
+    color: $primary-blue;
+    margin-right: 4px;
+  }
+}
+
+.fix-steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: $text-secondary;
+
+  li + li {
+    margin-top: 4px;
+  }
+}
+
+.fix-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+
+  a {
+    font-size: 13px;
+    font-weight: 600;
+    color: $primary-blue;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.prereq-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+
+  .spacer {
+    flex: 1;
+  }
+}
+
+.btn-ghost,
+.btn-primary-modern {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: $text-secondary;
+
+  &:hover:not(:disabled) {
+    background: rgba(91, 159, 245, 0.12);
+    border-color: rgba(91, 159, 245, 0.4);
+    color: $text-primary;
+  }
+}
+
+.btn-primary-modern {
+  background: $primary-blue;
+  border: 1px solid $primary-blue;
+  color: $text-primary;
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 6px 18px rgba(91, 159, 245, 0.35);
+  }
+}

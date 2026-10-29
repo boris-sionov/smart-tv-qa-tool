@@ -1,0 +1,114 @@
+<div class="prereq-dialog">
+  <div class="prereq-header">
+    <div class="header-icon"
+         [class.ok]="!running && !error && failed === 0"
+         [class.fail]="!running && (error || failed > 0)">
+      @if (running) {
+        <span class="spinner"></span>
+      } @else if (error || failed > 0) {
+        <i class="bi bi-exclamation-triangle-fill"></i>
+      } @else {
+        <i class="bi bi-check2-circle"></i>
+      }
+    </div>
+    <div>
+      <h5 class="prereq-title">Samsung requirements</h5>
+      <div class="prereq-summary">
+        @if (running && !checks.length) {
+          Checking this computer…
+        } @else if (error) {
+          {{ error }}
+        } @else if (failed > 0) {
+          {{ failed }} of {{ checks.length }} missing — installing on a Samsung TV will fail until they are fixed.
+        } @else {
+          Everything the Samsung flows need is installed.
+        }
+      </div>
+      @if (checkedAt && !error) {
+        <div class="prereq-checked">
+          @if (running) {
+            Checking again — showing the check from {{ checkedAt | date:'d MMM, HH:mm' }}
+          } @else if (changes.size) {
+            Checked {{ checkedAt | date:'d MMM, HH:mm' }} · {{ changes.size }} changed since the last check
+          } @else {
+            Checked {{ checkedAt | date:'d MMM, HH:mm' }} · nothing changed
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="prereq-body">
+    @if (checks.length) {
+      <ul class="check-list" [class.stale]="running">
+        @for (check of checks; track check.id) {
+          <li class="check-item" [attr.data-status]="check.status" [class.changed]="changes.has(check.id)">
+            <span class="check-icon">
+              @switch (check.status) {
+                @case ('ok')   { ✓ }
+                @default       { ✕ }
+              }
+            </span>
+            <div class="check-body">
+              <div class="check-label">
+                {{ check.label }}
+                @if (changes.has(check.id)) {
+                  <span class="changed-badge">{{ changes.get(check.id) ? 'Changed' : 'New' }}</span>
+                }
+              </div>
+              <div class="check-detail">{{ check.detail }}</div>
+              @if (changes.get(check.id); as before) {
+                <div class="check-before">Was: {{ before.status === 'ok' ? '' : '✕ ' }}{{ before.detail }}</div>
+              }
+              @if (check.hint) {
+                <div class="check-hint">{{ check.hint }}</div>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    }
+
+    @if (guides.length && !running) {
+      <section class="fix-section">
+        <h6 class="fix-heading">How to fix it on {{ os }}</h6>
+        @for (guide of guides; track guide.key) {
+          <div class="fix-card">
+            <div class="fix-title">{{ guide.title }}</div>
+            @if (guide.download) {
+              <div class="fix-download"><span>Download</span> {{ guide.download }}</div>
+            }
+            <ol class="fix-steps">
+              @for (step of guide.steps; track $index) {
+                <li>{{ step }}</li>
+              }
+            </ol>
+            @if (guide.links.length) {
+              <div class="fix-links">
+                @for (link of guide.links; track link.url) {
+                  <a [href]="link.url" appExternalLink><i class="bi bi-box-arrow-up-right"></i> {{ link.label }}</a>
+                }
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
+  </div>
+
+  <div class="prereq-footer">
+    @if (studioPath && !running) {
+      <button class="btn-ghost" type="button" (click)="openTool('device')" title="Tizen Studio Device Manager">
+        <i class="bi bi-tv"></i> Device Manager
+      </button>
+      <button class="btn-ghost" type="button" (click)="openTool('certificate')" title="Tizen Studio Certificate Manager">
+        <i class="bi bi-shield-lock"></i> Certificate Manager
+      </button>
+    }
+    <span class="spacer"></span>
+    <button class="btn-ghost" type="button" [disabled]="running" (click)="run()">
+      <i class="bi bi-arrow-clockwise"></i> Check again
+    </button>
+    <button class="btn-ghost" type="button" (click)="modal.close(false)">Close</button>
+  </div>
+</div>

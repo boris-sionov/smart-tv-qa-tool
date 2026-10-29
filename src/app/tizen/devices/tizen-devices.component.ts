@@ -4,6 +4,7 @@ import {noop} from 'rxjs';
 import {SdbService} from '../../core/services/sdb.service';
 import {MessageDialogComponent} from '../../shared/components/message-dialog/message-dialog.component';
 import {tizenSerial, TizenDevice, TizenStateService} from '../tizen-state.service';
+import {TizenRequirementsService} from '../tizen-requirements.service';
 import {TizenWizardComponent} from '../wizard/tizen-wizard.component';
 
 @Component({
@@ -19,6 +20,7 @@ export class TizenDevicesComponent implements OnInit {
         public state: TizenStateService,
         private sdb: SdbService,
         private modalService: NgbModal,
+        public requirements: TizenRequirementsService,
     ) {}
 
     ngOnInit(): void {

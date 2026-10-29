@@ -2,6 +2,7 @@ import {Component, OnInit} from '@angular/core';
 import {Router} from '@angular/router';
 import {SdbService} from '../core/services/sdb.service';
 import {tizenSerial, TizenDevice, TizenStateService} from './tizen-state.service';
+import {TizenRequirementsService} from './tizen-requirements.service';
 
 @Component({
     selector: 'app-tizen',
@@ -16,12 +17,14 @@ export class TizenComponent implements OnInit {
         public state: TizenStateService,
         private sdb: SdbService,
         private router: Router,
+        private requirements: TizenRequirementsService,
     ) {}
 
     ngOnInit(): void {
         this.devices = this.state.getSavedDevices();
         this.selected = this.state.selected$.value ?? this.devices[0] ?? null;
         if (this.selected) this.state.select(this.selected);
+        void this.requirements.autoCheck();
     }
 
     onDevicesChanged(): void {
@@ -31,6 +34,7 @@ export class TizenComponent implements OnInit {
             this.state.select(this.selected);
         }
     }
+
 
     goBack(): void {
         this.router.navigate(['/']);

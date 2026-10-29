@@ -323,6 +323,81 @@ The 2.0 rewrite is the exception: `freetv-tizen-2.0-icon.png` already carries a 
 the same place ours would go, so a 2.0 build installs that artwork unchanged and gets no version
 badge. Giving it one needs an unbadged 2.0 base.
 
+#### Prerequisites Check
+
+Entering Samsung runs `tizen_check_prerequisites` quietly (`TizenRequirementsService.autoCheck`):
+once per app start when everything is there, on every entry while something is missing. The first
+time it finds something missing it opens the list. **Requirements**, next to Add New Device on the
+Samsung Manage page, opens it any time, and turns amber while something is missing. A warning (no DUIDs) does not
+count as missing. The dialog also opens Tizen Studio's **Device Manager** and **Certificate
+Manager** (on macOS through `open` on their `.app` bundles — the bare binaries the code used to
+start are not there, or not executable).
+The dialog (`plugins/tizen_prereq.rs` behind it) lists each check with ✓ / ! / ✕, what it found and how to fix it.
+Only the signed install needs anything on the machine — list, launch, kill and debug speak SDB over
+TCP themselves — so the checks are what that flow calls:
+
+| Check | Fails when |
+|---|---|
+| Bundled sdb | the `sdb` sidecar is missing or `sdb version` does not answer |
+| Tizen Studio | neither the saved path (`smart-tv-qa-tizen-studio-path`) nor a default location holds `tools/ide/bin/tizen`; a saved path that has gone missing fails even if another install is found, since the install uses the saved one |
+| Tizen CLI | `tizen version` does not print `Tizen CLI x.y.z` |
+| Tizen Studio sdb | `<studio>/tools/sdb version` fails — `tizen install` connects through it |
+| Java for the Tizen CLI | the Java `tizen.sh` would pick (`sdk.info` `JDK_PATH`, then `<studio>/jdk`, then `java` on the PATH) does not answer `-version` |
+| Certificate profiles | `profiles.xml` (via `cert_profiles_path`, the file the install reads) is missing or empty |
+| Selected certificate | no profile saved, the saved name is not a profile — the wizard takes it from the `.p12`'s folder name, which need not match — or its author / distributor key file is gone |
+| TVs covered by certificates | *warning* only: no distributor profile lists `<TestDevice>` DUIDs, so per-TV matching cannot work |
+
+Below the list the dialog shows how to fix each miss **for the OS the check ran on** (the command
+returns `std::env::consts::OS` / `ARCH`): what to download, numbered install steps and links that
+open in the system browser (`appExternalLink`). The text lives in `tizen-fix-guides.ts`.
+
+Tizen Studio is deprecated; its last release, **6.1** (14 April 2025), is what the guide links to
+directly — `download.tizen.org/sdk/Installer/tizen-studio_6.1/web-{cli,ide}_Tizen_Studio_6.1_<os>`
+(`macos-64.bin` / `.dmg`, `windows-64.exe`, `ubuntu-64.bin`; CLI-only ≈ 280 MB, IDE ≈ 650 MB).
+Bump `STUDIO_VERSION` if a newer one ever appears.
+
+**The guide installs the CLI only, without a window.** Both installers take `--accept-license`:
+
+```bash
+./web-cli_Tizen_Studio_6.1_macos-64.bin --accept-license ~/tizen-studio
+~/tizen-studio/package-manager/package-manager-cli.bin install --accept-license Certificate-Manager,cert-add-on
+```
+
+The CLI install already has the tizen CLI, sdb, a JDK and Device Manager (`device-manager-product`
+is in `COMMON-MANDATORY`). Certificate Manager is not in it; `cert-add-on` is the Samsung
+Certificate Extension, from an extension repository that is active by default. The second command
+first updates every installed package, then pulls `BASELINE-COMMON` — over 10 minutes and ≈ 2 GB in
+all. Run on macOS on 2026-10-29 into an empty `HOME` (with `JAVA_TOOL_OPTIONS=-Duser.home=…`, since
+Java ignores `$HOME`); Windows and Linux use the same flags (`package-manager-cli.exe` on Windows)
+but were not run. Signing and installing a WGT from that install was not tried — the TV Extensions
+are not in it.
+
+**Creating a Samsung certificate has no CLI.** The Samsung extension is only an Eclipse plugin
+(`org.tizen.common.cert_*.jar`) that signs in through `account.samsung.com` in a browser and asks
+`svdca.samsungqbe.com` for the author and distributor certificates; `tizen certificate` makes a
+plain Tizen author certificate, which a retail Samsung TV refuses. Importing a profile the team
+already made is CLI-only: `tizen security-profiles add -A -n <profile> -a author.p12 -p … -d
+distributor.p12 -dp …`, which the certificate guide spells out. Device Manager is not needed either:
+`sdb connect` / `devices` and our own DUID read cover what QA used it for.
+
+Everything else is a page:
+
+| Link | For |
+|---|---|
+| `download.tizen.org/sdk/Installer/` | folder listing — fallback if the 6.1 files move |
+| developer.samsung.com *Installing TV SDK* / *Creating certificates* | TV Extensions + Samsung Certificate Extension (≥ 2.0.73; older ones can no longer create certificates), certificate profiles |
+| `adoptium.net/temurin/releases/` | Java, only when Studio's bundled `jdk/` is gone |
+
+`developer.tizen.org` / `docs.tizen.org` now redirect to samsungtizenos.com, and that site's
+"Installation guide" link is a GitHub 404 — do not link either. Tizen Studio's binaries (`sdb`,
+the bundled JDK) are x86_64 only, so on Apple Silicon the guide starts with installing Rosetta.
+Windows installs to `C:\tizen-studio`, which is now one of the `studio_candidates()`.
+
+`tizen version` starts a JVM (~4 s), so the dialog shows a spinner; each tool call is capped at
+30 s. To see the result for this machine without the UI:
+`cargo test -p devman tizen_prereq -- --ignored --nocapture` (set `TIZEN_CERT_PROFILE` to check a
+saved profile).
+
 #### Certificate ↔ TV Matching (the other cause of `[118, -12]`)
 
 A Samsung *distributor* certificate is issued for a fixed list of TV DUIDs. Signing with a profile
