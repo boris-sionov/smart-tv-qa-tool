@@ -76,6 +76,8 @@ fn main() {
                     "adb_launch_launcher",
                     "scrcpy_open",
                     "adb_save_logcat",
+                    "adb_install_multiple",
+                    "adb_install_xapk",
                     "apk_library_list",
                     "apk_library_fetch",
                     "apk_manifest",

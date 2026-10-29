@@ -1537,6 +1537,8 @@ pub fn plugin<R: Runtime>(name: &'static str) -> TauriPlugin<R> {
             super::adb_phone::adb_launch_launcher,
             super::adb_phone::scrcpy_open,
             super::adb_phone::adb_save_logcat,
+            super::adb_phone::adb_install_multiple,
+            super::adb_phone::adb_install_xapk,
             super::apk_library::apk_library_list,
             super::apk_library::apk_library_fetch,
             super::apk_library::apk_manifest,

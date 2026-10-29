@@ -47,16 +47,17 @@
               <div class="device-icon" [class.active]="phone.state === 'device'">
                 <i class="bi bi-phone"></i>
               </div>
-              @switch (phone.state) {
-                @case ('device') {
-                  <span class="status-badge active"><i class="bi bi-check-circle-fill"></i> Connected</span>
-                }
-                @case ('unauthorized') {
-                  <span class="status-badge failed"><i class="bi bi-shield-exclamation"></i> Allow on phone</span>
-                }
-                @default {
-                  <span class="status-badge failed"><i class="bi bi-x-circle-fill"></i> {{ phone.state }}</span>
-                }
+              @if (phone.state === 'device') {
+                <span class="status-badge active"><i class="bi bi-check-circle-fill"></i> Connected</span>
+              } @else if (phone.state === 'unauthorized') {
+                <span class="status-badge failed" role="button" title="Show how to allow this computer"
+                      (click)="askApproval(phone, $event)">
+                  <i class="bi bi-shield-exclamation"></i> Allow on phone
+                </span>
+              } @else {
+                <span class="status-badge checking">
+                  <span class="spinner-border spinner-border-sm"></span> Connecting
+                </span>
               }
             </div>
             <div class="device-card-body">
@@ -67,6 +68,8 @@
               </div>
               @if (phone.state === 'unauthorized') {
                 <p class="allow-hint">Unlock the phone and tap <strong>Allow</strong> on "Allow USB debugging?".</p>
+              } @else if (connecting(phone)) {
+                <p class="allow-hint">Waiting for the phone to connect…</p>
               }
             </div>
             <div class="device-card-actions">
@@ -88,6 +91,8 @@
           </div>
         }
       </div>
+    } @else {
+      <app-loading-card></app-loading-card>
     }
   </div>
 </div>

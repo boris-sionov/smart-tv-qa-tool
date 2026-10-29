@@ -11,6 +11,18 @@ import {extractMessage} from '../../core/utils/error.utils';
 /** pm's answers when an APK cannot replace the installed app without an uninstall first. */
 const REPLACE_REFUSED = /INSTALL_FAILED_UPDATE_INCOMPATIBLE|INSTALL_FAILED_VERSION_DOWNGRADE/;
 
+interface InstallJob {
+    kind: 'apks' | 'xapk';
+    paths: string[];
+    /** For APKs: the package they declare, which an uninstall-first needs. */
+    packageId?: string;
+    label: string;
+}
+
+function fileName(path: string): string {
+    return path.split(/[\\/]/).pop() ?? path;
+}
+
 /** The `PHONE_APPS` installed on one phone, with Launch / Kill / Remove, Install APK and Mirror. */
 @Component({
     selector: 'app-phone-apps',
@@ -101,41 +113,83 @@ export class PhoneAppsComponent implements OnInit {
     }
 
     /**
-     * Installs an APK with `adb install -r -d`. A different signing key or a release downgrade is
-     * refused by pm; both install after an uninstall, which clears the app's data, so that is asked.
+     * Installs the `.apk` / `.xapk` files QA picks, one app at a time.
+     *
+     * APKs of the same package are one app's splits and go in together (`install-multiple`); an
+     * XAPK carries its own splits and OBB data. A different signing key or a release downgrade is
+     * refused by pm; both install after an uninstall, which clears the app's data, so that is
+     * asked per app. One app failing does not stop the rest; the summary lists each.
      */
     async installApk(): Promise<void> {
-        const path = await this.adb.openApkChooser();
-        if (!path) return;
+        const files = await this.phones.chooseInstallFiles();
+        if (!files.length) return;
+        const jobs = await this.installJobs(files);
+
         const progress = ProgressDialogComponent.open(this.modalService);
         const dialog = progress.componentInstance as ProgressDialogComponent;
-        try {
-            dialog.update('Installing APK…', 50);
+        dialog.setSteps(jobs.map((job, i) => ({key: `job${i}`, label: job.label})));
+        const results: string[] = [];
+        for (const [i, job] of jobs.entries()) {
+            dialog.update(`Installing ${job.label}…`, Math.round(100 * i / jobs.length), `job${i}`);
             try {
-                await this.adb.install(this.serial, path, true);
+                await this.installJob(job);
+                results.push(`✓ ${job.label}`);
             } catch (e) {
-                const message = extractMessage(e, '');
-                if (!REPLACE_REFUSED.test(message)) throw e;
-                const {packageId} = await this.adb.apkManifest(path);
-                const confirm = MessageDialogComponent.open(this.modalService, {
-                    title: 'Uninstall first?',
-                    message: (message.includes('VERSION_DOWNGRADE')
-                        ? `The phone refused to downgrade ${packageId} — Android allows that only for debug builds.`
-                        : `This APK is signed with a different key than the ${packageId} on the phone.`)
-                        + ' It installs after an uninstall, which also clears the app\'s data and login.',
-                    positive: 'Uninstall and install', positiveStyle: 'danger', negative: 'Cancel', autofocus: 'negative',
-                });
-                if (!await confirm.result.catch(() => false)) return;
-                dialog.update(`Uninstalling ${packageId}…`, 70);
-                await this.adb.uninstall(this.serial, packageId);
-                dialog.update('Installing APK…', 85);
-                await this.adb.install(this.serial, path, true);
+                dialog.fail(`job${i}`);
+                results.push(`✕ ${job.label} — ${extractMessage(e, 'failed')}`);
             }
-            await this.load();
+        }
+        progress.close(true);
+        await this.load();
+        if (jobs.length > 1 || results.some(r => r.startsWith('✕'))) {
+            MessageDialogComponent.open(this.modalService, {
+                title: results.every(r => r.startsWith('✓')) ? 'Installed' : 'Install finished with errors',
+                message: results.join('\n'), positive: 'Close',
+            });
+        }
+    }
+
+    /** One install per app: each XAPK on its own, APKs grouped by the package they declare. */
+    private async installJobs(files: string[]): Promise<InstallJob[]> {
+        const jobs: InstallJob[] = [];
+        const byPackage = new Map<string, string[]>();
+        for (const path of files) {
+            if (path.toLowerCase().endsWith('.xapk')) {
+                jobs.push({kind: 'xapk', paths: [path], label: fileName(path)});
+                continue;
+            }
+            const packageId = await this.adb.apkManifest(path).then(m => m.packageId, () => path);
+            byPackage.set(packageId, [...byPackage.get(packageId) ?? [], path]);
+        }
+        for (const [packageId, paths] of byPackage) {
+            jobs.push({
+                kind: 'apks', paths, packageId,
+                label: paths.length === 1 ? fileName(paths[0]) : `${packageId} (${paths.length} split APKs)`,
+            });
+        }
+        return jobs;
+    }
+
+    private async installJob(job: InstallJob): Promise<void> {
+        const install = (uninstallFirst: boolean) => job.kind === 'xapk'
+            ? this.phones.installXapk(this.serial, job.paths[0], uninstallFirst).then(() => undefined)
+            : (uninstallFirst ? this.adb.uninstall(this.serial, job.packageId!) : Promise.resolve())
+                .then(() => this.phones.installApks(this.serial, job.paths));
+        try {
+            await install(false);
         } catch (e) {
-            this.fail('Failed to install', e);
-        } finally {
-            progress.close(true);
+            const message = extractMessage(e, '');
+            if (!REPLACE_REFUSED.test(message)) throw e;
+            const confirm = MessageDialogComponent.open(this.modalService, {
+                title: 'Uninstall first?',
+                message: (message.includes('VERSION_DOWNGRADE')
+                    ? `The phone refused to downgrade to ${job.label} — Android allows that only for debug builds.`
+                    : `${job.label} is signed with a different key than the app on the phone.`)
+                    + ' It installs after an uninstall, which also clears the app\'s data and login.',
+                positive: 'Uninstall and install', positiveStyle: 'danger', negative: 'Skip', autofocus: 'negative',
+            });
+            if (!await confirm.result.catch(() => false)) throw new Error('skipped — the installed app was kept');
+            await install(true);
         }
     }
 

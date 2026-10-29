@@ -135,6 +135,114 @@ pub(crate) async fn adb_save_logcat<R: Runtime>(app: AppHandle<R>, serial: Strin
     Ok(log.lines().count())
 }
 
+/// Installs the split APKs of one app together (`adb install-multiple -r`, plus `-d` to allow a
+/// downgrade). A single path is a plain `adb install`.
+#[tauri::command]
+pub(crate) async fn adb_install_multiple<R: Runtime>(
+    app: AppHandle<R>,
+    serial: String,
+    apk_paths: Vec<String>,
+    downgrade: Option<bool>,
+) -> Result<(), Error> {
+    install_apks(&app, &serial, &apk_paths, downgrade.unwrap_or(false)).await
+}
+
+async fn install_apks<R: Runtime>(app: &AppHandle<R>, serial: &str, paths: &[String], downgrade: bool) -> Result<(), Error> {
+    if paths.is_empty() {
+        return Err(Error::new("No APK to install"));
+    }
+    let mut args = vec!["-s", serial, if paths.len() == 1 { "install" } else { "install-multiple" }, "-r"];
+    if downgrade {
+        args.push("-d");
+    }
+    args.extend(paths.iter().map(String::as_str));
+    let out = run_adb(app, &args).await?;
+    // Some adb versions report a pm failure on stdout with a zero exit code.
+    if let Some(line) = out.lines().find(|l| l.contains("Failure [")) {
+        return Err(Error::new(line.trim().to_string()));
+    }
+    Ok(())
+}
+
+/// What to do with each entry of an XAPK: the APKs (base and splits) are installed together, and
+/// `Android/obb/…` files are copied to the same path under `/sdcard`. Everything else
+/// (`manifest.json`, `icon.png`) is skipped.
+fn xapk_parts(names: &[String]) -> (Vec<String>, Vec<String>) {
+    let apks = names.iter().filter(|n| n.to_lowercase().ends_with(".apk")).cloned().collect();
+    let obbs = names
+        .iter()
+        .filter(|n| n.starts_with("Android/obb/") && !n.ends_with('/'))
+        .cloned()
+        .collect();
+    (apks, obbs)
+}
+
+/// Installs an XAPK — a zip of an app's base APK, its split APKs and sometimes OBB data, as
+/// APKPure and similar stores hand them out. Returns the package id from its `manifest.json`.
+/// `uninstall_first` removes that package before installing.
+#[tauri::command]
+pub(crate) async fn adb_install_xapk<R: Runtime>(
+    app: AppHandle<R>,
+    serial: String,
+    path: String,
+    downgrade: Option<bool>,
+    uninstall_first: Option<bool>,
+) -> Result<String, Error> {
+    let dir = std::env::temp_dir().join(format!("xapk-{}", uuid::Uuid::new_v4()));
+    let result =
+        install_xapk_from(&app, &serial, &path, &dir, downgrade.unwrap_or(false), uninstall_first.unwrap_or(false)).await;
+    let _ = std::fs::remove_dir_all(&dir);
+    result
+}
+
+async fn install_xapk_from<R: Runtime>(
+    app: &AppHandle<R>,
+    serial: &str,
+    path: &str,
+    dir: &std::path::Path,
+    downgrade: bool,
+    uninstall_first: bool,
+) -> Result<String, Error> {
+    let file = std::fs::File::open(path)?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::new(format!("{path} is not an XAPK: {e}")))?;
+    let names: Vec<String> = zip.file_names().map(str::to_string).collect();
+    let (apks, obbs) = xapk_parts(&names);
+    if apks.is_empty() {
+        return Err(Error::new(format!("{path} holds no APK")));
+    }
+    let package = zip
+        .by_name("manifest.json")
+        .ok()
+        .and_then(|entry| serde_json::from_reader::<_, serde_json::Value>(entry).ok())
+        .and_then(|m| m.get("package_name").and_then(|p| p.as_str()).map(str::to_string))
+        .unwrap_or_default();
+
+    // Extract only what is used, each under its own (zip-slip safe) name.
+    let mut extract = |name: &str| -> Result<String, Error> {
+        let mut entry = zip.by_name(name).map_err(|e| Error::new(format!("{name}: {e}")))?;
+        let rel = entry.enclosed_name().ok_or_else(|| Error::new(format!("Unsafe path in XAPK: {name}")))?;
+        let out = dir.join(rel);
+        if let Some(parent) = out.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::io::copy(&mut entry, &mut std::fs::File::create(&out)?)?;
+        Ok(out.to_string_lossy().into_owned())
+    };
+    let apk_paths = apks.iter().map(|n| extract(n)).collect::<Result<Vec<_>, _>>()?;
+    let obb_paths = obbs.iter().map(|n| extract(n).map(|p| (p, n.clone()))).collect::<Result<Vec<_>, _>>()?;
+
+    // After pm refused to replace the installed app (other signing key, release downgrade) and QA
+    // agreed to lose its data.
+    if uninstall_first && !package.is_empty() {
+        let _ = run_adb(app, &["-s", serial, "uninstall", &package]).await;
+    }
+    install_apks(app, serial, &apk_paths, downgrade).await?;
+    for (local, name) in &obb_paths {
+        run_adb(app, &["-s", serial, "push", local, &format!("/sdcard/{name}")]).await?;
+    }
+    Ok(package)
+}
+
 /// Where scrcpy is, if anywhere. A GUI app on macOS starts with a bare PATH that misses Homebrew,
 /// and WinGet's shim folder is on the user PATH only for apps started after the install, so those
 /// are searched as well.
@@ -212,6 +320,17 @@ mod tests {
         assert!(matches_pattern("tv.freetv.mobile.android", "tv.freetv.mobile.android*"));
         assert!(matches_pattern("tv.freetv.mobile.android.uat", "tv.freetv.mobile.android*"));
         assert!(!matches_pattern("tv.freetv.androidtv", "tv.freetv.mobile.android*"));
+    }
+
+    #[test]
+    fn splits_an_xapk_into_apks_and_obb_files() {
+        let names: Vec<String> = [
+            "manifest.json", "icon.png", "com.example.apk", "config.arm64_v8a.apk", "config.he.apk",
+            "Android/obb/com.example/", "Android/obb/com.example/main.12.com.example.obb",
+        ].map(String::from).to_vec();
+        let (apks, obbs) = xapk_parts(&names);
+        assert_eq!(apks, vec!["com.example.apk", "config.arm64_v8a.apk", "config.he.apk"]);
+        assert_eq!(obbs, vec!["Android/obb/com.example/main.12.com.example.obb"]);
     }
 
     #[test]

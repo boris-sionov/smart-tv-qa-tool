@@ -469,8 +469,22 @@ commands with Android TV; what differs lives in `plugins/adb_phone.rs` (on `adb-
 | `adb_list_usb_devices` | `adb devices -l`, only entries with a `usb:` field (TVs over TCP have none); `model:` with `_` → space. The page polls it every 2 s, so a phone appears when it is plugged in |
 | `adb_list_packages_matching` | installed packages matching patterns (exact id, or a prefix ending in `*`) with `versionName` from `dumpsys package` |
 | `adb_launch_launcher` | `monkey -p <id> -c android.intent.category.LAUNCHER 1`. Android TV's `am start -a MAIN -p <id>` does not resolve on a phone without the LAUNCHER category |
+| `adb_install_multiple` | one app's APKs together: `install-multiple -r -d` (one path: `install -r -d`). A `Failure [` line on stdout counts as an error even with exit code 0 |
+| `adb_install_xapk` | unzips an XAPK (APKPure-style: base + split APKs, `manifest.json`, optional `Android/obb/…`) to a temp dir, installs the APKs together, pushes OBB files to the same path under `/sdcard`; returns `package_name` |
 | `adb_save_logcat` | `logcat -d -v threadtime` written to the path the save dialog returned (Downloads by default, `<model>_logcat_<time>.txt`) |
 | `scrcpy_open` | mirrors the screen in a scrcpy window; `false` when scrcpy is not installed, and the page then shows `ScrcpyHelpComponent` with the install command for the OS |
+
+**Plugging a phone in** goes through adb states: `authorizing` / `connecting` / `offline` for a
+moment (the card shows a spinner, "Connecting"), then `unauthorized` until someone taps Allow, then
+`device`. While a phone is `unauthorized`, `PhoneApprovalComponent` pops up — the same message as
+Android TV's `AdbApprovalComponent` — and the phone list closes it once the phone lists as
+`device` (or is unplugged). Closed by hand, it does not reopen until the phone is re-plugged; the
+card's "Allow on phone" badge reopens it.
+
+**Install APK / XAPK** takes several files at once. APKs are grouped by the package their manifest
+declares (`apk_manifest`), so the split APKs of one app go in together; each XAPK is its own
+install. Apps install one after another; a refused replace (other key, release downgrade) asks to
+uninstall first, per app, and one failure does not stop the rest — a summary lists each.
 
 **The app list is a fixed filter**, `PHONE_APPS` in `phone.service.ts`: FreeTV
 (`tv.freetv.mobile.android*`, so `.uat` and any other environment suffix too) and Mizrahi Tefahot's

@@ -1,7 +1,7 @@
 import {Injectable} from '@angular/core';
 import {invoke} from '@tauri-apps/api/core';
 import {downloadDir, join} from '@tauri-apps/api/path';
-import {save as showSaveDialog} from '@tauri-apps/plugin-dialog';
+import {open as showOpenDialog, save as showSaveDialog} from '@tauri-apps/plugin-dialog';
 import {AdbPackageInfo} from '../core/services/adb.service';
 
 /** A phone plugged in over USB, as `adb devices -l` lists it. */
@@ -76,6 +76,26 @@ export class PhoneService {
         if (!path) return null;
         await invoke<number>('plugin:adb-manager|adb_save_logcat', {serial, path});
         return path;
+    }
+
+    /** Lets QA pick one or more `.apk` / `.xapk` files. */
+    async chooseInstallFiles(): Promise<string[]> {
+        const picked = await showOpenDialog({
+            title: 'Install on the phone',
+            filters: [{name: 'Android package', extensions: ['apk', 'xapk']}],
+            multiple: true,
+        });
+        return picked ?? [];
+    }
+
+    /** Installs one app's APKs together — one path is a plain install, several are its splits. */
+    installApks(serial: string, apkPaths: string[]): Promise<void> {
+        return invoke<void>('plugin:adb-manager|adb_install_multiple', {serial, apkPaths, downgrade: true});
+    }
+
+    /** Installs an XAPK (base + split APKs, OBB data); resolves with its package id. */
+    installXapk(serial: string, path: string, uninstallFirst = false): Promise<string> {
+        return invoke<string>('plugin:adb-manager|adb_install_xapk', {serial, path, downgrade: true, uninstallFirst});
     }
 
     /** Opens a scrcpy window mirroring the phone; `false` when scrcpy is not installed. */

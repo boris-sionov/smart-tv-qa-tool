@@ -17,8 +17,9 @@
               title="Save the phone's logcat to a file">
         <i class="bi bi-file-earmark-text me-2"></i>Pull logs
       </button>
-      <button class="btn btn-primary text-nowrap install-btn" type="button" (click)="installApk()">
-        <i class="bi bi-folder-fill me-2"></i>Install APK
+      <button class="btn btn-primary text-nowrap install-btn" type="button" (click)="installApk()"
+              title="Pick one or more .apk / .xapk files — split APKs of one app install together">
+        <i class="bi bi-folder-fill me-2"></i>Install APK / XAPK
       </button>
     </div>
   </div>
@@ -32,7 +33,7 @@
       <div class="android-empty-state">
         <i class="bi bi-inbox"></i>
         <h3>None of the tested apps is installed</h3>
-        <p>This list shows only {{ appNames }}. Install one with <strong>Install APK</strong>.</p>
+        <p>This list shows only {{ appNames }}. Install one with <strong>Install APK / XAPK</strong>.</p>
       </div>
     } @else {
       <section class="android-apps-shell">
