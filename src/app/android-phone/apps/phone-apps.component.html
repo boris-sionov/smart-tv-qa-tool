@@ -1,0 +1,86 @@
+<div class="w-100 h-100 d-flex flex-column overflow-visible">
+  <div class="manager-toolbar bg-panel border-bottom">
+    <div class="device-selector-container">
+      <button class="device-dropdown-btn" type="button" (click)="back()" title="Back to the phone list">
+        <i class="bi bi-chevron-left"></i>
+        <i class="bi bi-phone"></i>
+        <span class="device-name">{{ phoneName }}</span>
+      </button>
+    </div>
+
+    <div class="install-btn-container">
+      <button class="btn btn-outline-light text-nowrap install-btn" type="button" (click)="mirror()"
+              title="Show the phone's screen in a window, with scrcpy">
+        <i class="bi bi-cast me-2"></i>Mirror screen
+      </button>
+      <button class="btn btn-outline-light text-nowrap install-btn" type="button" (click)="pullLogs()"
+              title="Save the phone's logcat to a file">
+        <i class="bi bi-file-earmark-text me-2"></i>Pull logs
+      </button>
+      <button class="btn btn-primary text-nowrap install-btn" type="button" (click)="installApk()">
+        <i class="bi bi-folder-fill me-2"></i>Install APK
+      </button>
+    </div>
+  </div>
+
+  <div class="p-3 flex-fill overflow-auto">
+    @if (error) {
+      <app-error-card title="Unable to get installed apps" [error]="error" (retry)="load()"></app-error-card>
+    } @else if (packages === null) {
+      <app-loading-card></app-loading-card>
+    } @else if (packages.length === 0) {
+      <div class="android-empty-state">
+        <i class="bi bi-inbox"></i>
+        <h3>None of the tested apps is installed</h3>
+        <p>This list shows only {{ appNames }}. Install one with <strong>Install APK</strong>.</p>
+      </div>
+    } @else {
+      <section class="android-apps-shell">
+        <div class="apps-header">
+          <div class="apps-heading">
+            <div class="apps-kicker">Android Phone</div>
+            <h2>Installed Apps</h2>
+          </div>
+          <div class="apps-count">
+            <i class="bi bi-grid-3x3-gap-fill"></i>
+            <span>{{ packages.length }}</span>
+          </div>
+        </div>
+
+        <div class="android-app-list">
+          @for (pkg of packages; track pkg.id) {
+            <article class="android-app-row">
+              <div class="app-identity">
+                <div class="app-icon-frame">
+                  <div class="app-icon-placeholder phone-app-icon"><i class="bi" [ngClass]="icon(pkg.id)"></i></div>
+                </div>
+                <div class="app-copy">
+                  <div class="app-title">{{ pkg.name }}</div>
+                  <div class="app-meta">
+                    <span class="version-pill">v{{ pkg.versionName || 'unknown' }}</span>
+                    <span class="package-id">{{ pkg.id }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="app-actions">
+                <button class="app-action primary" type="button" aria-label="Launch" (click)="launch(pkg)">
+                  <i class="bi bi-play-fill"></i>
+                  <span>Launch</span>
+                </button>
+                <button class="app-action warning" type="button" aria-label="Kill" (click)="kill(pkg)">
+                  <i class="bi bi-stop-fill"></i>
+                  <span>Kill</span>
+                </button>
+                <button class="app-action danger" type="button" aria-label="Remove" (click)="remove(pkg)">
+                  <i class="bi bi-trash"></i>
+                  <span>Remove</span>
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
+  </div>
+</div>

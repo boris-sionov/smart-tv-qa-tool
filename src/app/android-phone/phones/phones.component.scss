@@ -1,0 +1,35 @@
+.phone-card.clickable {
+  cursor: pointer;
+}
+
+.allow-hint,
+.setup-steps {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #A8B8CC;
+}
+
+.setup-steps {
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+.device-btn.mirror {
+  background: rgba(91, 159, 245, 0.1);
+  color: #5B9FF5;
+  border-color: rgba(91, 159, 245, 0.3);
+
+  &:hover:not(:disabled) {
+    background: rgba(91, 159, 245, 0.2);
+    border-color: #5B9FF5;
+    transform: translateY(-2px);
+  }
+}
+
+.device-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}

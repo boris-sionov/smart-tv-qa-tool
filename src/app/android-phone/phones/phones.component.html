@@ -1,0 +1,93 @@
+<div class="devices-page">
+  <div class="devices-hero">
+    <div class="hero-content">
+      <div class="hero-avatar">
+        <i class="bi bi-phone-fill"></i>
+      </div>
+      <div class="hero-text">
+        <h1 class="hero-title">Android Phones</h1>
+        <p class="hero-subtitle">
+          @if (phones === null) {
+            Looking for phones…
+          } @else {
+            {{ phones.length }} {{ phones.length === 1 ? 'phone' : 'phones' }} connected by USB
+          }
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="devices-section">
+    <h5 class="section-title">
+      <i class="bi bi-usb-symbol"></i>
+      Connected with a cable
+    </h5>
+
+    @if (error) {
+      <div class="empty-state">
+        <div class="empty-icon"><i class="bi bi-exclamation-triangle"></i></div>
+        <h4>Cannot list phones</h4>
+        <p>{{ error }}</p>
+      </div>
+    } @else if (phones?.length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon"><i class="bi bi-usb-plug"></i></div>
+        <h4>No phone connected</h4>
+        <p class="setup-steps">
+          Connect the phone with a USB cable. On the phone, turn on Developer options
+          (Settings → About phone → tap <strong>Build number</strong> 7 times), then
+          <strong>USB debugging</strong>. It shows up here by itself.
+        </p>
+      </div>
+    } @else if (phones) {
+      <div class="devices-grid">
+        @for (phone of phones; track phone.serial) {
+          <div class="device-card phone-card" [class.clickable]="phone.state === 'device'" (click)="open(phone)">
+            <div class="device-card-header">
+              <div class="device-icon" [class.active]="phone.state === 'device'">
+                <i class="bi bi-phone"></i>
+              </div>
+              @switch (phone.state) {
+                @case ('device') {
+                  <span class="status-badge active"><i class="bi bi-check-circle-fill"></i> Connected</span>
+                }
+                @case ('unauthorized') {
+                  <span class="status-badge failed"><i class="bi bi-shield-exclamation"></i> Allow on phone</span>
+                }
+                @default {
+                  <span class="status-badge failed"><i class="bi bi-x-circle-fill"></i> {{ phone.state }}</span>
+                }
+              }
+            </div>
+            <div class="device-card-body">
+              <h4 class="device-name">{{ name(phone) }}</h4>
+              <div class="device-info">
+                <i class="bi bi-usb-symbol"></i>
+                <span>{{ phone.serial }}</span>
+              </div>
+              @if (phone.state === 'unauthorized') {
+                <p class="allow-hint">Unlock the phone and tap <strong>Allow</strong> on "Allow USB debugging?".</p>
+              }
+            </div>
+            <div class="device-card-actions">
+              <button class="device-btn primary" type="button" [disabled]="phone.state !== 'device'">
+                <i class="bi bi-grid"></i>
+                Apps
+              </button>
+              <button class="device-btn mirror" type="button" title="Mirror the screen with scrcpy"
+                      [disabled]="phone.state !== 'device'" (click)="mirror(phone, $event)">
+                <i class="bi bi-cast"></i>
+                Mirror
+              </button>
+              <button class="device-btn mirror" type="button" title="Save the phone's logcat to a file"
+                      [disabled]="phone.state !== 'device'" (click)="pullLogs(phone, $event)">
+                <i class="bi bi-file-earmark-text"></i>
+                Logs
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

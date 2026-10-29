@@ -1,4 +1,5 @@
 pub mod adb;
+pub mod adb_phone;
 pub mod apk_library;
 pub mod cmd;
 pub mod confluence;

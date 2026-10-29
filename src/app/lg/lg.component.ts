@@ -55,6 +55,10 @@ export class LgComponent implements OnInit {
         this.router.navigate(['/vidaa']);
     }
 
+    openPhone(): void {
+        this.router.navigate(['/android-phone']);
+    }
+
     markDefault(device: Device): void {
         this.deviceManager.setDefault(device.name).catch(reason => {
             console.log(reason);

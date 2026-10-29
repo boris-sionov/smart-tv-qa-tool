@@ -34,6 +34,10 @@ const routes: Routes = [
         path: 'vidaa',
         loadChildren: () => import('./vidaa/vidaa.module').then(m => m.VidaaModule),
     },
+    {
+        path: 'android-phone',
+        loadChildren: () => import('./android-phone/android-phone.module').then(m => m.AndroidPhoneModule),
+    },
 {path: '**', redirectTo: ''},
 ];
 

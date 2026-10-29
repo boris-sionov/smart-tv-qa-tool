@@ -14,7 +14,7 @@ export class VidaaComponent {
         this.router.navigate(['/']);
     }
 
-    open(platform: 'lg' | 'android-tv' | 'tizen' | 'vidaa'): void {
+    open(platform: 'lg' | 'android-tv' | 'tizen' | 'vidaa' | 'android-phone'): void {
         this.router.navigate(['/' + platform]);
     }
 }

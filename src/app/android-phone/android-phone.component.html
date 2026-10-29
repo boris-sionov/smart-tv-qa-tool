@@ -1,0 +1,49 @@
+<div class="modern-layout">
+  <nav class="modern-navbar">
+    <div class="navbar-container">
+      <div class="navbar-start">
+        <button class="nav-btn back-btn" (click)="go('/')" title="Change Platform">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <div class="platform-switcher" aria-label="Switch platform">
+          <button class="platform-chip" type="button" title="LG WebOS" (click)="go('/lg')">
+            <span class="platform-mark lg-mark">LG</span>
+            <span>LG</span>
+          </button>
+          <button class="platform-chip" type="button" title="Android TV" (click)="go('/android-tv')">
+            <i class="bi bi-android2"></i>
+            <span>ATV</span>
+          </button>
+          <button class="platform-chip" type="button" title="Samsung Tizen" (click)="go('/tizen')">
+            <span class="platform-mark samsung-mark">S</span>
+            <span>Tizen</span>
+          </button>
+          <button class="platform-chip" type="button" title="VIDAA (Hisense)" (click)="go('/vidaa')">
+            <span class="platform-mark vidaa-mark">V</span>
+            <span>VIDAA</span>
+          </button>
+          <button class="platform-chip active" type="button" title="Android Phone" (click)="go('/android-phone')">
+            <i class="bi bi-phone"></i>
+            <span>Phone</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="navbar-center">
+        <div class="nav-pills-horizontal">
+          <a class="nav-link-modern" routerLink="/android-phone" routerLinkActive="active" title="Connected phones">
+            <i class="bi bi-phone"></i>
+            <span>Phones</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="navbar-end">
+      </div>
+    </div>
+  </nav>
+
+  <main role="main" class="modern-main">
+    <router-outlet></router-outlet>
+  </main>
+</div>

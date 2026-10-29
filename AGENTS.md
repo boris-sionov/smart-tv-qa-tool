@@ -162,6 +162,8 @@ product name `Smart TV QA Tool` comes from `tauri.conf.json`.
     apps / files / terminal / debug / info / devices
 /android-tv         → AndroidTvModule  (lazy)
 /tizen              → TizenModule      (lazy)
+/vidaa              → VidaaModule      (lazy)
+/android-phone      → AndroidPhoneModule (lazy) — phone list, then /android-phone/<serial> for its apps
 ```
 
 Each platform module owns its own `devices/`, `apps/`, and `info/` sub-routes.
@@ -456,6 +458,32 @@ VIDAA is not here: its install links never change (`vidaa-presets.ts`). **There 
 build**: Samsung re-signs a published app and offers no download of it, and a retail TV refuses
 to hand an installed app back over `sdb`.
 
+### Android Phone (ADB over USB)
+
+`/android-phone` (`src/app/android-phone/`) lists the phones plugged in by cable and, for one phone,
+the few apps QA tests on phones. It shares the bundled adb and the install / uninstall / force-stop
+commands with Android TV; what differs lives in `plugins/adb_phone.rs` (on `adb-manager`):
+
+| Command | Does |
+|---|---|
+| `adb_list_usb_devices` | `adb devices -l`, only entries with a `usb:` field (TVs over TCP have none); `model:` with `_` → space. The page polls it every 2 s, so a phone appears when it is plugged in |
+| `adb_list_packages_matching` | installed packages matching patterns (exact id, or a prefix ending in `*`) with `versionName` from `dumpsys package` |
+| `adb_launch_launcher` | `monkey -p <id> -c android.intent.category.LAUNCHER 1`. Android TV's `am start -a MAIN -p <id>` does not resolve on a phone without the LAUNCHER category |
+| `adb_save_logcat` | `logcat -d -v threadtime` written to the path the save dialog returned (Downloads by default, `<model>_logcat_<time>.txt`) |
+| `scrcpy_open` | mirrors the screen in a scrcpy window; `false` when scrcpy is not installed, and the page then shows `ScrcpyHelpComponent` with the install command for the OS |
+
+**The app list is a fixed filter**, `PHONE_APPS` in `phone.service.ts`: FreeTV
+(`tv.freetv.mobile.android*`, so `.uat` and any other environment suffix too) and Mizrahi Tefahot's
+account app (`com.MizrahiTefahot.nh`). Everything else on the phone is hidden.
+
+**scrcpy is not bundled.** It is found on PATH and in the places a GUI app's PATH misses
+(`/opt/homebrew/bin`, `/usr/local/bin`, WinGet's `%LOCALAPPDATA%\Microsoft\WinGet\Links`), and
+started with `ADB=<our sidecar adb>`: Homebrew's or scrcpy's own adb is usually another version, and
+two adb versions keep killing each other's server, which drops every connected TV. A scrcpy that
+exits within 1.5 s is reported with its `ERROR` lines (its log goes to
+`$TMPDIR/scrcpy-<serial>.log`). Install: `brew install scrcpy`, `winget install --exact
+Genymobile.scrcpy`, `sudo apt install scrcpy` — <https://scrcpy.org/>.
+
 ### LG WebOS (Luna API)
 - **Connection:** SSH port 22 / 9922, Ed25519 key auth
 - **App format:** IPK
@@ -643,6 +671,7 @@ smooth transitions.
 | Android TV | ✅ Full — install, launch, kill, device info | ADB (Rust sidecar) |
 | LG WebOS | ✅ Working — install, launch, kill, inspect, stress test | SSH + Luna API |
 | VIDAA (Hisense) | ✅ Working — install, launch, close, remove (no logs / inspect yet) | VIDAA DevKit relay (WebSocket) |
+| Android Phone | ✅ USB phones: FreeTV + Mizrahi apps — install, launch, kill, remove, logcat, scrcpy mirror | ADB over USB |
 
 ---
 
