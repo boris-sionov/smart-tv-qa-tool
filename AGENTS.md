@@ -5,9 +5,9 @@ repository. This is the single agent-instructions file — there is no `CLAUDE.m
 
 ---
 
-# Smart TV QA Tool
+# QA Tool
 
-A unified **Tauri 2** (Rust backend) + **Angular 18.2** desktop application for managing apps across Samsung Tizen, Android TV, and LG WebOS Smart TVs (VIDAA in design). Requires Node 20+ and Rust 1.92+.
+A unified **Tauri 2** (Rust backend) + **Angular 18.2** desktop application for managing apps across Samsung Tizen, Android TV, LG WebOS and VIDAA smart TVs. Requires Node 20+ and Rust 1.92+.
 
 ---
 
@@ -38,7 +38,7 @@ Karma does not use Chrome — `scripts/karma-tauri-launcher.js` registers `Tauri
 
 **Build outputs** land in the *workspace* target dir at the repo root (`Cargo.toml` declares a
 workspace whose only member is `src-tauri`), **not** `src-tauri/target/`:
-- macOS: `target/release/bundle/dmg/Smart TV QA Tool_<version>_aarch64.dmg`
+- macOS: `target/release/bundle/dmg/QA Tool_<version>_aarch64.dmg`
 - Windows: `target/release/bundle/msi/*.msi`, `.../nsis/*.exe`
 - Linux: `target/release/bundle/deb/*.deb`, `.../rpm/*.rpm`, `.../appimage/*.AppImage`
 
@@ -79,7 +79,9 @@ fields `build-info.js` records). `HEAD` — a detached checkout, as CI's tag bui
 
 ## Logs
 
-`~/Library/Logs/com.smarttv.qa-tool/Smart TV QA Tool.log` (macOS), via `tauri_plugin_log`.
+`~/Library/Logs/com.smarttv.qa-tool/QA Tool.log` (macOS), via `tauri_plugin_log`. The folder is the
+Tauri `identifier`, the file name the `productName`; builds from before the rename wrote
+`Smart TV QA Tool.log` in the same folder.
 
 **`console.log` does not reach it.** A release build opens no devtools, so a frontend line logged
 that way is gone. To put one in the file, call the plugin's `info`/`warn` directly — `installLog`
@@ -152,7 +154,25 @@ releases. `acl_tests` in `samsung_tizen.rs` now parses the three lists and fails
 they disagree.
 
 Cargo package name is still `devman` and the binary `webos-dev-manager` (fork leftovers) — the
-product name `Smart TV QA Tool` comes from `tauri.conf.json`.
+product name `QA Tool` comes from `tauri.conf.json`.
+
+### Legacy Names That Hold User Data
+
+The app was called **Smart TV QA Tool** until it gained Android phones; the repo was
+`boris-sionov/smart-tv-qa-tool`. The user-visible name changed, but these identifiers did not,
+because each one is where an installed copy keeps its data. Renaming any of them without a
+migration loses that data silently on the next install:
+
+| Identifier | Where | Renaming it would lose |
+|---|---|---|
+| `com.smarttv.qa-tool` | Tauri `identifier` (`tauri.conf.json`) | the app data dir, the log folder, and the WebView's `localStorage` — every saved Tizen / Android TV device, the Tizen cert profile and Studio path, the APK library location |
+| `com.smarttv.qa-tool` | keychain service (`confluence.rs`) | the Confluence token; QA would have to paste it again |
+| `smart-tv-qa-*` | `localStorage` keys (Tizen state, LG apps scope) | the values under those keys |
+| `smartTvQaTool:ignoreVersionUntil` | `localStorage` (`update.service.ts`) | a dismissed update prompt |
+| `SmartTVQATool` | Samsung remote client name (`samsung_tizen.rs`) | the TV's pairing token; every TV would ask to allow the remote again |
+| `smart-tv-qa-tool` | Linux `provides` / `conflicts` / `replaces` / `obsoletes` (`tauri.conf.json`) | nothing — kept on purpose so the renamed `qa-tool` package replaces the old one |
+
+Keep them as they are, like `devman` / `webos-dev-manager`.
 
 ### Route Structure
 
@@ -579,12 +599,14 @@ nothing packaged. These are the pairs QA installs with:
 
 | Environment | App URL | Icon URL |
 |---|---|---|
-| PreProd | `https://uat-web.freetv.tv/apps/smarttv/preprod/hisense/index.html` | `https://raw.githubusercontent.com/boris-sionov/smart-tv-qa-tool/main/src/assets/lg-icons/freetv-lg-preprod-icon.png` |
-| UAT | `https://uat-web.freetv.tv/apps/smarttv/web/index.html` | `https://raw.githubusercontent.com/boris-sionov/smart-tv-qa-tool/main/src/assets/lg-icons/freetv-lg-uat-icon.png` |
-| Prod | `https://web.freetv.tv/apps/smarttv/web/index.html` | `https://raw.githubusercontent.com/boris-sionov/smart-tv-qa-tool/main/src/assets/lg-icons/freetv-lg-store-icon.png` |
+| PreProd | `https://uat-web.freetv.tv/apps/smarttv/preprod/hisense/index.html` | `https://raw.githubusercontent.com/boris-sionov/qa-tool/main/src/assets/lg-icons/freetv-lg-preprod-icon.png` |
+| UAT | `https://uat-web.freetv.tv/apps/smarttv/web/index.html` | `https://raw.githubusercontent.com/boris-sionov/qa-tool/main/src/assets/lg-icons/freetv-lg-uat-icon.png` |
+| Prod | `https://web.freetv.tv/apps/smarttv/web/index.html` | `https://raw.githubusercontent.com/boris-sionov/qa-tool/main/src/assets/lg-icons/freetv-lg-store-icon.png` |
 
 The icons are the webOS badged ones (see [Environment Icons](#environment-icons)), served from this
 repo's `main` — renaming or moving those files breaks every Hisense install that points at them.
+TVs installed before the repo was renamed point at `boris-sionov/smart-tv-qa-tool`, which GitHub
+redirects; a later repo called `smart-tv-qa-tool` would take those URLs over.
 
 FreeTV hosts no icon of its own for these builds. `uat-web.freetv.tv` answers **every** unknown path
 with the app's index page and a 200, `icon.png` included, so a 200 there proves nothing — check the
@@ -1134,7 +1156,7 @@ In `src/app/tizen/apps/tizen-apps.component.ts`:
 #### Other Fixes
 - LG WebOS app buttons: fixed wrapping (5 buttons: Inspect/Launch/Kill/Stress/Remove stayed on one row by switching from `grid` with hardcoded 4 columns to `flex`)
 - Dead code removed: `extract-icons.ts`, `samsung-tizen.service.ts`, `permissions/vidaa/`, `permissions/samsung-tizen/`, `icon.png` (root), `scripts/generate-lg-badge-previews.js`
-- Workspace file renamed: `FreeTV-QA-Tool.code-workspace` → `Smart-TV-QA-Tool.code-workspace`
+- Workspace file renamed: `FreeTV-QA-Tool.code-workspace` → `Smart-TV-QA-Tool.code-workspace` (now `QA-Tool.code-workspace`)
 - `.gitignore` updated: added `*.wgt`, `*.apk`, `.history/`, session notes
 
 ---

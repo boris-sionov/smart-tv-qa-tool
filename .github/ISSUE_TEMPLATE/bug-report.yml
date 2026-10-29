@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         ## Your Computer
-        Please provide information about the machine running **Smart TV QA Tool**.
+        Please provide information about the machine running **QA Tool**.
   - type: dropdown
     attributes:
       label: Operating System
@@ -18,7 +18,7 @@ body:
       required: true
   - type: input
     attributes:
-      label: Smart TV QA Tool Version
+      label: QA Tool Version
       placeholder: "Example: 1.0.0"
     validations:
       required: true

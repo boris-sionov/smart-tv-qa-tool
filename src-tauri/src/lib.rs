@@ -105,7 +105,7 @@ fn handle_error(e: &tauri::Error) {
     let msg = error_message(e);
     MessageDialog::new()
         .set_type(MessageType::Error)
-        .set_title("Smart TV QA Tool")
+        .set_title("QA Tool")
         .set_text(&msg)
         .show_alert()
         .expect("Unexpected error occurred while processing unexpected error :(");
