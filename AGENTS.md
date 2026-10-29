@@ -347,9 +347,35 @@ returns `std::env::consts::OS` / `ARCH`): what to download, numbered install ste
 open in the system browser (`appExternalLink`). The text lives in `tizen-fix-guides.ts`.
 
 Tizen Studio is deprecated; its last release, **6.1** (14 April 2025), is what the guide links to
-directly — `download.tizen.org/sdk/Installer/tizen-studio_6.1/web-{ide,cli}_Tizen_Studio_6.1_<os>`
-(`macos-64.dmg` / `.bin`, `windows-64.exe`, `ubuntu-64.bin`; IDE ≈ 650 MB recommended, CLI-only
-≈ 280 MB). Bump `STUDIO_VERSION` if a newer one ever appears. Everything else is a page:
+directly — `download.tizen.org/sdk/Installer/tizen-studio_6.1/web-{cli,ide}_Tizen_Studio_6.1_<os>`
+(`macos-64.bin` / `.dmg`, `windows-64.exe`, `ubuntu-64.bin`; CLI-only ≈ 280 MB, IDE ≈ 650 MB).
+Bump `STUDIO_VERSION` if a newer one ever appears.
+
+**The guide installs the CLI only, without a window.** Both installers take `--accept-license`:
+
+```bash
+./web-cli_Tizen_Studio_6.1_macos-64.bin --accept-license ~/tizen-studio
+~/tizen-studio/package-manager/package-manager-cli.bin install --accept-license Certificate-Manager,cert-add-on
+```
+
+The CLI install already has the tizen CLI, sdb, a JDK and Device Manager (`device-manager-product`
+is in `COMMON-MANDATORY`). Certificate Manager is not in it; `cert-add-on` is the Samsung
+Certificate Extension, from an extension repository that is active by default. The second command
+first updates every installed package, then pulls `BASELINE-COMMON` — over 10 minutes and ≈ 2 GB in
+all. Run on macOS on 2026-10-29 into an empty `HOME` (with `JAVA_TOOL_OPTIONS=-Duser.home=…`, since
+Java ignores `$HOME`); Windows and Linux use the same flags (`package-manager-cli.exe` on Windows)
+but were not run. Signing and installing a WGT from that install was not tried — the TV Extensions
+are not in it.
+
+**Creating a Samsung certificate has no CLI.** The Samsung extension is only an Eclipse plugin
+(`org.tizen.common.cert_*.jar`) that signs in through `account.samsung.com` in a browser and asks
+`svdca.samsungqbe.com` for the author and distributor certificates; `tizen certificate` makes a
+plain Tizen author certificate, which a retail Samsung TV refuses. Importing a profile the team
+already made is CLI-only: `tizen security-profiles add -A -n <profile> -a author.p12 -p … -d
+distributor.p12 -dp …`, which the certificate guide spells out. Device Manager is not needed either:
+`sdb connect` / `devices` and our own DUID read cover what QA used it for.
+
+Everything else is a page:
 
 | Link | For |
 |---|---|

@@ -19,12 +19,12 @@ describe('fixGuidesFor', () => {
         expect(guides.map(g => g.key)).toEqual(['sdk']);
     });
 
-    it('asks Apple Silicon Macs for Rosetta and links the macOS installers directly', () => {
+    it('asks Apple Silicon Macs for Rosetta and links the CLI installer first', () => {
         const [sdk] = fixGuidesFor(result([check('studio')]));
         expect(sdk.steps[0]).toContain('softwareupdate --install-rosetta');
         expect(sdk.links.map(l => l.url)).toEqual([
-            'https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-ide_Tizen_Studio_6.1_macos-64.dmg',
             'https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_macos-64.bin',
+            'https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-ide_Tizen_Studio_6.1_macos-64.dmg',
             'https://download.tizen.org/sdk/Installer/',
             'https://developer.samsung.com/smarttv/develop/getting-started/setting-up-sdk/installing-tv-sdk.html',
         ]);
@@ -32,10 +32,25 @@ describe('fixGuidesFor', () => {
 
     it('gives Windows its own installer and paths, without Rosetta', () => {
         const [sdk] = fixGuidesFor(result([check('studio')], {os: 'windows', arch: 'x86_64'}));
-        expect(sdk.links[0].url).toContain('web-ide_Tizen_Studio_6.1_windows-64.exe');
-        expect(sdk.links[1].url).toContain('web-cli_Tizen_Studio_6.1_windows-64.exe');
+        expect(sdk.links[0].url).toContain('web-cli_Tizen_Studio_6.1_windows-64.exe');
+        expect(sdk.links[1].url).toContain('web-ide_Tizen_Studio_6.1_windows-64.exe');
+        expect(sdk.steps.join(' ')).toContain('C:\\tizen-studio\\package-manager\\package-manager-cli.exe');
         expect(sdk.steps.join(' ')).toContain('C:\\tizen-studio');
         expect(sdk.steps.join(' ')).not.toContain('Rosetta');
+    });
+
+    it('installs everything from the command line, Certificate Manager included', () => {
+        const steps = fixGuidesFor(result([check('studio')], {arch: 'x86_64'}))[0].steps.join(' ');
+        expect(steps).toContain('web-cli_Tizen_Studio_6.1_macos-64.bin --accept-license ~/tizen-studio');
+        expect(steps).toContain('package-manager-cli.bin install --accept-license Certificate-Manager,cert-add-on');
+        expect(steps).not.toContain('Rosetta');
+    });
+
+    it('imports a team profile with the Tizen CLI', () => {
+        const [cert] = fixGuidesFor(result([check('cert-profile')], {studioPath: '/s'}));
+        expect(cert.steps.join(' ')).toContain(
+            '~/tizen-studio/tools/ide/bin/tizen security-profiles add -A -n <profile> ' +
+            '-a ~/SamsungCertificate/<profile>/author.p12');
     });
 
     it('does not offer an install when Studio was found but is not the saved one', () => {

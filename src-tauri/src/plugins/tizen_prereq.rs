@@ -64,8 +64,8 @@ pub struct TizenPrerequisites {
 }
 
 const INSTALL_STUDIO_HINT: &str =
-    "Install Tizen Studio (developer.samsung.com/tizenstudio) with the TV Extensions and \
-     Samsung Certificate Extension from its Package Manager.";
+    "Install the Tizen Studio CLI, then Certificate Manager and the Samsung Certificate \
+     Extension with package-manager-cli — the steps below have the commands.";
 
 /// `tizen version` starts a JVM — about 4 s on an M-series Mac — so the limit is generous.
 const RUN_TIMEOUT: Duration = Duration::from_secs(30);

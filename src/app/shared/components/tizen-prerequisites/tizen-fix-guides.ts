@@ -4,7 +4,7 @@ import {TizenPrerequisites} from '../../../core/services/sdb.service';
  * Install steps shown under the Samsung requirements list for whatever failed, written for the
  * computer the check ran on.
  *
- * The SDK guide links straight to the Tizen Studio 6.1 installers (14 April 2025, the last
+ * The SDK guide links straight to the Tizen Studio 6.1 CLI installer (14 April 2025, the last
  * release — Tizen Studio is deprecated, so the files should stay put), with the folder listing
  * beside them in case they move. Every other link is a page. All were checked on 2026-10-28.
  * tizen.org's download pages now redirect to samsungtizenos.com, and the "Installation guide"
@@ -61,8 +61,8 @@ export function osLabel(os: string, arch: string): string {
 const STUDIO_VERSION = '6.1';
 const STUDIO_BASE = `https://download.tizen.org/sdk/Installer/tizen-studio_${STUDIO_VERSION}/`;
 
-/** The Tizen Studio installers for an OS: the IDE (recommended) and the smaller CLI-only one. */
-function studioInstallers(os: HostOs): {ide: FixLink; cli: FixLink} {
+/** The Tizen Studio installers for an OS: the CLI-only one (recommended) and the full IDE. */
+function studioInstallers(os: HostOs): {cli: FixLink; ide: FixLink; cliFile: string} {
     const [suffix, ideExt, ideSize, cliExt, cliSize] = {
         macos: ['macos-64', 'dmg', '650 MB', 'bin', '280 MB'],
         windows: ['windows-64', 'exe', '660 MB', 'exe', '295 MB'],
@@ -70,46 +70,51 @@ function studioInstallers(os: HostOs): {ide: FixLink; cli: FixLink} {
     }[os];
     const file = (kind: string, ext: string) => `web-${kind}_Tizen_Studio_${STUDIO_VERSION}_${suffix}.${ext}`;
     return {
-        ide: {label: `${file('ide', ideExt)} (IDE, ${ideSize})`, url: STUDIO_BASE + file('ide', ideExt)},
         cli: {label: `${file('cli', cliExt)} (CLI only, ${cliSize})`, url: STUDIO_BASE + file('cli', cliExt)},
+        ide: {label: `${file('ide', ideExt)} (full IDE, ${ideSize})`, url: STUDIO_BASE + file('ide', ideExt)},
+        cliFile: file('cli', cliExt),
     };
 }
 
+/**
+ * The CLI-only install, start to finish, without opening a window: the installer and the package
+ * manager both take `--accept-license`. The CLI install already carries the tizen CLI, sdb, a JDK
+ * and Device Manager; Certificate Manager and the Samsung Certificate Extension (`cert-add-on`)
+ * come from `package-manager-cli`. Run on macOS on 2026-10-29 into an empty home; not run on
+ * Windows or Linux.
+ */
 function sdkGuide(os: HostOs, arch: string): FixGuide {
     const dir = studioDir(os);
-    const {ide, cli} = studioInstallers(os);
-    const run = {
-        macos: 'Open the .dmg and run the installer inside it. (The CLI-only .bin instead: in Terminal, ' +
-            'chmod +x ~/Downloads/web-cli_Tizen_Studio_*_macos-64.bin, then run that file.)',
-        windows: 'Run the downloaded .exe. If SmartScreen warns about it, choose More info → Run anyway.',
-        linux: 'In a terminal: chmod +x ~/Downloads/web-*_Tizen_Studio_*_ubuntu-64.bin, then run that file.',
+    const {cli, ide, cliFile} = studioInstallers(os);
+    const install = {
+        macos: `chmod +x ~/Downloads/${cliFile} && ~/Downloads/${cliFile} --accept-license ${dir}`,
+        windows: `%USERPROFILE%\\Downloads\\${cliFile} --accept-license ${dir}`,
+        linux: `chmod +x ~/Downloads/${cliFile} && ~/Downloads/${cliFile} --accept-license ${dir}`,
     }[os];
-    const packageManager = {
-        macos: `${dir}/package-manager/package-manager.app`,
-        windows: `${dir}\\package-manager\\package-manager.exe`,
-        linux: `${dir}/package-manager/package-manager.bin`,
-    }[os];
+    const packageManager = os === 'windows'
+        ? `${dir}\\package-manager\\package-manager-cli.exe`
+        : `${dir}/package-manager/package-manager-cli.bin`;
+    const shell = os === 'windows' ? 'Command Prompt' : 'Terminal';
 
     const steps = [
         ...(os === 'macos' && arch === 'aarch64'
             ? ['Tizen Studio is built for Intel Macs. Install Rosetta first — in Terminal: ' +
                'softwareupdate --install-rosetta --agree-to-license']
             : []),
-        `Download the Tizen Studio ${STUDIO_VERSION} installer below — the IDE one is recommended; the ` +
-        'CLI-only one is smaller and enough for the QA tool. It is the last Tizen Studio release.',
-        run,
-        `Accept the license and keep the install location ${dir} — the QA tool looks there. ` +
-        'Tizen Studio brings its own Java; nothing else to install.',
-        `When it finishes, open the Package Manager (${packageManager}).`,
-        'In its "Extension SDK" tab install "TV Extensions" and "Samsung Certificate Extension" ' +
-        '(2.0.73 or later — older versions can no longer create certificates).',
-        'This also installs the Tizen CLI and its sdb. Come back here and press "Check again".',
+        `Download the Tizen Studio ${STUDIO_VERSION} CLI installer below (${cliFile}). ` +
+        'It is the last Tizen Studio release, and the IDE is not needed.',
+        `Install it without any window — in ${shell}: ${install}. It brings the Tizen CLI, sdb, ` +
+        'its own Java and Device Manager.',
+        `Add Certificate Manager and the Samsung Certificate Extension — in ${shell}: ` +
+        `${packageManager} install --accept-license Certificate-Manager,cert-add-on. It first updates ` +
+        'what is already installed; expect over 10 minutes and about 2 GB in all.',
+        `Keep the location ${dir} — the QA tool looks there. Then press "Check again".`,
     ];
     return {
         key: 'sdk',
-        title: `Install Tizen Studio ${STUDIO_VERSION} and the TV extensions`,
-        download: ide.label,
-        links: [ide, cli, LINKS.tizenArchive, LINKS.tvSdk],
+        title: `Install Tizen Studio ${STUDIO_VERSION} (CLI) and Certificate Manager`,
+        download: cli.label,
+        links: [cli, ide, LINKS.tizenArchive, LINKS.tvSdk],
         steps,
     };
 }
@@ -139,18 +144,23 @@ function javaGuide(os: HostOs, arch: string): FixGuide {
 
 function certificateGuide(os: HostOs): FixGuide {
     const certs = os === 'windows' ? '%USERPROFILE%\\SamsungCertificate\\<profile>' : '~/SamsungCertificate/<profile>';
+    const tizen = os === 'windows' ? `${studioDir(os)}\\tools\\ide\\bin\\tizen.bat` : `${studioDir(os)}/tools/ide/bin/tizen`;
+    const p12 = (name: string) => `${certs}${os === 'windows' ? '\\' : '/'}${name}.p12`;
     return {
         key: 'certificate',
         title: 'Create or select a Samsung certificate profile',
         links: [LINKS.certificates],
         steps: [
-            'Open Certificate Manager (button below, or Tizen Studio → Tools → Certificate Manager).',
+            'A new Samsung certificate needs Certificate Manager: it signs in to the Samsung account in a ' +
+            'browser, and the Tizen CLI has no command for it. Open it with the button below.',
             'Click "+", choose Samsung → TV, and name the profile. Sign in with the Samsung account when ' +
             'asked.',
             'Create the author certificate, then the distributor certificate. On the distributor step add ' +
             'the DUID of every TV you install on.',
-            `If the team gave you a profile instead, keep its folder as ${certs} with author.p12, ` +
-            'distributor.p12 and device-profile.xml inside.',
+            `If the team gave you a profile instead, no window is needed: keep its folder as ${certs} ` +
+            'with author.p12, distributor.p12 and device-profile.xml inside, and add it with ' +
+            `${tizen} security-profiles add -A -n <profile> -a ${p12('author')} -p <password> ` +
+            `-d ${p12('distributor')} -dp <password>.`,
             'In the QA tool: Samsung → Apps → Configure, and pick the distributor.p12 inside the folder ' +
             'named after the profile — the tool takes the profile name from that folder.',
             'Press "Check again".',
