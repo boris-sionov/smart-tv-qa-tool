@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=webOS Dev Manager
+Name=QA Tool
 {{#if comment}}
 Comment={{comment}}
 {{/if}}

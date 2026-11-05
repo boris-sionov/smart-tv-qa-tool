@@ -46,13 +46,16 @@
           "zlib1g (>=1.2.11)"
         ],
         "provides": [
-          "smart-tv-qa-tool"
+          "smart-tv-qa-tool",
+          "webos-dev-manager"
         ],
         "conflicts": [
-          "smart-tv-qa-tool"
+          "smart-tv-qa-tool",
+          "webos-dev-manager"
         ],
         "replaces": [
-          "smart-tv-qa-tool"
+          "smart-tv-qa-tool",
+          "webos-dev-manager"
         ]
       },
       "rpm": {
@@ -61,13 +64,16 @@
           "zlib (>=1.2.11)"
         ],
         "provides": [
-          "smart-tv-qa-tool"
+          "smart-tv-qa-tool",
+          "webos-dev-manager"
         ],
         "conflicts": [
-          "smart-tv-qa-tool"
+          "smart-tv-qa-tool",
+          "webos-dev-manager"
         ],
         "obsoletes": [
-          "smart-tv-qa-tool"
+          "smart-tv-qa-tool",
+          "webos-dev-manager"
         ]
       }
     },

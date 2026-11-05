@@ -148,26 +148,38 @@ jobs:
         env:
           CI: true
 
-      - name: Collect Artifacts
-        uses: tj-actions/glob@v22
-        id: glob
-        with:
-          separator: "\n"
-          read-gitignore: false
-          files: |
-            target/**/bundle/deb/*.deb
-            target/**/bundle/rpm/*.rpm
-            target/**/bundle/appimage/*.AppImage
-            target/**/bundle/msi/*.msi
-            target/**/bundle/nsis/*.exe
-            target/**/bundle/dmg/*.dmg
+      # Tauri names bundles by arch alone (x64, amd64, universal), so say the OS too.
+      - name: Name Installers By Platform
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          version=$(node -p "require('./package.json').version")
+          mkdir -p release-files
+          for f in target/**/bundle/{deb,rpm,appimage,msi,nsis,dmg}/*.{deb,rpm,AppImage,msi,exe,dmg}; do
+            name=$(basename "$f")
+            case "$name" in
+              *universal*)                  platform=macos-intel-and-apple-silicon ;;
+              *_x64_*|*_x64-setup*)         platform=windows-x64 ;;
+              *_x86_*|*_x86-setup*)         platform=windows-32bit ;;
+              *_arm64_*.msi|*_arm64-setup*) platform=windows-arm64 ;;
+              *amd64*|*x86_64*)             platform=linux-x86_64 ;;
+              *arm64*|*aarch64*)            platform=linux-arm64 ;;
+              *) echo "No platform for $name" >&2; exit 1 ;;
+            esac
+            case "$name" in
+              *.exe) suffix=-setup.exe ;;
+              *)     suffix=.${name##*.} ;;
+            esac
+            cp "$f" "release-files/QA-Tool_${version}_${platform}${suffix}"
+          done
+          ls -l release-files
 
       - name: Upload Artifact (snapshot)
         uses: actions/upload-artifact@v4
         if: github.event_name != 'release'
         with:
           name: ${{ matrix.target }}-package
-          path: ${{ steps.glob.outputs.paths }}
+          path: release-files/*
 
       - name: Attach to Release
         uses: ncipollo/release-action@v1
@@ -178,4 +190,4 @@ jobs:
           omitNameDuringUpdate: true
           omitBodyDuringUpdate: true
           omitPrereleaseDuringUpdate: true
-          artifacts: ${{ steps.glob.outputs.paths }}
+          artifacts: "release-files/*"

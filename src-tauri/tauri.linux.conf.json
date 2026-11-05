@@ -1,3 +1,4 @@
 {
-  "productName": "webos-dev-manager"
+  "productName": "qa-tool",
+  "mainBinaryName": "qa-tool"
 }

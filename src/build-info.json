@@ -1,8 +1,8 @@
 {
   "version": "1.0.0",
   "build": 28,
-  "commit": "a366878",
-  "branch": "main",
-  "dirty": false,
-  "builtAt": "2026-11-05T13:53:27Z"
+  "commit": "36e4d42",
+  "branch": "fix/linux-package-name",
+  "dirty": true,
+  "builtAt": "2026-11-05T14:12:16Z"
 }

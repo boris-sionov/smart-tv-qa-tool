@@ -156,7 +156,8 @@ releases. `acl_tests` in `samsung_tizen.rs` now parses the three lists and fails
 they disagree.
 
 Cargo package name is still `devman` and the binary `webos-dev-manager` (fork leftovers) — the
-product name `QA Tool` comes from `tauri.conf.json`.
+product name `QA Tool` comes from `tauri.conf.json`. On Linux `tauri.linux.conf.json` overrides it to
+`qa-tool`, which names the package, the bundle files and the installed binary (`/usr/bin/qa-tool`).
 
 ### Legacy Names That Hold User Data
 
@@ -172,7 +173,7 @@ migration loses that data silently on the next install:
 | `smart-tv-qa-*` | `localStorage` keys (Tizen state, LG apps scope) | the values under those keys |
 | `smartTvQaTool:ignoreVersionUntil` | `localStorage` (`update.service.ts`) | a dismissed update prompt |
 | `SmartTVQATool` | Samsung remote client name (`samsung_tizen.rs`) | the TV's pairing token; every TV would ask to allow the remote again |
-| `smart-tv-qa-tool` | Linux `provides` / `conflicts` / `replaces` / `obsoletes` (`tauri.conf.json`) | nothing — kept on purpose so the renamed `qa-tool` package replaces the old one |
+| `smart-tv-qa-tool`, `webos-dev-manager` | Linux `provides` / `conflicts` / `replaces` / `obsoletes` (`tauri.conf.json`) | nothing — kept on purpose so the `qa-tool` package replaces the older ones |
 
 Keep them as they are, like `devman` / `webos-dev-manager`.
 
@@ -811,7 +812,7 @@ sudo apt-get install -y build-essential pkg-config cmake perl file libssl-dev li
 - **Install:** the `.deb` puts the sidecar at `/usr/bin/adb`, which Ubuntu's `adb` package owns, so
   `apt install` refuses. The files are identical, so `sudo dpkg -i --force-overwrite <deb>`. Removing
   the app later deletes `/usr/bin/adb`; `sudo apt install --reinstall adb` puts it back.
-- Logs: `~/.local/share/com.smarttv.qa-tool/logs/webos-dev-manager.log`.
+- Logs: `~/.local/share/com.smarttv.qa-tool/logs/qa-tool.log`.
 
 ---
 
@@ -822,6 +823,9 @@ sudo apt-get install -y build-essential pkg-config cmake perl file libssl-dev li
 - `.github/workflows/release.yml` — on published release (or manual dispatch), builds all targets
   (Windows x64 + i686 + ARM64, Linux x86_64 + ARM64, macOS universal) with
   `--features=vendored-openssl` and attaches bundles to the release.
+  Each installer is renamed `QA-Tool_<version>_<platform>` first (`windows-x64`, `windows-32bit`,
+  `windows-arm64`, `macos-intel-and-apple-silicon`, `linux-x86_64`, `linux-arm64`), since Tauri
+  names bundles by architecture alone.
 
 ---
 
